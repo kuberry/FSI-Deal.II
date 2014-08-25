@@ -2348,7 +2348,7 @@ namespace FSI_Project
 			velocity_jump=interface_error();
 
 			if (count%50==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-			if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,2.5)) break;
+			if (count >= fem_properties.max_optimization_iterations || velocity_jump < 1e-5) break;//pow(time_step,2.5)) break;
 
 
 			assemble_structure(adjoint);
