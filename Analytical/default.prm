@@ -34,7 +34,7 @@ set lambda                = 0.0
 set make plots            = false
 
 # maximum number of optimization iterations per time step.
-set max optimization iterations = 1000
+set max optimization iterations = 2000
 
 # mu of the structure.
 set mu                    = 3.0
@@ -61,10 +61,10 @@ set ny structure          = 4
 set output error          = true
 
 # second tuning parameter for the steepest descent algorithm.
-set penalty epsilon             = 1e-7
+set penalty epsilon             = 1e-16
 
 # tuning parameter for the steepest descent algorithm.
-set steepest descent alpha      = 1e-8
+set steepest descent alpha      = 5e-17
 
 # order of the finite element to use for the structure displacement and
 # velocity.
@@ -80,7 +80,7 @@ set structure rho         = 1.9
 set structure width       = 1.0
 
 # theta value for the fluid, 0.5 is Crank-Nicolson and 1.0 is Implicit Euler.
-set theta                 = 0.5
+set theta                 = 1.0
 
 # viscosity of the fluid.
 set viscosity             = 0.013

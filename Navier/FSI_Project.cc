@@ -98,6 +98,8 @@ namespace FSI_Project
 	  double		nu;
 	  double		rho_f;
 	  double 		rho_s;
+	  bool			moving_domain;
+	  int			n_fourier_coeffs;
   };
 
 
@@ -139,7 +141,8 @@ namespace FSI_Project
     double interface_error();
     void dirichlet_boundaries(System system, Mode enum_);
     void build_dof_mapping();
-    void transfer_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
+    void transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
+    void transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
     void setup_system ();
     void solve (const int block_num, Mode enum_);
     void output_results () const;
@@ -152,16 +155,20 @@ namespace FSI_Project
     ConstraintMatrix fluid_constraints, structure_constraints, ale_constraints;
 
     BlockSparsityPattern       sparsity_pattern;
-    BlockSparseMatrix<double> system_matrix;
+    BlockSparseMatrix<double>  system_matrix;
 
     BlockVector<double>       	solution;
-    BlockVector<double>			state_solution_for_rhs;
-    BlockVector<double>			adjoint_solution;
-    BlockVector<double>			tmp;
+    BlockVector<double>       	solution_star;
+    BlockVector<double>		state_solution_for_rhs;
+    BlockVector<double>		adjoint_solution;
+    BlockVector<double>		tmp;
     BlockVector<double>       	old_solution;
     BlockVector<double>       	system_rhs;
-    BlockVector<double>			stress;
-    BlockVector<double>			old_stress;
+    BlockVector<double>		stress;
+    BlockVector<double>		old_stress;
+    BlockVector<double>			mesh_displacement;
+    BlockVector<double>			old_mesh_displacement;
+    BlockVector<double>			mesh_velocity;
 
     double time, time_step;
     unsigned int timestep_number;
@@ -175,7 +182,7 @@ namespace FSI_Project
     PhysicalProperties physical_properties;
 	std::vector<unsigned int> fluid_interface_cells, fluid_interface_faces;
 	std::vector<unsigned int> structure_interface_cells, structure_interface_faces;
-	std::map<unsigned int, unsigned int> f2s, s2f, s2a, a2s;
+	std::map<unsigned int, unsigned int> f2s, s2f, s2a, a2s, a2f, f2a, a2f_all, f2a_all;
 	std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
   };
 
@@ -232,6 +239,8 @@ namespace FSI_Project
 	  			  "density of the fluid.");
 	  prm.declare_entry("structure rho", "1.0", Patterns::Double(0),
 	  			  "density of the structure.");
+	  prm.declare_entry("number fourier coefficients", "20", Patterns::Integer(1),
+			  	  "# of fourier coefficients to use.");
 
 	  // Output Parameters
 	  prm.declare_entry("make plots", "true", Patterns::Bool(),
@@ -251,6 +260,10 @@ namespace FSI_Project
     		  	  "second tuning parameter for the steepest descent algorithm.");
       prm.declare_entry("max optimization iterations","100", Patterns::Integer(1),
     		  	  "maximum number of optimization iterations per time step.");
+
+	  // Operations Parameters
+	  prm.declare_entry("moving domain", "true", Patterns::Bool(),
+	  			  "should the ALE be used.");
   }
 
   template <int dim>
@@ -296,6 +309,8 @@ namespace FSI_Project
 	  fem_properties.steepest_descent_alpha = prm_.get_double("steepest descent alpha");
 	  fem_properties.penalty_epsilon	= prm_.get_double("penalty epsilon");
 	  fem_properties.max_optimization_iterations = prm_.get_integer("max optimization iterations");
+	  physical_properties.moving_domain		= prm_.get_bool("moving domain");
+
 	  // Problem Parameters
 	  physical_properties.viscosity		= prm_.get_double("viscosity");
 	  physical_properties.lambda		= prm_.get_double("lambda");
@@ -312,6 +327,7 @@ namespace FSI_Project
 	  //else  We don't need to compute anything
 	  physical_properties.rho_f				= prm_.get_double("fluid rho");
 	  physical_properties.rho_s				= prm_.get_double("structure rho");
+	  physical_properties.n_fourier_coeffs	= prm_.get_integer("number fourier coefficients");
   }
 
   template <int dim>
@@ -764,35 +780,40 @@ namespace FSI_Project
 	// [u^n - (n^n-n^{n-1})]/delta t
 	tmp=0;
 	state_solution_for_rhs=0;
-	transfer_dofs(solution,state_solution_for_rhs,1,0);
+	transfer_interface_dofs(solution,state_solution_for_rhs,1,0);
 	state_solution_for_rhs.block(0)*=-1./time_step;
-	transfer_dofs(old_solution,tmp,1,0);
+	transfer_interface_dofs(old_solution,tmp,1,0);
 	state_solution_for_rhs.block(0).add(1./time_step,tmp.block(0));
 	state_solution_for_rhs.block(0)+=solution.block(0);
 	// build rhs of structure adjoint problem
 
 
-	transfer_dofs(state_solution_for_rhs,state_solution_for_rhs,0,1);
+	transfer_interface_dofs(state_solution_for_rhs,state_solution_for_rhs,0,1);
 	state_solution_for_rhs.block(1)*=-1./time_step;
 
-	transfer_dofs(state_solution_for_rhs,tmp,0,0);
-	transfer_dofs(state_solution_for_rhs,tmp,1,1);
+	transfer_interface_dofs(state_solution_for_rhs,tmp,0,0);
+	transfer_interface_dofs(state_solution_for_rhs,tmp,1,1);
 	state_solution_for_rhs=0;
-	transfer_dofs(tmp,state_solution_for_rhs,0,0);
-	transfer_dofs(tmp,state_solution_for_rhs,1,1);
+	transfer_interface_dofs(tmp,state_solution_for_rhs,0,0);
+	transfer_interface_dofs(tmp,state_solution_for_rhs,1,1);
   }
 
   template <int dim>
   double FSIProblem<dim>::interface_error()
   {
 	BlockVector<double> temp_vector;
+	BlockVector<double> temp2_vector;
 	temp_vector.reinit (n_big_blocks);
+	temp2_vector.reinit (n_big_blocks);
 	for (unsigned int i=0; i<n_big_blocks; ++i)
 	{
 		temp_vector.block(i).reinit(dofs_per_big_block[i]);
+		temp2_vector.block(i).reinit(dofs_per_big_block[i]);
 	}
 	temp_vector.collect_sizes ();
+	temp2_vector.collect_sizes ();
 	temp_vector=0;
+	temp2_vector=0;
 
 	const FEValuesExtractors::Vector velocities (0);
 	QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
@@ -803,6 +824,7 @@ namespace FSI_Project
 	const unsigned int   n_face_q_points = face_quadrature_formula.size();
 	FullMatrix<double>   local_matrix (dofs_per_cell, dofs_per_cell);
 	Vector<double>       local_rhs (dofs_per_cell);
+	Vector<double>       stress_rhs (dofs_per_cell);
 
 	std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 	std::vector<Vector<double> > error_values(n_face_q_points, Vector<double>(dim+1));
@@ -831,14 +853,13 @@ namespace FSI_Project
 				  Tensor<1,dim> g_stress;
 				  for (unsigned int d=0; d<dim; ++d)
 				  {
-						error[d] = error_values[q](d);
-				  	  	g_stress[d] = stress_values[q](d);
+				    error[d] = pow(error_values[q](d),2);
+				    g_stress[d] = pow(stress_values[q](d),2);
 				  }
 				  for (unsigned int i=0; i<dofs_per_cell; ++i)
 				  {
-					  local_rhs(i) += (pow(fe_face_values[velocities].value (i, q)*
-								     error,2))
-                                 * fe_face_values.JxW(q);
+					  local_rhs(i) += 0.5*fe_face_values[velocities].value (i, q) * error * fe_face_values.JxW(q);
+					  stress_rhs(i) += fem_properties.penalty_epsilon*0.5 *fe_face_values[velocities].value (i, q) * g_stress * fe_face_values.JxW(q);
 				  }
 				}
 			}
@@ -846,8 +867,9 @@ namespace FSI_Project
 		}
 	  cell->get_dof_indices (local_dof_indices);
 	  fluid_constraints.distribute_local_to_global (local_rhs, local_dof_indices, temp_vector);
+	  fluid_constraints.distribute_local_to_global (stress_rhs, local_dof_indices, temp2_vector);
 	}
-	return sqrt(temp_vector.l2_norm());
+	return (temp_vector.l1_norm()+temp2_vector.l1_norm());
   }
 
   template<int dim>
@@ -900,18 +922,38 @@ namespace FSI_Project
 	}
   };
 
+
   template <int dim>
   void FSIProblem<dim>::build_dof_mapping()
   {
 	std::vector<Info<dim> > f_a;
 	std::vector<Info<dim> > s_a;
 	std::vector<Info<dim> > a_a;
+	std::vector<Info<dim> > f_all;
+	std::vector<Info<dim> > a_all;
 	{
 	typename DoFHandler<dim>::active_cell_iterator
 	cell = fluid_dof_handler.begin_active(),
 	endc = fluid_dof_handler.end();
 	for (; cell!=endc; ++cell)
 	{
+		{
+			std::vector<unsigned int> temp(fluid_fe.dofs_per_cell);
+			cell->get_dof_indices(temp);
+			Quadrature<dim> q(fluid_fe.get_unit_support_points());
+			FEValues<dim> fe_values (fluid_fe, q,
+									 update_quadrature_points);
+			fe_values.reinit (cell);
+			std::vector<Point<dim> > temp2(q.size());
+			temp2=fe_values.get_quadrature_points();
+			 for (unsigned int i=0;i<temp2.size();++i)
+			 {
+				 if (fluid_fe.system_to_component_index(i).first<dim)
+				 {
+					 f_all.push_back(Info<dim>(temp[i],temp2[i],fluid_fe.system_to_component_index(i).first));
+				 }
+			 }
+		}
 		for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
 		  if (cell->face(f)->boundary_indicator()==2)
 		  {
@@ -935,7 +977,10 @@ namespace FSI_Project
 	 std::sort(f_a.begin(),f_a.end(),Info<dim>::by_dof);
 	 f_a.erase( unique( f_a.begin(), f_a.end() ), f_a.end() );
 	 std::sort(f_a.begin(),f_a.end(),Info<dim>::by_point);
-	 
+
+	 std::sort(f_all.begin(),f_all.end(),Info<dim>::by_dof);
+	 f_all.erase( unique( f_all.begin(), f_all.end() ), f_all.end() );
+	 std::sort(f_all.begin(),f_all.end(),Info<dim>::by_point);
 	}
 	{
 	typename DoFHandler<dim>::active_cell_iterator
@@ -966,7 +1011,6 @@ namespace FSI_Project
 	 std::sort(s_a.begin(),s_a.end(),Info<dim>::by_dof);
 	 s_a.erase( unique( s_a.begin(), s_a.end() ), s_a.end() );
 	 std::sort(s_a.begin(),s_a.end(),Info<dim>::by_point);
-	 
 	}
 	{
 	typename DoFHandler<dim>::active_cell_iterator
@@ -974,6 +1018,23 @@ namespace FSI_Project
 	endc = ale_dof_handler.end();
 	for (; cell!=endc; ++cell)
 	{
+		{
+			std::vector<unsigned int> temp(ale_fe.dofs_per_cell);
+			cell->get_dof_indices(temp);
+			Quadrature<dim> q(ale_fe.get_unit_support_points());
+			FEValues<dim> fe_values (ale_fe, q,
+									 update_quadrature_points);
+			fe_values.reinit (cell);
+			std::vector<Point<dim> > temp2(q.size());
+			temp2=fe_values.get_quadrature_points();
+			 for (unsigned int i=0;i<temp2.size();++i)
+			 {
+				 if (ale_fe.system_to_component_index(i).first<dim)
+				 {
+					 a_all.push_back(Info<dim>(temp[i],temp2[i],ale_fe.system_to_component_index(i).first));
+				 }
+			 }
+		}
 		for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
 		  if (cell->face(f)->boundary_indicator()==2)
 		  {
@@ -997,7 +1058,10 @@ namespace FSI_Project
 	 std::sort(a_a.begin(),a_a.end(),Info<dim>::by_dof);
 	 a_a.erase( unique( a_a.begin(), a_a.end() ), a_a.end() );
 	 std::sort(a_a.begin(),a_a.end(),Info<dim>::by_point);
-	 
+
+	 std::sort(a_all.begin(),a_all.end(),Info<dim>::by_dof);
+	 a_all.erase( unique( a_all.begin(), a_all.end() ), a_all.end() );
+	 std::sort(a_all.begin(),a_all.end(),Info<dim>::by_point);
 	}
 	for (unsigned int i=0; i<f_a.size(); ++i)
 	{
@@ -1005,12 +1069,42 @@ namespace FSI_Project
 		s2f.insert(std::pair<unsigned int,unsigned int>(s_a[i].dof,f_a[i].dof));
 		s2a.insert(std::pair<unsigned int,unsigned int>(s_a[i].dof,a_a[i].dof));
 		a2s.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,s_a[i].dof));
+		a2f.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,f_a[i].dof));
+		f2a.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,a_a[i].dof));
 	}
-	
+	for (unsigned int i=0; i<f_all.size(); ++i)
+	{
+		a2f_all.insert(std::pair<unsigned int,unsigned int>(a_all[i].dof,f_all[i].dof));
+		f2a_all.insert(std::pair<unsigned int,unsigned int>(f_all[i].dof,a_all[i].dof));
+	}
+	//std::cout << f2s[2] << std::endl;
   }
 
+
   template <int dim>
-  void FSIProblem<dim>::transfer_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to)
+   void FSIProblem<dim>::transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to)
+   {
+	  std::map<unsigned int, unsigned int> mapping;
+	  if (from==2 && to==0)
+	  {
+		  mapping = a2f_all;
+	  }
+	  else if (from==0 && to==2)
+	  {
+		  mapping = f2a_all;
+	  }
+	  else
+	  {
+		  AssertThrow(false,ExcNotImplemented());
+	  }
+	  for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	  {
+		  solution_2.block(to)[it->second]=solution_1.block(from)[it->first];
+	  }
+   }
+
+  template <int dim>
+  void FSIProblem<dim>::transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to)
   {
 	  std::map<unsigned int, unsigned int> mapping;
 	  if (from==1) // structure origin
@@ -1026,17 +1120,24 @@ namespace FSI_Project
 	  }
 	  else if (from==2)
 	  {
-		  if (to==1)
+		  if (to>=1)
 		  {
 			  mapping = a2s;
 		  }
 		  else
 		  {
-			  AssertThrow(false,ExcNotImplemented());
+			  mapping = a2f;
 		  }
 	  }
 	  else // fluid or ALE origin
-		  mapping = f2s;
+		  if (to<=1)
+		  {
+			  mapping = f2s;
+		  }
+		  else
+		  {
+			  mapping = f2a;
+		  }
 
 	  if (from!=to)
 	  {
@@ -2294,7 +2395,7 @@ namespace FSI_Project
                           fluid_boundary_stress,
                           old_stress.block(0));
 
-    transfer_dofs(old_stress,old_stress,0,1);
+    transfer_interface_dofs(old_stress,old_stress,0,1);
     stress=old_stress;
 
     for (timestep_number=1, time=time_step;
@@ -2325,10 +2426,10 @@ namespace FSI_Project
         	++count;
             // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
 			fluid_boundary_stress.set_time(time);
-			// VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-			// 					  fluid_boundary_stress,
-			// 					  stress.block(0));
-			// transfer_dofs(stress,stress,0,1);
+			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			 					  fluid_boundary_stress,
+			 					  stress.block(0));
+			transfer_interface_dofs(stress,stress,0,1);
             // End of section to uncomment
 
 			// RHS and Neumann conditions are inside these functions
@@ -2348,7 +2449,7 @@ namespace FSI_Project
 			velocity_jump=interface_error();
 
 			if (count%50==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-			if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,2.5)) break;
+			if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,1.5)) break;
 
 
 			assemble_structure(adjoint);
@@ -2372,8 +2473,8 @@ namespace FSI_Project
 	      {
 		++relrecord;
 		++consecutiverelrecord;
-		//std::cout << "Rel. Bad Move." << std::endl;
-		//std::cout << consecutiverelrecord << std::endl;
+		std::cout << "Rel. Bad Move." << std::endl;
+		std::cout << consecutiverelrecord << std::endl;
 	      }
 	    else
 	      {
@@ -2406,7 +2507,7 @@ namespace FSI_Project
             stress.block(0)*=(1-alpha);
             tmp=0;
             
-	    transfer_dofs(adjoint_solution,tmp,1,0);
+	    transfer_interface_dofs(adjoint_solution,tmp,1,0);
 	    tmp.block(0).add(-1,adjoint_solution.block(0));
 
 	    // not negated since tmp has reverse of proper negation
@@ -2416,7 +2517,7 @@ namespace FSI_Project
 
             //stress.block(0).add(multiplier*(-.5),tmp.block(0));
             stress.block(1)=0;
-            transfer_dofs(stress,stress,0,1);
+            transfer_interface_dofs(stress,stress,0,1);
             if (count%50==0) std::cout << "alpha: " << alpha << std::endl;
 	    //old_velocity_jump=velocity_jump;
         }
