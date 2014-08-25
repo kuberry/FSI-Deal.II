@@ -1152,11 +1152,11 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
   template <int dim>
   void FSIProblem<dim>::build_dof_mapping()
   {
-	std::vector<Info<dim>> f_a;
-	std::vector<Info<dim>> s_a;
-	std::vector<Info<dim>> a_a;
-	std::vector<Info<dim>> f_all;
-	std::vector<Info<dim>> a_all;
+	std::vector<Info<dim> > f_a;
+	std::vector<Info<dim> > s_a;
+	std::vector<Info<dim> > a_a;
+	std::vector<Info<dim> > f_all;
+	std::vector<Info<dim> > a_all;
 	{
 	typename DoFHandler<dim>::active_cell_iterator
 	cell = fluid_dof_handler.begin_active(),
@@ -1170,7 +1170,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 			FEValues<dim> fe_values (fluid_fe, q,
 									 update_quadrature_points);
 			fe_values.reinit (cell);
-			std::vector<Point<dim>> temp2(q.size());
+			std::vector<Point<dim> > temp2(q.size());
 			temp2=fe_values.get_quadrature_points();
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
@@ -1189,7 +1189,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 			 FEFaceValues<dim> fe_face_values (fluid_fe, q,
 			                                      update_quadrature_points);
 			 fe_face_values.reinit (cell, f);
-			 std::vector<Point<dim>> temp2(q.size());
+			 std::vector<Point<dim> > temp2(q.size());
 			 temp2=fe_face_values.get_quadrature_points();
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
@@ -1223,7 +1223,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 			 FEFaceValues<dim> fe_face_values (structure_fe, q,
 			                                      update_quadrature_points);
 			 fe_face_values.reinit (cell, f);
-			 std::vector<Point<dim>> temp2(q.size());
+			 std::vector<Point<dim> > temp2(q.size());
 			 temp2=fe_face_values.get_quadrature_points();
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
@@ -1251,7 +1251,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 			FEValues<dim> fe_values (ale_fe, q,
 									 update_quadrature_points);
 			fe_values.reinit (cell);
-			std::vector<Point<dim>> temp2(q.size());
+			std::vector<Point<dim> > temp2(q.size());
 			temp2=fe_values.get_quadrature_points();
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
@@ -1270,7 +1270,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 			 FEFaceValues<dim> fe_face_values (ale_fe, q,
 			                                      update_quadrature_points);
 			 fe_face_values.reinit (cell, f);
-			 std::vector<Point<dim>> temp2(q.size());
+			 std::vector<Point<dim> > temp2(q.size());
 			 temp2=fe_face_values.get_quadrature_points();
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
@@ -1421,25 +1421,25 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 	std::vector<Vector<double> > adjoint_rhs_values(n_q_points, Vector<double>(dim+1));
 	std::vector<Vector<double> > u_star_values(n_q_points, Vector<double>(dim+1));
 
-	std::vector<Tensor<2,dim>> grad_u (n_q_points);
-	std::vector<Tensor<2,dim>> grad_u_star (n_q_points);
-	std::vector<Tensor<2,dim>> F (n_q_points);
-	std::vector<Tensor<2,dim>> F_face (n_face_q_points);
-	std::vector<Tensor<2,dim>> grad_z (n_q_points);
-	std::vector<Vector<double>> z(n_q_points, Vector<double>(dim+1));
+	std::vector<Tensor<2,dim> > grad_u (n_q_points);
+	std::vector<Tensor<2,dim> > grad_u_star (n_q_points);
+	std::vector<Tensor<2,dim> > F (n_q_points);
+	std::vector<Tensor<2,dim> > F_face (n_face_q_points);
+	std::vector<Tensor<2,dim> > grad_z (n_q_points);
+	std::vector<Vector<double> > z(n_q_points, Vector<double>(dim+1));
 
 	std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
 	FluidRightHandSide<dim> rhs_function(physical_properties);
-	std::vector<Vector<double>>  rhs_values (n_q_points, Vector<double>(dim+1));
-	std::vector<Vector<double>>  old_rhs_values (n_q_points, Vector<double>(dim+1));
+	std::vector<Vector<double> >  rhs_values (n_q_points, Vector<double>(dim+1));
+	std::vector<Vector<double> >  old_rhs_values (n_q_points, Vector<double>(dim+1));
 
 	FluidStressValues<dim> fluid_stress_values(physical_properties);
-	std::vector<Tensor<1,dim>> stress_values (dim+1);
+	std::vector<Tensor<1,dim> > stress_values (dim+1);
 	std::vector<Vector<double> > g_stress_values(n_face_q_points, Vector<double>(dim+1));
 
-	std::vector<Tensor<1,dim>> 		phi_u (dofs_per_cell);
-	std::vector<Tensor<2,dim>> 		grad_phi_u (dofs_per_cell);
+	std::vector<Tensor<1,dim> > 		phi_u (dofs_per_cell);
+	std::vector<Tensor<2,dim> > 		grad_phi_u (dofs_per_cell);
 	std::vector<double>                  div_phi_u   (dofs_per_cell);
 	std::vector<double>                  phi_p       (dofs_per_cell);
 
@@ -1798,7 +1798,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 	//}
 
 	StructureStressValues<dim> structure_stress_values(physical_properties);
-	std::vector<Tensor<1,dim>> stress_values (2*dim);
+	std::vector<Tensor<1,dim> > stress_values (2*dim);
 	std::vector<Vector<double> > g_stress_values(n_face_q_points, Vector<double>(2*dim));
 
 	std::vector<Tensor<1,dim> > 		  	phi_n (dofs_per_cell);
@@ -2063,7 +2063,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 	FullMatrix<double>   local_matrix (dofs_per_cell, dofs_per_cell);
 	Vector<double>       local_rhs (dofs_per_cell);
 	std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
-	std::vector<Tensor<2,dim>> 	grad_phi_n (dofs_per_cell);
+	std::vector<Tensor<2,dim> > 	grad_phi_n (dofs_per_cell);
 
 	const FEValuesExtractors::Vector displacements (0);
 	typename DoFHandler<dim>::active_cell_iterator cell = ale_dof_handler.begin_active(),
@@ -2238,7 +2238,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 	std::vector<double> f_y_scales(fem_properties.ny_f,fem_properties.fluid_height/((double)fem_properties.ny_f));
 	std::vector<double> s_y_scales(fem_properties.ny_s,fem_properties.structure_height/((double)fem_properties.ny_s));
 
-	std::vector<std::vector<double>> f_scales(2),s_scales(2);
+	std::vector<std::vector<double> > f_scales(2),s_scales(2);
 	f_scales[0]=x_scales;f_scales[1]=f_y_scales;
 	s_scales[0]=x_scales;s_scales[1]=s_y_scales;
     GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_scales,fluid_bottom_left,fluid_top_right,false);
@@ -2271,7 +2271,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 
 	// we need to track cells, faces, and temporarily the centers for the faces
 	// also, we will initially have a temp_* vectors that we will rearrange to match the order of the fluid
-	std::vector<Point<dim>> fluid_face_centers, temp_structure_face_centers(structure_triangulation.n_active_cells());
+	std::vector<Point<dim> > fluid_face_centers, temp_structure_face_centers(structure_triangulation.n_active_cells());
 	std::vector<bool> temp_structure_interface_cells(structure_triangulation.n_active_cells());
 	std::vector<unsigned int> temp_structure_interface_faces(structure_triangulation.n_active_cells());
 	std::vector<bool> quadrature_orientation; // 1 means q increases on fluid means q increases on the structure, -1 if the opposite
@@ -2309,7 +2309,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 
 	structure_interface_cells.resize(fluid_interface_cells.size());
 	structure_interface_faces.resize(fluid_interface_cells.size());
-	std::vector<Point<dim>> structure_face_centers(fluid_interface_faces.size());
+	std::vector<Point<dim> > structure_face_centers(fluid_interface_faces.size());
     ind=0;
     for (typename Triangulation<dim>::active_cell_iterator
          cell = structure_triangulation.begin_active();
@@ -2513,7 +2513,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 	    * VectorTools::interpolate(fluid_dof_handler,fluid_boundary_values,
 	    *			                          solution.block(0));
 		*/
-	    std::vector<std::vector<std::string>> solution_names(3);
+	    std::vector<std::vector<std::string> > solution_names(3);
 	    switch (dim)
 	      {
 	      case 2:
@@ -2655,7 +2655,7 @@ AleVelocityBoundaryValues<dim>::vector_value (const Point<dim> &p,
 		// Write the error to errors.dat file
 		std::vector<std::string> subsystem(2);
 		subsystem[0]="fluid"; subsystem[1]="structure";
-		std::vector<std::vector<std::string>> variable(2,std::vector<std::string>(2));
+		std::vector<std::vector<std::string> > variable(2,std::vector<std::string>(2));
 		variable[0][0]="vel";variable[0][1]="press";
 		variable[1][0]="displ";variable[1][1]="vel";
 		std::vector<unsigned int> show_errors(4,1);
