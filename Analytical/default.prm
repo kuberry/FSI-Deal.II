@@ -34,7 +34,7 @@ set lambda                = 0.0
 set make plots            = false
 
 # maximum number of optimization iterations per time step.
-set max optimization iterations = 1
+set max optimization iterations = 1000
 
 # mu of the structure.
 set mu                    = 3.0

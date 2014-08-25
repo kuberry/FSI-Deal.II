@@ -2318,10 +2318,10 @@ namespace FSI_Project
         	++count;
             // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
 			fluid_boundary_stress.set_time(time);
-			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-								  fluid_boundary_stress,
-								  stress.block(0));
-			transfer_dofs(stress,stress,0,1);
+			// VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			// 					  fluid_boundary_stress,
+			// 					  stress.block(0));
+			// transfer_dofs(stress,stress,0,1);
             // End of section to uncomment
 
 			// RHS and Neumann conditions are inside these functions
@@ -2356,10 +2356,15 @@ namespace FSI_Project
             // Update the stress using the adjoint variables
             stress.block(0)*=(1-fem_properties.steepest_descent_alpha);
             tmp=0;
-            transfer_dofs(adjoint_solution,tmp,1,0);
-            double multiplier = -float(fem_properties.steepest_descent_alpha)/fem_properties.penalty_epsilon;
-            stress.block(0).add(multiplier*fem_properties.theta,adjoint_solution.block(0));
-            stress.block(0).add(multiplier*(-.5),tmp.block(0));
+            
+	    transfer_dofs(adjoint_solution,tmp,1,0);
+	    tmp.block(0).add(-1,adjoint_solution.block(0));
+
+	    // not negated since tmp has reverse of proper negation
+            double multiplier = float(fem_properties.steepest_descent_alpha)/fem_properties.penalty_epsilon;
+            
+	    stress.block(0).add(multiplier,tmp.block(0));
+            //stress.block(0).add(multiplier*(-.5),tmp.block(0));
             stress.block(1)=0;
             transfer_dofs(stress,stress,0,1);
             if (count%50==0) std::cout << "alpha: " << fem_properties.steepest_descent_alpha << std::endl;
