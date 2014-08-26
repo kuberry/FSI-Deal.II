@@ -67,9 +67,10 @@ namespace FSI_Project
 	  unsigned int ale_degree;
 
 	  // Time Parameters
-	  double		T;
+	  double	T;
 	  unsigned int	n_time_steps;
-	  double 		theta;
+	  double 	fluid_theta;
+          double        structure_theta;
 
 	  // Domain Parameters
 	  double		fluid_width;
@@ -172,7 +173,8 @@ namespace FSI_Project
 
     double time, time_step;
     unsigned int timestep_number;
-    const double theta;
+    const double fluid_theta;
+    const double structure_theta;
     ComputationData errors;
     const unsigned int n_blocks;
     const unsigned int n_big_blocks;
@@ -205,8 +207,10 @@ namespace FSI_Project
 	  			  "time to run the simulation until.");
 	  prm.declare_entry("number of time steps", "16", Patterns::Integer(1),
 	  			  "number of time steps to divide T by.");
-	  prm.declare_entry("theta", "0.5", Patterns::Double(0,1),
+	  prm.declare_entry("fluid theta", "0.5", Patterns::Double(0,1),
 	  			  "theta value for the fluid, 0.5 is Crank-Nicolson and 1.0 is Implicit Euler.");
+	  prm.declare_entry("structure theta", "0.5", Patterns::Double(0,1),
+	  			  "theta value for the structure, 0.5 is midpoint and anything else isn't implemented.");
 
 	  // Domain Parameters
 	  prm.declare_entry("fluid width", "1.0", Patterns::Double(0),
@@ -277,7 +281,8 @@ namespace FSI_Project
     structure_dof_handler (structure_triangulation),
     ale_dof_handler (fluid_triangulation),
     time_step (prm_.get_double("T")/prm_.get_integer("number of time steps")),
-    theta(prm_.get_double("theta")),
+    fluid_theta(prm_.get_double("fluid theta")),
+    structure_theta(prm_.get_double("structure theta")),
     errors(),
     n_blocks(5),
     n_big_blocks(3),
@@ -290,7 +295,8 @@ namespace FSI_Project
 	  // Time Parameters
 	  fem_properties.T					= prm_.get_double("T");
 	  fem_properties.n_time_steps		= prm_.get_integer("number of time steps");
-	  fem_properties.theta				= prm_.get_double("theta");
+	  fem_properties.fluid_theta				= prm_.get_double("fluid theta");
+	  fem_properties.structure_theta			= prm_.get_double("structure theta");
 	  // Domain Parameters
 	  fem_properties.fluid_width		= prm_.get_double("fluid width");
 	  fem_properties.fluid_height		= prm_.get_double("fluid height");
@@ -777,58 +783,37 @@ namespace FSI_Project
   {
 	// here we build the state_solution_for_rhs vector from state variable information
 	// build rhs of fluid adjoint problem
-	// [u^n - (n^n-n^{n-1})]/delta t
+	// [u^n - (n^n-n^{n-1})/delta t]
 	tmp=0;
 	state_solution_for_rhs=0;
 	transfer_interface_dofs(solution,state_solution_for_rhs,1,0);
 	state_solution_for_rhs.block(0)*=-1./time_step;
 	transfer_interface_dofs(old_solution,tmp,1,0);
 	state_solution_for_rhs.block(0).add(1./time_step,tmp.block(0));
-	state_solution_for_rhs.block(0)+=solution.block(0);
+	tmp=0;
+	transfer_interface_dofs(solution,tmp,0,0);
+	state_solution_for_rhs.block(0)+=tmp.block(0);
 	// build rhs of structure adjoint problem
-
 
 	transfer_interface_dofs(state_solution_for_rhs,state_solution_for_rhs,0,1);
 	state_solution_for_rhs.block(1)*=-1./time_step;
-
-	transfer_interface_dofs(state_solution_for_rhs,tmp,0,0);
-	transfer_interface_dofs(state_solution_for_rhs,tmp,1,1);
-	state_solution_for_rhs=0;
-	transfer_interface_dofs(tmp,state_solution_for_rhs,0,0);
-	transfer_interface_dofs(tmp,state_solution_for_rhs,1,1);
   }
 
   template <int dim>
   double FSIProblem<dim>::interface_error()
   {
-	BlockVector<double> temp_vector;
-	BlockVector<double> temp2_vector;
-	temp_vector.reinit (n_big_blocks);
-	temp2_vector.reinit (n_big_blocks);
-	for (unsigned int i=0; i<n_big_blocks; ++i)
-	{
-		temp_vector.block(i).reinit(dofs_per_big_block[i]);
-		temp2_vector.block(i).reinit(dofs_per_big_block[i]);
-	}
-	temp_vector.collect_sizes ();
-	temp2_vector.collect_sizes ();
-	temp_vector=0;
-	temp2_vector=0;
-
-	const FEValuesExtractors::Vector velocities (0);
-	QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
-    FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
+	QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+3);
+	FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
                                       update_values    | update_normal_vectors |
                                       update_quadrature_points  | update_JxW_values);
 	const unsigned int   dofs_per_cell   = fluid_fe.dofs_per_cell;
 	const unsigned int   n_face_q_points = face_quadrature_formula.size();
-	FullMatrix<double>   local_matrix (dofs_per_cell, dofs_per_cell);
-	Vector<double>       local_rhs (dofs_per_cell);
-	Vector<double>       stress_rhs (dofs_per_cell);
 
-	std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 	std::vector<Vector<double> > error_values(n_face_q_points, Vector<double>(dim+1));
 	std::vector<Vector<double> > stress_values(n_face_q_points, Vector<double>(dim+1));
+
+	double functional = 0;
+	double penalty_functional = 0;
 
 	typename DoFHandler<dim>::active_cell_iterator
 	cell = fluid_dof_handler.begin_active(),
@@ -853,23 +838,17 @@ namespace FSI_Project
 				  Tensor<1,dim> g_stress;
 				  for (unsigned int d=0; d<dim; ++d)
 				  {
-				    error[d] = pow(error_values[q](d),2);
-				    g_stress[d] = pow(stress_values[q](d),2);
+				    error[d] = error_values[q](d);
+				    g_stress[d] = stress_values[q](d);
 				  }
-				  for (unsigned int i=0; i<dofs_per_cell; ++i)
-				  {
-					  local_rhs(i) += 0.5*fe_face_values[velocities].value (i, q) * error * fe_face_values.JxW(q);
-					  stress_rhs(i) += fem_properties.penalty_epsilon*0.5 *fe_face_values[velocities].value (i, q) * g_stress * fe_face_values.JxW(q);
-				  }
+				  functional += 0.5 * error * error * fe_face_values.JxW(q);
+				  penalty_functional += fem_properties.penalty_epsilon * 0.5 * g_stress * g_stress * fe_face_values.JxW(q); 
 				}
 			}
 		}
 		}
-	  cell->get_dof_indices (local_dof_indices);
-	  fluid_constraints.distribute_local_to_global (local_rhs, local_dof_indices, temp_vector);
-	  fluid_constraints.distribute_local_to_global (stress_rhs, local_dof_indices, temp2_vector);
 	}
-	return (temp_vector.l1_norm()+temp2_vector.l1_norm());
+	return functional+penalty_functional;
   }
 
   template<int dim>
@@ -948,7 +927,7 @@ namespace FSI_Project
 			temp2=fe_values.get_quadrature_points();
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
-				 if (fluid_fe.system_to_component_index(i).first<dim)
+			         if (fluid_fe.system_to_component_index(i).first<dim) // <dim gives the velocities
 				 {
 					 f_all.push_back(Info<dim>(temp[i],temp2[i],fluid_fe.system_to_component_index(i).first));
 				 }
@@ -1001,7 +980,7 @@ namespace FSI_Project
 			 temp2=fe_face_values.get_quadrature_points();
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
-				 if (structure_fe.system_to_component_index(i).first<dim)
+			         if (structure_fe.system_to_component_index(i).first<dim) // this chooses displacement entries
 				 {
 					 s_a.push_back(Info<dim>(temp[i],temp2[i],structure_fe.system_to_component_index(i).first));
 				 }
@@ -1077,7 +1056,6 @@ namespace FSI_Project
 		a2f_all.insert(std::pair<unsigned int,unsigned int>(a_all[i].dof,f_all[i].dof));
 		f2a_all.insert(std::pair<unsigned int,unsigned int>(f_all[i].dof,a_all[i].dof));
 	}
-	//std::cout << f2s[2] << std::endl;
   }
 
 
@@ -1208,13 +1186,13 @@ namespace FSI_Project
 											rhs_function,
 											tmp);
 		forcing_terms = tmp;
-		forcing_terms *= theta;
+		forcing_terms *= fluid_theta;
 		rhs_function.set_time(time - time_step);
 		VectorTools::create_right_hand_side(fluid_dof_handler,
 											QGauss<dim>(fluid_fe.degree+2),
 											rhs_function,
 											tmp);
-		forcing_terms.add((1 - theta), tmp);
+		forcing_terms.add((1 - fluid_theta), tmp);
 		fluid_rhs += forcing_terms;
 	}
 
@@ -1257,11 +1235,12 @@ namespace FSI_Project
 				{
 				  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
 				  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-						  	  	  	  	+ theta * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j]
-										- div_phi_u[i] * phi_p[j]
-										- phi_p[i] * div_phi_u[j]) // conditioning
-										+ epsilon * phi_p[i] * phi_p[j])
-									   * fe_values.JxW(q);
+							 + fluid_theta 
+							     * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j])
+							 - div_phi_u[i] * phi_p[j] // momentum conservation
+							 - phi_p[i] * div_phi_u[j] // mass conservation
+							 + epsilon * phi_p[i] * phi_p[j])
+				    * fe_values.JxW(q);
 				}
 			}
 		  for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -1275,13 +1254,12 @@ namespace FSI_Project
 			  const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
 
 			  local_rhs(i) += (physical_properties.rho_f/time_step *phi_i_s*old_u
-							   + (1-theta)*(-2*physical_properties.viscosity*(
+							   + (1-fluid_theta)*(-2*physical_properties.viscosity*(
 							    grad_u[q][0][0]*symgrad_phi_i_s[0][0]
 							   + 0.5*(grad_u[q][1][0]+grad_u[q][0][1])*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
 							   + grad_u[q][1][1]*symgrad_phi_i_s[1][1]
-							   )
-							   + old_p * div_phi_i_s))
-								* fe_values.JxW(q);
+													  )))
+							   * fe_values.JxW(q);
 			}
 		}
 		for (unsigned int i=0; i<2; ++i)
@@ -1291,13 +1269,13 @@ namespace FSI_Project
 			if (i==0)
 			{
 				fluid_stress_values.set_time(time);
-				multiplier=theta;
+				multiplier=fluid_theta;
 				stress_vector = &stress.block(0);
 			}
 			else
 			{
 				fluid_stress_values.set_time(time-time_step);
-				multiplier=(1-theta);
+				multiplier=(1-fluid_theta);
 				stress_vector = &old_stress.block(0);
 			}
 
@@ -1372,11 +1350,11 @@ namespace FSI_Project
 					{
 					  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
 					  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-											+ theta * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j]
-											- div_phi_u[i] * phi_p[j]
-											- phi_p[i] * div_phi_u[j]) // conditioning [this is okay since rhs = 0  for this test function]
-											+ epsilon * phi_p[i] * phi_p[j])
-										   * fe_values.JxW(q);
+								 + fluid_theta * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j])
+								 - div_phi_u[i] * phi_p[j] // momentum
+								 - phi_p[i] * div_phi_u[j] // mass
+								 + epsilon * phi_p[i] * phi_p[j])
+					    * fe_values.JxW(q);
 					}
 				}
 			}
@@ -1402,7 +1380,7 @@ namespace FSI_Project
 										g_stress * fe_face_values.JxW(q));
 						  }
                                                   length += fe_face_values.JxW(q);
-                                                  residual += g_stress * g_stress * fe_face_values.JxW(q);
+                                                  residual += 0.5 * g_stress * g_stress * fe_face_values.JxW(q);
 						}
 					}
 				  }
@@ -1458,16 +1436,16 @@ namespace FSI_Project
 		StructureRightHandSide<dim> rhs_function(physical_properties);
 		rhs_function.set_time(time);
 		VectorTools::create_right_hand_side(structure_dof_handler,
-											QGauss<dim>(structure_fe.degree+2),
-											rhs_function,
-											tmp);
+						    QGauss<dim>(structure_fe.degree+2),
+						    rhs_function,
+						    tmp);
 		forcing_terms = tmp;
 		forcing_terms *= 0.5;
 		rhs_function.set_time(time - time_step);
 		VectorTools::create_right_hand_side(structure_dof_handler,
-											QGauss<dim>(structure_fe.degree+2),
-											rhs_function,
-											tmp);
+						    QGauss<dim>(structure_fe.degree+2),
+						    rhs_function,
+						    tmp);
 		forcing_terms.add(0.5, tmp);
 		structure_rhs += forcing_terms;
 	}
@@ -1476,7 +1454,7 @@ namespace FSI_Project
 	std::vector<Tensor<1,dim> > stress_values (3);
 	std::vector<Vector<double> > g_stress_values(n_face_q_points, Vector<double>(2*dim));
 
-	std::vector<Tensor<1,dim> > 		  	phi_n (dofs_per_cell);
+	std::vector<Tensor<1,dim> > 		phi_n (dofs_per_cell);
 	std::vector<SymmetricTensor<2,dim> > 	symgrad_phi_n (dofs_per_cell);
 	std::vector<double>                  	div_phi_n   (dofs_per_cell);
 	std::vector<Tensor<1,dim> >           	phi_v       (dofs_per_cell);
@@ -1556,17 +1534,17 @@ namespace FSI_Project
 				if (component_i<dim)
 				{
 					local_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
-							   	   	   +0.5*(-2*physical_properties.mu*(scalar_product(grad_n[q_point],symgrad_phi_i_eta))
-							   	   			   -physical_properties.lambda*((grad_n[q_point][0][0]+grad_n[q_point][1][1])*div_phi_i_eta))
-									)
-									* fe_values.JxW(q_point);
+							 +0.5*(-2*physical_properties.mu*(scalar_product(grad_n[q_point],symgrad_phi_i_eta))
+							       -physical_properties.lambda*((grad_n[q_point][0][0]+grad_n[q_point][1][1])*div_phi_i_eta))
+							 )
+					  * fe_values.JxW(q_point);
 				}
 				else
 				{
 					local_rhs(i) += (-0.5*phi_i_eta_dot*old_v
-									-1./time_step*phi_i_eta_dot*old_n
-									)
-									* fe_values.JxW(q_point);
+							 -1./time_step*phi_i_eta_dot*old_n
+							 )
+					  * fe_values.JxW(q_point);
 				}
 			  }
 		}
@@ -1668,8 +1646,8 @@ namespace FSI_Project
 							if (component_j<dim)
 							{
 								local_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
-															 + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
-													*fe_values.JxW(q_point);
+											  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
+								  *fe_values.JxW(q_point);
 							}
 							else
 							{
@@ -1685,7 +1663,7 @@ namespace FSI_Project
 							else
 							{
 								local_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
-								                    *fe_values.JxW(q_point);
+								  *fe_values.JxW(q_point);
 							}
 						}
 					  }
@@ -1774,145 +1752,145 @@ namespace FSI_Project
   template <int dim>
   void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
   {
-	const FEValuesExtractors::Vector velocities (0);
-	const FEValuesExtractors::Vector displacements (0);
-	const FEValuesExtractors::Vector ale_displacement (0);
+    const FEValuesExtractors::Vector velocities (0);
+    const FEValuesExtractors::Vector displacements (0);
+    const FEValuesExtractors::Vector ale_displacement (0);
 
-	if (enum_==state)
-	{
-		if (system==Fluid)
-		{
-			FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties);
-			fluid_boundary_values_function.set_time (time);
-			std::map<types::global_dof_index,double> fluid_boundary_values;
-			for (unsigned int i=0; i<4; ++i)
-			{
-				if (fluid_boundaries[i]==Dirichlet)
-				{
-					VectorTools::interpolate_boundary_values (fluid_dof_handler,
-															  i,
-															  fluid_boundary_values_function,
-															  fluid_boundary_values,
-															  fluid_fe.component_mask(velocities));
-				}
-			}
-			MatrixTools::apply_boundary_values (fluid_boundary_values,
-												system_matrix.block(0,0),
-												solution.block(0),
-												system_rhs.block(0));
-		}
-		else if (system==Structure)
-		{
-			StructureBoundaryValues<dim> structure_boundary_values_function(physical_properties);
-			structure_boundary_values_function.set_time (time);
-			std::map<types::global_dof_index,double> structure_boundary_values;
-			for (unsigned int i=0; i<4; ++i)
-			{
-				if (structure_boundaries[i]==Dirichlet)
-				{
-					VectorTools::interpolate_boundary_values (structure_dof_handler,
-															  i,
-															  structure_boundary_values_function,
-															  structure_boundary_values,
-															  structure_fe.component_mask(displacements));
-				}
-			}
-			MatrixTools::apply_boundary_values (structure_boundary_values,
-												system_matrix.block(1,1),
-												solution.block(1),
-												system_rhs.block(1));
-		}
-		else
-		{
-			std::map<types::global_dof_index,double> ale_dirichlet_boundary_values;
-			std::map<types::global_dof_index,double> ale_interface_boundary_values;
-			for (unsigned int i=0; i<dofs_per_big_block[2]; ++i)
-			{
-				if (a2s.count(i))
-				{
-					ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2s[i]]));
-				}
-			}
-			for (unsigned int i=0; i<4; ++i)
-			{
-					if (ale_boundaries[i]==Dirichlet)
-					{
-						VectorTools::interpolate_boundary_values (ale_dof_handler,
-																  i,
-																  ZeroFunction<dim>(dim),
-																  ale_dirichlet_boundary_values,
-																  ale_fe.component_mask(ale_displacement));
-					}
-			}
-			MatrixTools::apply_boundary_values (ale_dirichlet_boundary_values,
-												system_matrix.block(2,2),
-												solution.block(2),
-												system_rhs.block(2));
-			MatrixTools::apply_boundary_values (ale_interface_boundary_values,
-												system_matrix.block(2,2),
-												solution.block(2),
-												system_rhs.block(2));
-		}
-	}
-	else // Mode is adjoint
-	{
-		if (system==Fluid)
-		{
-			std::map<types::global_dof_index,double> fluid_boundary_values;
-			for (unsigned int i=0; i<4; ++i)
-			{
-				if (fluid_boundaries[i]==Dirichlet)// non interface or Neumann sides
-				{
-					VectorTools::interpolate_boundary_values (fluid_dof_handler,
-															  i,
-															  ZeroFunction<dim>(dim+1),
-															  fluid_boundary_values,
-															  fluid_fe.component_mask(velocities));
-				}
-			}
-			MatrixTools::apply_boundary_values (fluid_boundary_values,
-												system_matrix.block(0,0),
-												adjoint_solution.block(0),
-												system_rhs.block(0));
-		}
-		else if (system==Structure)
-		{
-			std::map<types::global_dof_index,double> structure_boundary_values;
-			for (unsigned int i=0; i<4; ++i)
-			{
-				if (structure_boundaries[i]==Dirichlet)// non interface or Neumann sides
-				{
-					VectorTools::interpolate_boundary_values (structure_dof_handler,
-															  i,
-															  ZeroFunction<dim>(2*dim),
-															  structure_boundary_values,
-															  structure_fe.component_mask(displacements));
-				}
-			}
-			MatrixTools::apply_boundary_values (structure_boundary_values,
-												system_matrix.block(1,1),
-												adjoint_solution.block(1),
-												system_rhs.block(1));
-		}
-		else
-		{
-			std::map<types::global_dof_index,double> ale_boundary_values;
-			for (unsigned int i=0; i<4; ++i)
-			{
-				if (ale_boundaries[i]==Dirichlet || ale_boundaries[i]==Interface)// non interface or Neumann sides
-				{
-					VectorTools::interpolate_boundary_values (ale_dof_handler,
-															  i,
-															  ZeroFunction<dim>(dim),
-															  ale_boundary_values);
-				}
-			}
-			MatrixTools::apply_boundary_values (ale_boundary_values,
-												system_matrix.block(2,2),
-												adjoint_solution.block(2),
-												system_rhs.block(2));
-		}
-	}
+    if (enum_==state)
+      {
+	if (system==Fluid)
+	  {
+	    FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties);
+	    fluid_boundary_values_function.set_time (time);
+	    std::map<types::global_dof_index,double> fluid_boundary_values;
+	    for (unsigned int i=0; i<4; ++i)
+	      {
+		if (fluid_boundaries[i]==Dirichlet)
+		  {
+		    VectorTools::interpolate_boundary_values (fluid_dof_handler,
+							      i,
+							      fluid_boundary_values_function,
+							      fluid_boundary_values,
+							      fluid_fe.component_mask(velocities));
+		  }
+	      }
+	    MatrixTools::apply_boundary_values (fluid_boundary_values,
+						system_matrix.block(0,0),
+						solution.block(0),
+						system_rhs.block(0));
+	  }
+	else if (system==Structure)
+	  {
+	    StructureBoundaryValues<dim> structure_boundary_values_function(physical_properties);
+	    structure_boundary_values_function.set_time (time);
+	    std::map<types::global_dof_index,double> structure_boundary_values;
+	    for (unsigned int i=0; i<4; ++i)
+	      {
+		if (structure_boundaries[i]==Dirichlet)
+		  {
+		    VectorTools::interpolate_boundary_values (structure_dof_handler,
+							      i,
+							      structure_boundary_values_function,
+							      structure_boundary_values,
+							      structure_fe.component_mask(displacements));
+		  }
+	      }
+	    MatrixTools::apply_boundary_values (structure_boundary_values,
+						system_matrix.block(1,1),
+						solution.block(1),
+						system_rhs.block(1));
+	  }
+	else
+	  {
+	    std::map<types::global_dof_index,double> ale_dirichlet_boundary_values;
+	    std::map<types::global_dof_index,double> ale_interface_boundary_values;
+	    for (unsigned int i=0; i<dofs_per_big_block[2]; ++i)
+	      {
+		if (a2s.count(i))
+		  {
+		    ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2s[i]]));
+		  }
+	      }
+	    for (unsigned int i=0; i<4; ++i)
+	      {
+		if (ale_boundaries[i]==Dirichlet)
+		  {
+		    VectorTools::interpolate_boundary_values (ale_dof_handler,
+							      i,
+							      ZeroFunction<dim>(dim),
+							      ale_dirichlet_boundary_values,
+							      ale_fe.component_mask(ale_displacement));
+		  }
+	      }
+	    MatrixTools::apply_boundary_values (ale_dirichlet_boundary_values,
+						system_matrix.block(2,2),
+						solution.block(2),
+						system_rhs.block(2));
+	    MatrixTools::apply_boundary_values (ale_interface_boundary_values,
+						system_matrix.block(2,2),
+						solution.block(2),
+						system_rhs.block(2));
+	  }
+      }
+    else // Mode is adjoint
+      {
+	if (system==Fluid)
+	  {
+	    std::map<types::global_dof_index,double> fluid_boundary_values;
+	    for (unsigned int i=0; i<4; ++i)
+	      {
+		if (fluid_boundaries[i]==Dirichlet)// non interface or Neumann sides
+		  {
+		    VectorTools::interpolate_boundary_values (fluid_dof_handler,
+							      i,
+							      ZeroFunction<dim>(dim+1),
+							      fluid_boundary_values,
+							      fluid_fe.component_mask(velocities));
+		  }
+	      }
+	    MatrixTools::apply_boundary_values (fluid_boundary_values,
+						system_matrix.block(0,0),
+						adjoint_solution.block(0),
+						system_rhs.block(0));
+	  }
+	else if (system==Structure)
+	  {
+	    std::map<types::global_dof_index,double> structure_boundary_values;
+	    for (unsigned int i=0; i<4; ++i)
+	      {
+		if (structure_boundaries[i]==Dirichlet)// non interface or Neumann sides
+		  {
+		    VectorTools::interpolate_boundary_values (structure_dof_handler,
+							      i,
+							      ZeroFunction<dim>(2*dim),
+							      structure_boundary_values,
+							      structure_fe.component_mask(displacements));
+		  }
+	      }
+	    MatrixTools::apply_boundary_values (structure_boundary_values,
+						system_matrix.block(1,1),
+						adjoint_solution.block(1),
+						system_rhs.block(1));
+	  }
+	else
+	  {
+	    std::map<types::global_dof_index,double> ale_boundary_values;
+	    for (unsigned int i=0; i<4; ++i)
+	      {
+		if (ale_boundaries[i]==Dirichlet || ale_boundaries[i]==Interface)// non interface or Neumann sides
+		  {
+		    VectorTools::interpolate_boundary_values (ale_dof_handler,
+							      i,
+							      ZeroFunction<dim>(dim),
+							      ale_boundary_values);
+		  }
+	      }
+	    MatrixTools::apply_boundary_values (ale_boundary_values,
+						system_matrix.block(2,2),
+						adjoint_solution.block(2),
+						system_rhs.block(2));
+	  }
+      }
 
 
   }
@@ -1923,7 +1901,7 @@ namespace FSI_Project
 	Assert(dim==2,ExcNotImplemented());
 	Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
 	Point<2> structure_bottom_left(0,fem_properties.fluid_height),
-			structure_top_right(fem_properties.structure_width,fem_properties.fluid_height+fem_properties.structure_height);
+	  structure_top_right(fem_properties.structure_width,fem_properties.fluid_height+fem_properties.structure_height);
 	std::vector<double> x_scales(fem_properties.nx_f,fem_properties.fluid_width/((double)fem_properties.nx_f));
 	std::vector<double> f_y_scales(fem_properties.ny_f,fem_properties.fluid_height/((double)fem_properties.ny_f));
 	std::vector<double> s_y_scales(fem_properties.ny_s,fem_properties.structure_height/((double)fem_properties.ny_s));
@@ -1931,17 +1909,17 @@ namespace FSI_Project
 	std::vector<std::vector<double> > f_scales(2),s_scales(2);
 	f_scales[0]=x_scales;f_scales[1]=f_y_scales;
 	s_scales[0]=x_scales;s_scales[1]=s_y_scales;
-    GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_scales,fluid_bottom_left,fluid_top_right,false);
-    GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_scales,structure_bottom_left,structure_top_right,false);
+	GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_scales,fluid_bottom_left,fluid_top_right,false);
+	GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_scales,structure_bottom_left,structure_top_right,false);
 
-    // Structure sits on top of fluid
+	// Structure sits on top of fluid
 	Assert(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
 	Assert(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
 
 
 	for (unsigned int i=0; i<4; ++i)
 	{
-		if (i<2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+		if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 		else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 		else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	}
@@ -1949,7 +1927,7 @@ namespace FSI_Project
 	for (unsigned int i=0; i<4; ++i)
 	{
 		if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-		else if (i==1) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+		else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 		else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	}
 	for (unsigned int i=0; i<4; ++i)
@@ -2226,10 +2204,10 @@ namespace FSI_Project
 	        Assert (false, ExcNotImplemented());
 	      }
 	    DataOut<dim> fluid_data_out, structure_data_out;
-	    fluid_data_out.add_data_vector (fluid_dof_handler,solution.block(0), solution_names[0]);
+	    fluid_data_out.add_data_vector (fluid_dof_handler,state_solution_for_rhs.block(0), solution_names[0]);
 	    fluid_data_out.add_data_vector (ale_dof_handler,solution.block(2), solution_names[2]);
 	    structure_data_out.add_data_vector (structure_dof_handler,solution.block(1), solution_names[1]);
-	    fluid_data_out.build_patches (fem_properties.fluid_degree+1);
+	    fluid_data_out.build_patches (fem_properties.fluid_degree-1);
 	    structure_data_out.build_patches (fem_properties.structure_degree+1);
 	    const std::string fluid_filename = "fluid-" +
 	                                     Utilities::int_to_string (timestep_number, 3) +
@@ -2269,11 +2247,14 @@ namespace FSI_Project
 	fluid_cellwise_errors=0;
 	VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
 										fluid_cellwise_errors, quadrature, VectorTools::H1_norm,&fluid_velocity_mask);
+
+	fluid_exact_solution.set_time(time-.5*time_step);
 	errors.fluid_velocity_H1_Error += fluid_cellwise_errors.l2_norm();
 	VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
 				 fluid_cellwise_errors, quadrature,
 				 VectorTools::L2_norm,&fluid_pressure_mask);
 	errors.fluid_pressure_L2_Error=std::max(errors.fluid_pressure_L2_Error,fluid_cellwise_errors.l2_norm());
+	fluid_exact_solution.set_time(time);
 
 	std::pair<unsigned int,unsigned int> structure_displacement_indices(0,dim);
 	std::pair<unsigned int,unsigned int> structure_velocity_indices(dim,2*dim);
@@ -2431,11 +2412,14 @@ namespace FSI_Project
         {
         	++count;
             // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
+		if (count == 1)
+		  {
 			fluid_boundary_stress.set_time(time);
 			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
 			 					  fluid_boundary_stress,
 			 					  stress.block(0));
 			transfer_interface_dofs(stress,stress,0,1);
+		  }
             // End of section to uncomment
 
 			// RHS and Neumann conditions are inside these functions
@@ -2454,8 +2438,8 @@ namespace FSI_Project
 			velocity_jump_old = velocity_jump;
 			velocity_jump=interface_error();
 
-			if (count%50==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-			if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,1.5)) break;
+			if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
+			if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
 
 
 			assemble_structure(adjoint);
@@ -2479,8 +2463,8 @@ namespace FSI_Project
 	      {
 		++relrecord;
 		++consecutiverelrecord;
-		std::cout << "Rel. Bad Move." << std::endl;
-		std::cout << consecutiverelrecord << std::endl;
+		//std::cout << "Rel. Bad Move." << std::endl;
+		//std::cout << consecutiverelrecord << std::endl;
 	      }
 	    else
 	      {
@@ -2505,26 +2489,34 @@ namespace FSI_Project
 	    if (consecutiverelrecord>50)
 	      {
 		std::cout << "Break!" << std::endl;
-		break;
+		//break;
 	      }
 
             // Update the stress using the adjoint variables
             stress.block(0)*=(1-alpha);
             tmp=0;
             
+	    
 	    transfer_interface_dofs(adjoint_solution,tmp,1,0);
-	    tmp.block(0).add(-1,adjoint_solution.block(0));
+	    tmp.block(0)*=fem_properties.structure_theta;
+	    tmp.block(0).add(-fem_properties.fluid_theta,adjoint_solution.block(0));
+
+	    //std::cout << "L2 " << tmp.block(0).l2_norm() << std::endl;
 
 	    // not negated since tmp has reverse of proper negation
             double multiplier = float(alpha)/fem_properties.penalty_epsilon;
             
 	    stress.block(0).add(multiplier,tmp.block(0));
 
-            //stress.block(0).add(multiplier*(-.5),tmp.block(0));
-            stress.block(1)=0;
+	    //std::cout << "STRESS: " << stress.block(0).l2_norm() << std::endl;
+
+	    tmp=0;
+	    transfer_interface_dofs(stress,tmp,0,0);
+	    stress=0;
+	    transfer_interface_dofs(tmp,stress,0,0);
+
             transfer_interface_dofs(stress,stress,0,1);
-            if (count%50==0) std::cout << "alpha: " << alpha << std::endl;
-	    //old_velocity_jump=velocity_jump;
+            //if (count%50==0) std::cout << "alpha: " << alpha << std::endl;
         }
 
         if (fem_properties.make_plots) output_results ();
