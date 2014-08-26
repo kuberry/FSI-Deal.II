@@ -1193,7 +1193,7 @@ namespace FSI_Project
 	Vector<double>       local_rhs (dofs_per_cell);
 
 	std::vector<Vector<double> > old_solution_values(n_q_points, Vector<double>(dim+1));
-	std::vector<Vector<double> > adjoint_rhs_values(n_q_points, Vector<double>(dim+1));
+	std::vector<Vector<double> > adjoint_rhs_values(n_face_q_points, Vector<double>(dim+1));
 
 	std::vector<Tensor<2,dim> > grad_u (n_q_points);
 
@@ -1220,12 +1220,16 @@ namespace FSI_Project
 
 	FluidStressValues<dim> fluid_stress_values(physical_properties);
 	std::vector<Tensor<1,dim> > stress_values (dim+1);
-	std::vector<Vector<double> > g_stress_values(n_q_points, Vector<double>(dim+1));
+	std::vector<Vector<double> > g_stress_values(n_face_q_points, Vector<double>(dim+1));
 
 	std::vector<Tensor<1,dim> > 		  phi_u (dofs_per_cell);
 	std::vector<SymmetricTensor<2,dim> > symgrad_phi_u (dofs_per_cell);
 	std::vector<double>                  div_phi_u   (dofs_per_cell);
 	std::vector<double>                  phi_p       (dofs_per_cell);
+
+        double length = 0;
+        double residual = 0;
+
 
 	typename DoFHandler<dim>::active_cell_iterator
 	cell = fluid_dof_handler.begin_active(),
@@ -1397,6 +1401,8 @@ namespace FSI_Project
 							  local_rhs(i) += (fe_face_values[velocities].value (i, q)*
 										g_stress * fe_face_values.JxW(q));
 						  }
+                                                  length += fe_face_values.JxW(q);
+                                                  residual += g_stress * g_stress * fe_face_values.JxW(q);
 						}
 					}
 				  }
@@ -1406,6 +1412,7 @@ namespace FSI_Project
 												  local_dof_indices,
 												  fluid_matrix, fluid_rhs);
 		}
+        std::cout << length << " " << residual << std::endl;
   }
 
   template <int dim>
@@ -1431,7 +1438,7 @@ namespace FSI_Project
 							 update_quadrature_points | update_JxW_values);
 
 	QGauss<dim-1> face_quadrature_formula(fem_properties.structure_degree+2);
-    FEFaceValues<dim> fe_face_values (structure_fe, face_quadrature_formula,
+        FEFaceValues<dim> fe_face_values (structure_fe, face_quadrature_formula,
                                       update_values    | update_normal_vectors |
                                       update_quadrature_points  | update_JxW_values);
 
@@ -1443,7 +1450,7 @@ namespace FSI_Project
 	std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
 	std::vector<Vector<double> > old_solution_values(n_q_points, Vector<double>(2*dim));
-	std::vector<Vector<double> > adjoint_rhs_values(n_q_points, Vector<double>(2*dim));
+	std::vector<Vector<double> > adjoint_rhs_values(n_face_q_points, Vector<double>(2*dim));
 	std::vector<Tensor<2,dim> > grad_n (n_q_points);
 
 	if (enum_==state)
@@ -2419,7 +2426,6 @@ namespace FSI_Project
 	unsigned int imprecord = 0;
 	unsigned int relrecord = 0;
 	unsigned int consecutiverelrecord = 0;
-	bool breakagain = false;
 
         while (true)
         {
@@ -2498,7 +2504,6 @@ namespace FSI_Project
 	    
 	    if (consecutiverelrecord>50)
 	      {
-		breakagain = true;
 		std::cout << "Break!" << std::endl;
 		break;
 	      }
