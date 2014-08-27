@@ -1390,7 +1390,7 @@ namespace FSI_Project
 												  local_dof_indices,
 												  fluid_matrix, fluid_rhs);
 		}
-        std::cout << length << " " << residual << std::endl;
+        //std::cout << length << " " << residual << std::endl;
   }
 
   template <int dim>
@@ -2438,7 +2438,7 @@ namespace FSI_Project
 			velocity_jump_old = velocity_jump;
 			velocity_jump=interface_error();
 
-			if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
+			if (count%50==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
 			if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
 
 
