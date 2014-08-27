@@ -1174,6 +1174,8 @@ namespace FSI_Project
 	std::vector<Vector<double> > adjoint_rhs_values(n_face_q_points, Vector<double>(dim+1));
 
 	std::vector<Tensor<2,dim> > grad_u (n_q_points);
+	std::vector<Tensor<2,dim> > grad_u_star (n_q_points);
+	std::vector<Tensor<2,dim> > F (n_q_points);
 
 	std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
@@ -1201,9 +1203,10 @@ namespace FSI_Project
 	std::vector<Vector<double> > g_stress_values(n_face_q_points, Vector<double>(dim+1));
 
 	std::vector<Tensor<1,dim> > 		  phi_u (dofs_per_cell);
-	std::vector<SymmetricTensor<2,dim> > symgrad_phi_u (dofs_per_cell);
-	std::vector<double>                  div_phi_u   (dofs_per_cell);
-	std::vector<double>                  phi_p       (dofs_per_cell);
+	std::vector<SymmetricTensor<2,dim> >      symgrad_phi_u (dofs_per_cell);
+	std::vector<Tensor<2,dim> > 		  grad_phi_u (dofs_per_cell);
+	std::vector<double>                       div_phi_u   (dofs_per_cell);
+	std::vector<double>                       phi_p       (dofs_per_cell);
 
         double length = 0;
         double residual = 0;
@@ -1220,8 +1223,26 @@ namespace FSI_Project
 	  local_rhs = 0;
 	  fe_values.get_function_values (old_solution.block(0), old_solution_values);
 	  fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u);
+	  fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star);
+
 	  for (unsigned int q=0; q<n_q_points; ++q)
 		{
+		  F[q]=0;
+		  F[q][0][0]=1;
+		  F[q][1][1]=1;
+		  double determinantJ = determinant(F[q]);
+		  Tensor<2,dim> detTimesFinv;
+		  detTimesFinv[0][0]=F[q][1][1];
+		  detTimesFinv[0][1]=-F[q][0][1];
+		  detTimesFinv[1][0]=-F[q][1][0];
+		  detTimesFinv[1][1]=F[q][0][0];
+
+		  Tensor<1,dim> u_star;
+		  for (unsigned int d=0; d<dim; ++d)
+		  {
+		    u_star[d] = u_star_values[q](d);
+		  }
+
 		  for (unsigned int k=0; k<dofs_per_cell; ++k)
 			{
 			  phi_u[k]		   = fe_values[velocities].value (k, q);
@@ -1235,10 +1256,16 @@ namespace FSI_Project
 				{
 				  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
 				  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-							 + fluid_theta 
+							 + physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+							 + 0 * fluid_theta 
 							     * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j])
-							 - div_phi_u[i] * phi_p[j] // momentum conservation
-							 - phi_p[i] * div_phi_u[j] // mass conservation
+							 + fluid_theta * ( 2*physical_properties.viscosity
+									   *0.25*1./determinantJ
+									   *scalar_product(grad_phi_u[i]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[i]),grad_phi_u[j]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[j]))
+									   - scalar_product(grad_phi_u[i],transpose(detTimesFinv)) * phi_p[j]) // momentum
+							 - phi_p[i] * scalar_product(grad_phi_u[j],transpose(detTimesFinv)) // mass
+				    //- div_phi_u[i] * phi_p[j] // momentum conservation
+				    //- phi_p[i] * div_phi_u[j] // mass conservation
 							 + epsilon * phi_p[i] * phi_p[j])
 				    * fe_values.JxW(q);
 				}
