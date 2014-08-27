@@ -2412,7 +2412,7 @@ namespace FSI_Project
         {
         	++count;
             // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
-		if (count == 1)
+		if (count == 0)
 		  {
 			fluid_boundary_stress.set_time(time);
 			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
