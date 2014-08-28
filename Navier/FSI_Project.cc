@@ -89,6 +89,7 @@ namespace FSI_Project
     double		steepest_descent_alpha;
     double		penalty_epsilon;
     unsigned int max_optimization_iterations;
+    bool                true_control;
 
     // Solver Parameters
     bool                  richardson;
@@ -273,6 +274,8 @@ namespace FSI_Project
 			    "second tuning parameter for the steepest descent algorithm.");
 	  prm.declare_entry("max optimization iterations","100", Patterns::Integer(1),
 			    "maximum number of optimization iterations per time step.");
+	  prm.declare_entry("true control","false", Patterns::Bool(),
+			    "Use the true stress as the initial control at each time step.");
 
 	  // Operations Parameters
 	  prm.declare_entry("richardson", "true", Patterns::Bool(),
@@ -331,6 +334,7 @@ namespace FSI_Project
 	  fem_properties.steepest_descent_alpha = prm_.get_double("steepest descent alpha");
 	  fem_properties.penalty_epsilon	= prm_.get_double("penalty epsilon");
 	  fem_properties.max_optimization_iterations = prm_.get_integer("max optimization iterations");
+	  fem_properties.true_control           = prm_.get_bool("true control");	  
 	  // Solver Parameters
 	  fem_properties.richardson		= prm_.get_bool("richardson");
 	  fem_properties.newton 		= prm_.get_bool("newton");
@@ -2352,133 +2356,134 @@ namespace FSI_Project
   template <int dim>
   void FSIProblem<dim>::compute_error ()
   {
-	Vector<double> fluid_cellwise_errors (fluid_triangulation.n_active_cells());
-	Vector<double> structure_cellwise_errors (structure_triangulation.n_active_cells());
-	QTrapez<1>     q_trapez;
-	QIterated<dim> quadrature (q_trapez, 3);
-	FluidBoundaryValues<dim> fluid_exact_solution(physical_properties);
-	StructureBoundaryValues<dim> structure_exact_solution(physical_properties);
-	fluid_exact_solution.set_time(time);
-	structure_exact_solution.set_time(time);
+    Vector<double> fluid_cellwise_errors (fluid_triangulation.n_active_cells());
+    Vector<double> structure_cellwise_errors (structure_triangulation.n_active_cells());
+    QTrapez<1>     q_trapez;
+    QIterated<dim> quadrature (q_trapez, 3);
+    FluidBoundaryValues<dim> fluid_exact_solution(physical_properties);
+    StructureBoundaryValues<dim> structure_exact_solution(physical_properties);
+    fluid_exact_solution.set_time(time);
+    structure_exact_solution.set_time(time);
 
 
-	std::pair<unsigned int,unsigned int> fluid_indices(0,dim);
-	ComponentSelectFunction<dim> fluid_velocity_mask(fluid_indices,dim+1);
-	ComponentSelectFunction<dim> fluid_pressure_mask(dim,dim+1);
+    std::pair<unsigned int,unsigned int> fluid_indices(0,dim);
+    ComponentSelectFunction<dim> fluid_velocity_mask(fluid_indices,dim+1);
+    ComponentSelectFunction<dim> fluid_pressure_mask(dim,dim+1);
 
 
-	VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
-				 fluid_cellwise_errors, quadrature,
-				 VectorTools::L2_norm,&fluid_velocity_mask);
-	errors.fluid_velocity_L2_Error=std::max(errors.fluid_velocity_L2_Error,fluid_cellwise_errors.l2_norm());
-	fluid_cellwise_errors=0;
-	VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
-										fluid_cellwise_errors, quadrature, VectorTools::H1_norm,&fluid_velocity_mask);
+    VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
+				       fluid_cellwise_errors, quadrature,
+				       VectorTools::L2_norm,&fluid_velocity_mask);
+    errors.fluid_velocity_L2_Error=std::max(errors.fluid_velocity_L2_Error,fluid_cellwise_errors.l2_norm());
+    fluid_cellwise_errors=0;
+    VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
+				       fluid_cellwise_errors, quadrature, VectorTools::H1_norm,&fluid_velocity_mask);
 
-	fluid_exact_solution.set_time(time-.5*time_step);
-	errors.fluid_velocity_H1_Error += fluid_cellwise_errors.l2_norm();
-	VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
-				 fluid_cellwise_errors, quadrature,
-				 VectorTools::L2_norm,&fluid_pressure_mask);
-	errors.fluid_pressure_L2_Error=std::max(errors.fluid_pressure_L2_Error,fluid_cellwise_errors.l2_norm());
-	fluid_exact_solution.set_time(time);
+    
+    fluid_exact_solution.set_time(time-(1-fem_properties.fluid_theta)*time_step);
+    errors.fluid_velocity_H1_Error += fluid_cellwise_errors.l2_norm();
+    VectorTools::integrate_difference (fluid_dof_handler, solution.block(0), fluid_exact_solution,
+				       fluid_cellwise_errors, quadrature,
+				       VectorTools::L2_norm,&fluid_pressure_mask);
+    errors.fluid_pressure_L2_Error=std::max(errors.fluid_pressure_L2_Error,fluid_cellwise_errors.l2_norm());
+    fluid_exact_solution.set_time(time);
 
-	std::pair<unsigned int,unsigned int> structure_displacement_indices(0,dim);
-	std::pair<unsigned int,unsigned int> structure_velocity_indices(dim,2*dim);
-	ComponentSelectFunction<dim> structure_displacement_mask(structure_displacement_indices,2*dim);
-	ComponentSelectFunction<dim> structure_velocity_mask(structure_velocity_indices,2*dim);
-	VectorTools::integrate_difference (structure_dof_handler, solution.block(1), structure_exact_solution,
-				 structure_cellwise_errors, quadrature,
-				 VectorTools::L2_norm,&structure_displacement_mask);
-	errors.structure_displacement_L2_Error=std::max(errors.structure_displacement_L2_Error,structure_cellwise_errors.l2_norm());
-	VectorTools::integrate_difference (structure_dof_handler, solution.block(1), structure_exact_solution,
-										structure_cellwise_errors, quadrature, VectorTools::H1_norm,&structure_displacement_mask);
+    std::pair<unsigned int,unsigned int> structure_displacement_indices(0,dim);
+    std::pair<unsigned int,unsigned int> structure_velocity_indices(dim,2*dim);
+    ComponentSelectFunction<dim> structure_displacement_mask(structure_displacement_indices,2*dim);
+    ComponentSelectFunction<dim> structure_velocity_mask(structure_velocity_indices,2*dim);
+    VectorTools::integrate_difference (structure_dof_handler, solution.block(1), structure_exact_solution,
+				       structure_cellwise_errors, quadrature,
+				       VectorTools::L2_norm,&structure_displacement_mask);
+    errors.structure_displacement_L2_Error=std::max(errors.structure_displacement_L2_Error,structure_cellwise_errors.l2_norm());
+    VectorTools::integrate_difference (structure_dof_handler, solution.block(1), structure_exact_solution,
+				       structure_cellwise_errors, quadrature, VectorTools::H1_norm,&structure_displacement_mask);
 
-	errors.structure_displacement_H1_Error += structure_cellwise_errors.l2_norm();
+    errors.structure_displacement_H1_Error += structure_cellwise_errors.l2_norm();
 
-	VectorTools::integrate_difference (structure_dof_handler, solution.block(1), structure_exact_solution,
-				 structure_cellwise_errors, quadrature,
-				 VectorTools::L2_norm,&structure_velocity_mask);
-	errors.structure_velocity_L2_Error += structure_cellwise_errors.l2_norm();
+    VectorTools::integrate_difference (structure_dof_handler, solution.block(1), structure_exact_solution,
+				       structure_cellwise_errors, quadrature,
+				       VectorTools::L2_norm,&structure_velocity_mask);
+    errors.structure_velocity_L2_Error += structure_cellwise_errors.l2_norm();
 
-	if (std::fabs(time-fem_properties.T)<1e-13)
-	{
-		AssertThrow(errors.fluid_velocity_L2_Error>0 && errors.fluid_velocity_H1_Error>0 && errors.fluid_pressure_L2_Error>0
-				&& errors.structure_displacement_L2_Error>0 && errors.structure_displacement_H1_Error>0 && errors.structure_velocity_L2_Error>0,ExcIO());
-		errors.fluid_velocity_H1_Error *= time_step;
-		errors.structure_displacement_H1_Error *= time_step;
-		errors.structure_velocity_L2_Error *= time_step;
+    if (std::fabs(time-fem_properties.T)<1e-13)
+      {
+	AssertThrow(errors.fluid_velocity_L2_Error>0 && errors.fluid_velocity_H1_Error>0 && errors.fluid_pressure_L2_Error>0
+		    && errors.structure_displacement_L2_Error>0 && errors.structure_displacement_H1_Error>0 && errors.structure_velocity_L2_Error>0,ExcIO());
+	errors.fluid_velocity_H1_Error *= time_step;
+	errors.structure_displacement_H1_Error *= time_step;
+	errors.structure_velocity_L2_Error *= time_step;
 
-		std::cout << "dt = " << time_step
-		<< " h_f = " << fluid_triangulation.begin_active()->diameter() << " h_s = " << structure_triangulation.begin_active()->diameter()
-		<< " L2(T) error [fluid] = " << errors.fluid_velocity_L2_Error << ", "<< " L2(T) error [structure] = " << errors.structure_displacement_L2_Error << std::endl
-		<< " L2(0,T;H1(t)) error [fluid] = " << errors.fluid_velocity_H1_Error << ", "
-		<< " Pressure error [fluid] = " << errors.fluid_pressure_L2_Error << ", "
-		<< " L2(0,T;H1(t)) errors [structure] = " << errors.structure_displacement_H1_Error << std::endl;
-		errors.fluid_active_cells=fluid_triangulation.n_active_cells();
-		errors.structure_active_cells=structure_triangulation.n_active_cells();
-		errors.fluid_velocity_dofs = dofs_per_block[0]*timestep_number;
-		errors.fluid_pressure_dofs = dofs_per_block[1]*timestep_number;
-		errors.structure_displacement_dofs = dofs_per_block[2]*timestep_number;
-		errors.structure_velocity_dofs = dofs_per_block[3]*timestep_number;
+	std::cout << "dt = " << time_step
+		  << " h_f = " << fluid_triangulation.begin_active()->diameter() << " h_s = " << structure_triangulation.begin_active()->diameter()
+		  << " L2(T) error [fluid] = " << errors.fluid_velocity_L2_Error << ", "<< " L2(T) error [structure] = " << errors.structure_displacement_L2_Error << std::endl
+		  << " L2(0,T;H1(t)) error [fluid] = " << errors.fluid_velocity_H1_Error << ", "
+		  << " Pressure error [fluid] = " << errors.fluid_pressure_L2_Error << ", "
+		  << " L2(0,T;H1(t)) errors [structure] = " << errors.structure_displacement_H1_Error << std::endl;
+	errors.fluid_active_cells=fluid_triangulation.n_active_cells();
+	errors.structure_active_cells=structure_triangulation.n_active_cells();
+	errors.fluid_velocity_dofs = dofs_per_block[0]*timestep_number;
+	errors.fluid_pressure_dofs = dofs_per_block[1]*timestep_number;
+	errors.structure_displacement_dofs = dofs_per_block[2]*timestep_number;
+	errors.structure_velocity_dofs = dofs_per_block[3]*timestep_number;
 
-		std::vector<double> L2_error_array(4);
-		L2_error_array[0]=errors.fluid_velocity_L2_Error;
-		L2_error_array[1]=errors.fluid_pressure_L2_Error;
-		L2_error_array[2]=errors.structure_displacement_L2_Error;
-		L2_error_array[3]=errors.structure_velocity_L2_Error;
+	std::vector<double> L2_error_array(4);
+	L2_error_array[0]=errors.fluid_velocity_L2_Error;
+	L2_error_array[1]=errors.fluid_pressure_L2_Error;
+	L2_error_array[2]=errors.structure_displacement_L2_Error;
+	L2_error_array[3]=errors.structure_velocity_L2_Error;
 
-		std::vector<double> H1_error_array(2);
-		H1_error_array[0]=errors.fluid_velocity_H1_Error;
-		H1_error_array[1]=errors.structure_displacement_H1_Error;
+	std::vector<double> H1_error_array(2);
+	H1_error_array[0]=errors.fluid_velocity_H1_Error;
+	H1_error_array[1]=errors.structure_displacement_H1_Error;
 
-		// Write the error to errors.dat file
-		std::vector<std::string> subsystem(2);
-		subsystem[0]="fluid"; subsystem[1]="structure";
-		std::vector<std::vector<std::string> > variable(2,std::vector<std::string>(2));
-		variable[0][0]="vel";variable[0][1]="press";
-		variable[1][0]="displ";variable[1][1]="vel";
-		std::vector<unsigned int> show_errors(4,1);
-		show_errors[0]=2;show_errors[2]=2;
+	// Write the error to errors.dat file
+	std::vector<std::string> subsystem(2);
+	subsystem[0]="fluid"; subsystem[1]="structure";
+	std::vector<std::vector<std::string> > variable(2,std::vector<std::string>(2));
+	variable[0][0]="vel";variable[0][1]="press";
+	variable[1][0]="displ";variable[1][1]="vel";
+	std::vector<unsigned int> show_errors(4,1);
+	show_errors[0]=2;show_errors[2]=2;
 
-		std::ofstream error_data;
-		error_data.open("errors.dat");
-		for (unsigned int i=0; i<subsystem.size(); ++i)
-		{
-			for (unsigned int j=0; j<variable.size(); ++j)
-			{
-				error_data << subsystem[i] << "." << variable[i][j] << ".dofs:";
-				if (fem_properties.convergence_mode=="space")
-				{
-					if (j==0)
-					{
-						error_data << fluid_triangulation.begin_active()->diameter() << std::endl;
-					}
-					else
-					{
-						error_data << structure_triangulation.begin_active()->diameter() << std::endl;
-					}
-				}
-				else
-				{
-					error_data << timestep_number << std::endl;
-				}
-				for (unsigned int k=0; k<show_errors[2*i+j]; ++k)
-				{
-					error_data << subsystem[i] << "." << variable[i][j] << ".";
-					if (k==0)
-					{
-						error_data << "L2:" << L2_error_array[2*i+j] << std::endl;
-					}
-					else
-					{
-						error_data << "H1:" << H1_error_array[i] << std::endl;
-					}
-				}
-			}
-		}
-		error_data.close();
-	}
+	std::ofstream error_data;
+	error_data.open("errors.dat");
+	for (unsigned int i=0; i<subsystem.size(); ++i)
+	  {
+	    for (unsigned int j=0; j<variable.size(); ++j)
+	      {
+		error_data << subsystem[i] << "." << variable[i][j] << ".dofs:";
+		if (fem_properties.convergence_mode=="space")
+		  {
+		    if (j==0)
+		      {
+			error_data << fluid_triangulation.begin_active()->diameter() << std::endl;
+		      }
+		    else
+		      {
+			error_data << structure_triangulation.begin_active()->diameter() << std::endl;
+		      }
+		  }
+		else
+		  {
+		    error_data << timestep_number << std::endl;
+		  }
+		for (unsigned int k=0; k<show_errors[2*i+j]; ++k)
+		  {
+		    error_data << subsystem[i] << "." << variable[i][j] << ".";
+		    if (k==0)
+		      {
+			error_data << "L2:" << L2_error_array[2*i+j] << std::endl;
+		      }
+		    else
+		      {
+			error_data << "H1:" << H1_error_array[i] << std::endl;
+		      }
+		  }
+	      }
+	  }
+	error_data.close();
+      }
   }
 
   template <int dim>
@@ -2546,7 +2551,7 @@ namespace FSI_Project
         {
         	++count;
 		// REMARK: Uncommenting this means that you will have the true stress based on the reference solution
-		if (count == 0)
+		if (count == 1 && fem_properties.true_control)
 		  {
 			fluid_boundary_stress.set_time(time);
 			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
