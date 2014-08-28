@@ -1232,7 +1232,7 @@ namespace FSI_Project
 	typename DoFHandler<dim>::active_cell_iterator
 	cell = fluid_dof_handler.begin_active(),
 	endc = fluid_dof_handler.end();
-	if (enum_==state)
+	//if (enum_==state)
 	for (; cell!=endc; ++cell)
 	{
 	  fe_values.reinit (cell);
@@ -1245,227 +1245,261 @@ namespace FSI_Project
 	  fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star);
 
 	  for (unsigned int q=0; q<n_q_points; ++q)
+	    {
+	      F[q]=0;
+	      F[q][0][0]=1;
+	      F[q][1][1]=1;
+	      double determinantJ = determinant(F[q]);
+	      //std::cout << determinantJ << std::endl;
+	      Tensor<2,dim> detTimesFinv;
+	      detTimesFinv[0][0]=F[q][1][1];
+	      detTimesFinv[0][1]=-F[q][0][1];
+	      detTimesFinv[1][0]=-F[q][1][0];
+	      detTimesFinv[1][1]=F[q][0][0];
+
+	      Tensor<1,dim> u_star, u_old, u_old_old;
+	      for (unsigned int d=0; d<dim; ++d)
 		{
-		  F[q]=0;
-		  F[q][0][0]=1;
-		  F[q][1][1]=1;
-		  double determinantJ = determinant(F[q]);
-		  //std::cout << determinantJ << std::endl;
-		  Tensor<2,dim> detTimesFinv;
-		  detTimesFinv[0][0]=F[q][1][1];
-		  detTimesFinv[0][1]=-F[q][0][1];
-		  detTimesFinv[1][0]=-F[q][1][0];
-		  detTimesFinv[1][1]=F[q][0][0];
+		  u_star[d] = u_star_values[q](d);
+		  //u_old[d] = old_solution_values[q](d);
+		  //u_old_old[d] = old_old_solution_values[q](d);
+		}
 
-		  Tensor<1,dim> u_star, u_old, u_old_old;
-		  for (unsigned int d=0; d<dim; ++d)
-		  {
-		    u_star[d] = u_star_values[q](d);
-		    //u_old[d] = old_solution_values[q](d);
-		    //u_old_old[d] = old_old_solution_values[q](d);
-		  }
-
-		  for (unsigned int k=0; k<dofs_per_cell; ++k)
+	      for (unsigned int k=0; k<dofs_per_cell; ++k)
+		{
+		  phi_u[k]	   = fe_values[velocities].value (k, q);
+		  symgrad_phi_u[k] = fe_values[velocities].symmetric_gradient (k, q);
+		  grad_phi_u[k]    = fe_values[velocities].gradient (k, q);
+		  div_phi_u[k]     = fe_values[velocities].divergence (k, q);
+		  phi_p[k]         = fe_values[pressure].value (k, q);
+		}
+	      for (unsigned int i=0; i<dofs_per_cell; ++i)
+		{
+		  for (unsigned int j=0; j<dofs_per_cell; ++j)
+		    {
+		      double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
+		      if (enum_==state)
 			{
-			  phi_u[k]	   = fe_values[velocities].value (k, q);
-			  symgrad_phi_u[k] = fe_values[velocities].symmetric_gradient (k, q);
-			  grad_phi_u[k]    = fe_values[velocities].gradient (k, q);
-			  div_phi_u[k]     = fe_values[velocities].divergence (k, q);
-			  phi_p[k]         = fe_values[pressure].value (k, q);
-			}
-		  for (unsigned int i=0; i<dofs_per_cell; ++i)
-			{
-			  for (unsigned int j=0; j<dofs_per_cell; ++j)
-				{
-				  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
-				  if (fem_properties.newton)
-				    {
-				      local_matrix(i,j) += (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
-							    + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
-				    }
-				  else if (fem_properties.richardson)
-				    {
-				      local_matrix(i,j) += physical_properties.rho_f * ((4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i]* fe_values.JxW(q);
-				    }
-				  else
-				    {
-				      local_matrix(i,j) += physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]* fe_values.JxW(q);
-				    }
-
-				  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-							 //+ physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
-							 //+ physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
-							 + fluid_theta * ( 2*physical_properties.viscosity
-									   *0.25*1./determinantJ
-									   *scalar_product(grad_phi_u[i]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[i]),grad_phi_u[j]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[j]))
-									   )		   
-							 - scalar_product(grad_phi_u[i],transpose(detTimesFinv)) * phi_p[j] // (p,\div v)  momentum
-							 - phi_p[i] * scalar_product(grad_phi_u[j],transpose(detTimesFinv)) // (\div u, q) mass
-				    //- div_phi_u[i] * phi_p[j] // momentum conservation
-				    //- phi_p[i] * div_phi_u[j] // mass conservation
-							 + epsilon * phi_p[i] * phi_p[j])
-				    * fe_values.JxW(q);
-				  //std::cout << physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i] << std::endl;
-				}
-			}
-		  for (unsigned int i=0; i<dofs_per_cell; ++i)
-			{
-			  const double old_p = old_solution_values[q](dim);
-			  Tensor<1,dim> old_u;
-			  for (unsigned int d=0; d<dim; ++d)
-				old_u[d] = old_solution_values[q](d);
-			  const Tensor<1,dim> phi_i_s      = fe_values[velocities].value (i, q);
-			  //const Tensor<2,dim> symgrad_phi_i_s = fe_values[velocities].symmetric_gradient (i, q);
-			  //const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
-			  const Tensor<2,dim> grad_phi_i_s = fe_values[velocities].gradient (i, q);
-			  const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
 			  if (fem_properties.newton)
 			    {
-			      local_rhs(i) += physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_i_s * fe_values.JxW(q);
+
+			      local_matrix(i,j) += (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+						    + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
 			    }
+			  else if (fem_properties.richardson)
+			    {
+			      local_matrix(i,j) += physical_properties.rho_f * ((4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i]* fe_values.JxW(q);
+			    }
+			  else
+			    {
+			      local_matrix(i,j) += physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]* fe_values.JxW(q);
+			    }
+			}
+		      else //adjoint
+			{
+			  local_matrix(i,j) += (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
+						+ physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
+			}
+		      local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
+					     //+ physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+					     //+ physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
+					     + fluid_theta * ( 2*physical_properties.viscosity
+							       *0.25*1./determinantJ
+							       *scalar_product(grad_phi_u[i]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[i]),grad_phi_u[j]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[j]))
+							       )		   
+					     - scalar_product(grad_phi_u[i],transpose(detTimesFinv)) * phi_p[j] // (p,\div v)  momentum
+					     - phi_p[i] * scalar_product(grad_phi_u[j],transpose(detTimesFinv)) // (\div u, q) mass
+					     //- div_phi_u[i] * phi_p[j] // momentum conservation
+					     //- phi_p[i] * div_phi_u[j] // mass conservation
+					     + epsilon * phi_p[i] * phi_p[j])
+			* fe_values.JxW(q);
+		      //std::cout << physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i] << std::endl;
+		    }
+		}
+	      if (enum_==state)
+		for (unsigned int i=0; i<dofs_per_cell; ++i)
+		  {
+		    const double old_p = old_solution_values[q](dim);
+		    Tensor<1,dim> old_u;
+		    for (unsigned int d=0; d<dim; ++d)
+		      old_u[d] = old_solution_values[q](d);
+		    const Tensor<1,dim> phi_i_s      = fe_values[velocities].value (i, q);
+		    //const Tensor<2,dim> symgrad_phi_i_s = fe_values[velocities].symmetric_gradient (i, q);
+		    //const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
+		    const Tensor<2,dim> grad_phi_i_s = fe_values[velocities].gradient (i, q);
+		    const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
+		    if (fem_properties.newton)
+		      {
+			local_rhs(i) += physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_i_s * fe_values.JxW(q);
+		      }
 
-			  local_rhs(i) += (physical_properties.rho_f/time_step *phi_i_s*old_u
-					   + (1-fluid_theta)
-					   * (-2*physical_properties.viscosity
-					      *0.25/determinantJ*scalar_product(grad_u[q]*detTimesFinv+transpose(grad_u[q]*detTimesFinv),grad_phi_i_s*detTimesFinv+transpose(grad_phi_i_s*detTimesFinv))
-					      //*(-2*physical_properties.viscosity
-					      //*(grad_u[q][0][0]*symgrad_phi_i_s[0][0]
-					      //+ 0.5*(grad_u[q][1][0]+grad_u[q][0][1])*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
-					      //+ grad_u[q][1][1]*symgrad_phi_i_s[1][1]
-					      )
-					   )
-			    * fe_values.JxW(q);
+		    local_rhs(i) += (physical_properties.rho_f/time_step *phi_i_s*old_u
+				     + (1-fluid_theta)
+				     * (-2*physical_properties.viscosity
+					*0.25/determinantJ*scalar_product(grad_u[q]*detTimesFinv+transpose(grad_u[q]*detTimesFinv),grad_phi_i_s*detTimesFinv+transpose(grad_phi_i_s*detTimesFinv))
+					//*(-2*physical_properties.viscosity
+					//*(grad_u[q][0][0]*symgrad_phi_i_s[0][0]
+					//+ 0.5*(grad_u[q][1][0]+grad_u[q][0][1])*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
+					//+ grad_u[q][1][1]*symgrad_phi_i_s[1][1]
+					)
+				     )
+		      * fe_values.JxW(q);
 			  
-			}
-		}
-		for (unsigned int i=0; i<2; ++i)
+		  }
+	    }
+	  for (unsigned int i=0; i<2; ++i)
+	    {
+	      double multiplier;
+	      Vector<double> *stress_vector;
+	      if (i==0)
 		{
-			double multiplier;
-			Vector<double> *stress_vector;
-			if (i==0)
-			{
-				fluid_stress_values.set_time(time);
-				multiplier=fluid_theta;
-				stress_vector = &stress.block(0);
-			}
-			else
-			{
-				fluid_stress_values.set_time(time-time_step);
-				multiplier=(1-fluid_theta);
-				stress_vector = &old_stress.block(0);
-			}
-
-			for (unsigned int face_no=0;
-				   face_no<GeometryInfo<dim>::faces_per_cell;
-				   ++face_no)
-			{
-				if (cell->at_boundary(face_no))
-				  {
-					if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
-					{
-						fe_face_values.reinit (cell, face_no);
-
-						for (unsigned int q=0; q<n_face_q_points; ++q)
-						  for (unsigned int i=0; i<dofs_per_cell; ++i)
-						  {
-							  fluid_stress_values.vector_gradient(fe_face_values.quadrature_point(q),
-									 stress_values);
-							  Tensor<2,dim> new_stresses;
-							  new_stresses[0][0]=stress_values[0][0];
-							  new_stresses[1][0]=stress_values[1][0];
-							  new_stresses[1][1]=stress_values[1][1];
-							  new_stresses[0][1]=stress_values[0][1];
-							  local_rhs(i) += multiplier*(fe_face_values[velocities].value (i, q)*
-										new_stresses*fe_face_values.normal_vector(q) *
-											  fe_face_values.JxW(q));
-						  }
-					}
-					else if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
-					{
-						fe_face_values.reinit (cell, face_no);
-						fe_face_values.get_function_values (*stress_vector, g_stress_values);
-
-						for (unsigned int q=0; q<n_face_q_points; ++q)
-						{
-						  Tensor<1,dim> g_stress;
-						  for (unsigned int d=0; d<dim; ++d)
-								g_stress[d] = g_stress_values[q](d);
-						  for (unsigned int i=0; i<dofs_per_cell; ++i)
-						  {
-							  local_rhs(i) += multiplier*(fe_face_values[velocities].value (i, q)*
-										g_stress * fe_face_values.JxW(q));
-						  }
-						}
-					}
-				  }
-			}
+		  fluid_stress_values.set_time(time);
+		  multiplier=fluid_theta;
+		  stress_vector = &stress.block(0);
 		}
+	      else
+		{
+		  fluid_stress_values.set_time(time-time_step);
+		  multiplier=(1-fluid_theta);
+		  stress_vector = &old_stress.block(0);
+		}
+
+	      for (unsigned int face_no=0;
+		   face_no<GeometryInfo<dim>::faces_per_cell;
+		   ++face_no)
+		{
+		  if (cell->at_boundary(face_no))
+		    {
+		      if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
+			{
+			  if (enum_==state)
+			    {
+			      fe_face_values.reinit (cell, face_no);
+
+			      for (unsigned int q=0; q<n_face_q_points; ++q)
+				for (unsigned int i=0; i<dofs_per_cell; ++i)
+				  {
+				    fluid_stress_values.vector_gradient(fe_face_values.quadrature_point(q),
+									stress_values);
+				    Tensor<2,dim> new_stresses;
+				    new_stresses[0][0]=stress_values[0][0];
+				    new_stresses[1][0]=stress_values[1][0];
+				    new_stresses[1][1]=stress_values[1][1];
+				    new_stresses[0][1]=stress_values[0][1];
+				    local_rhs(i) += multiplier*(fe_face_values[velocities].value (i, q)*
+								new_stresses*fe_face_values.normal_vector(q) *
+								fe_face_values.JxW(q));
+				  }
+			    }
+			}
+		      else if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+			{
+			  if (enum_==state)
+			    {
+			      fe_face_values.reinit (cell, face_no);
+			      fe_face_values.get_function_values (*stress_vector, g_stress_values);
+
+			      for (unsigned int q=0; q<n_face_q_points; ++q)
+				{
+				  Tensor<1,dim> g_stress;
+				  for (unsigned int d=0; d<dim; ++d)
+				    g_stress[d] = g_stress_values[q](d);
+				  for (unsigned int i=0; i<dofs_per_cell; ++i)
+				    {
+				      local_rhs(i) += multiplier*(fe_face_values[velocities].value (i, q)*
+								  g_stress * fe_face_values.JxW(q));
+				    }
+				}
+			    }
+			  else //adjoint
+			    {
+			      fe_face_values.reinit (cell, face_no);
+			      fe_face_values.get_function_values (state_solution_for_rhs.block(0), adjoint_rhs_values);
+
+			      for (unsigned int q=0; q<n_face_q_points; ++q)
+				{
+				  Tensor<1,dim> g_stress;
+				  for (unsigned int d=0; d<dim; ++d)
+				    g_stress[d] = adjoint_rhs_values[q](d);
+				  for (unsigned int i=0; i<dofs_per_cell; ++i)
+				    {
+				      local_rhs(i) += (fe_face_values[velocities].value (i, q)*
+						       g_stress * fe_face_values.JxW(q));
+				    }
+				  length += fe_face_values.JxW(q);
+				  residual += 0.5 * g_stress * g_stress * fe_face_values.JxW(q);
+				}
+			    }
+			}
+		    }
+		}
+	    }
 	  cell->get_dof_indices (local_dof_indices);
 	  fluid_constraints.distribute_local_to_global (local_matrix, local_rhs,
-											  local_dof_indices,
-											  fluid_matrix, fluid_rhs);
+							local_dof_indices,
+							fluid_matrix, fluid_rhs);
 	}
-	else //adjoint
-	for (; cell!=endc; ++cell)
-		{
-		  fe_values.reinit (cell);
-		  local_matrix = 0;
-		  local_rhs = 0;
-		  for (unsigned int q=0; q<n_q_points; ++q)
-			{
-			  for (unsigned int k=0; k<dofs_per_cell; ++k)
-				{
-				  phi_u[k]		   = fe_values[velocities].value (k, q);
-				  symgrad_phi_u[k] = fe_values[velocities].symmetric_gradient (k, q);
-				  div_phi_u[k]     = fe_values[velocities].divergence (k, q);
-				  phi_p[k]         = fe_values[pressure].value (k, q);
-				}
-			  for (unsigned int i=0; i<dofs_per_cell; ++i)
-				{
-				  for (unsigned int j=0; j<dofs_per_cell; ++j)
-					{
-					  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
-					  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-								 + fluid_theta * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j])
-								 - div_phi_u[i] * phi_p[j] // momentum
-								 - phi_p[i] * div_phi_u[j] // mass
-								 + epsilon * phi_p[i] * phi_p[j])
-					    * fe_values.JxW(q);
-					}
-				}
-			}
-			for (unsigned int face_no=0;
-				   face_no<GeometryInfo<dim>::faces_per_cell;
-				   ++face_no)
-			{
-				if (cell->at_boundary(face_no))
-				  {
-					if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
-					{
-						fe_face_values.reinit (cell, face_no);
-						fe_face_values.get_function_values (state_solution_for_rhs.block(0), adjoint_rhs_values);
+	// else //adjoint
+	// for (; cell!=endc; ++cell)
+	// 	{
+	// 	  fe_values.reinit (cell);
+	// 	  local_matrix = 0;
+	// 	  local_rhs = 0;
+	// 	  for (unsigned int q=0; q<n_q_points; ++q)
+	// 		{
+	// 		  for (unsigned int k=0; k<dofs_per_cell; ++k)
+	// 			{
+	// 			  phi_u[k]		   = fe_values[velocities].value (k, q);
+	// 			  symgrad_phi_u[k] = fe_values[velocities].symmetric_gradient (k, q);
+	// 			  div_phi_u[k]     = fe_values[velocities].divergence (k, q);
+	// 			  phi_p[k]         = fe_values[pressure].value (k, q);
+	// 			}
+	// 		  for (unsigned int i=0; i<dofs_per_cell; ++i)
+	// 			{
+	// 			  for (unsigned int j=0; j<dofs_per_cell; ++j)
+	// 				{
+	// 				  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
+	// 				  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
+	// 							 + fluid_theta * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j])
+	// 							 - div_phi_u[i] * phi_p[j] // momentum
+	// 							 - phi_p[i] * div_phi_u[j] // mass
+	// 							 + epsilon * phi_p[i] * phi_p[j])
+	// 				    * fe_values.JxW(q);
+	// 				}
+	// 			}
+	// 		}
+	// 		for (unsigned int face_no=0;
+	// 			   face_no<GeometryInfo<dim>::faces_per_cell;
+	// 			   ++face_no)
+	// 		{
+	// 			if (cell->at_boundary(face_no))
+	// 			  {
+	// 				if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+	// 				{
+	// 					fe_face_values.reinit (cell, face_no);
+	// 					fe_face_values.get_function_values (state_solution_for_rhs.block(0), adjoint_rhs_values);
 
-						for (unsigned int q=0; q<n_face_q_points; ++q)
-						{
-						  Tensor<1,dim> g_stress;
-						  for (unsigned int d=0; d<dim; ++d)
-								g_stress[d] = adjoint_rhs_values[q](d);
-						  for (unsigned int i=0; i<dofs_per_cell; ++i)
-						  {
-							  local_rhs(i) += (fe_face_values[velocities].value (i, q)*
-										g_stress * fe_face_values.JxW(q));
-						  }
-                                                  length += fe_face_values.JxW(q);
-                                                  residual += 0.5 * g_stress * g_stress * fe_face_values.JxW(q);
-						}
-					}
-				  }
-			}
-		  cell->get_dof_indices (local_dof_indices);
-		  fluid_constraints.distribute_local_to_global (local_matrix, local_rhs,
-												  local_dof_indices,
-												  fluid_matrix, fluid_rhs);
-		}
+	// 					for (unsigned int q=0; q<n_face_q_points; ++q)
+	// 					{
+	// 					  Tensor<1,dim> g_stress;
+	// 					  for (unsigned int d=0; d<dim; ++d)
+	// 							g_stress[d] = adjoint_rhs_values[q](d);
+	// 					  for (unsigned int i=0; i<dofs_per_cell; ++i)
+	// 					  {
+	// 						  local_rhs(i) += (fe_face_values[velocities].value (i, q)*
+	// 									g_stress * fe_face_values.JxW(q));
+	// 					  }
+        //                                           length += fe_face_values.JxW(q);
+        //                                           residual += 0.5 * g_stress * g_stress * fe_face_values.JxW(q);
+	// 					}
+	// 				}
+	// 			  }
+	// 		}
+	// 	  cell->get_dof_indices (local_dof_indices);
+	// 	  fluid_constraints.distribute_local_to_global (local_matrix, local_rhs,
+	// 											  local_dof_indices,
+	// 											  fluid_matrix, fluid_rhs);
+	// 	}
         //std::cout << length << " " << residual << std::endl;
   }
 
@@ -2501,7 +2535,7 @@ namespace FSI_Project
         {
         	++count;
             // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
-		if (count == 1)
+		if (count == 0)
 		  {
 			fluid_boundary_stress.set_time(time);
 			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
@@ -2529,11 +2563,14 @@ namespace FSI_Project
 		  dirichlet_boundaries((System)0,state);
 		  solve(0,state);
 		  solution_star-=solution;
-		  std::cout << solution_star.l2_norm() << std::endl;
-		  if (fem_properties.richardson)
+		  if (fem_properties.richardson && !fem_properties.newton)
 		    {
 		      break;
 		      //solution_star = 0; // effectively a break
+		    }
+		  else
+		    {
+		      std::cout << solution_star.l2_norm() << std::endl;
 		    }
 		}
 		solution_star = solution; 
@@ -2544,7 +2581,7 @@ namespace FSI_Project
 		velocity_jump_old = velocity_jump;
 		velocity_jump=interface_error();
 
-		if (count%50==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
+		if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
 		if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
 
 
