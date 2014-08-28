@@ -4,7 +4,7 @@
  * ---------------------------------------------------------------------
  *
  * Originally authored by Wolfgang Bangerth, Texas A&M University, 2006
- * and ammended significantly by Paul Kuberry, Clemson University, 2014
+ * and amended significantly by Paul Kuberry, Clemson University, 2014
  */
 
 
@@ -2748,7 +2748,7 @@ namespace FSI_Project
 	unsigned int relrecord = 0;
 	unsigned int consecutiverelrecord = 0;
 
-	stress=old_stress;
+	//stress=old_stress;
 
         while (true)
         {
@@ -2792,6 +2792,7 @@ namespace FSI_Project
 	      }
 	  }
 	  solution_star = solution; 
+	  build_adjoint_rhs();
 
 	  velocity_jump_old = velocity_jump;
 	  velocity_jump=interface_error();
@@ -2801,8 +2802,6 @@ namespace FSI_Project
 
 	  if (fem_properties.optimization_method.compare("Gradient")==0)
 	    {
-	      build_adjoint_rhs();
-
 	      assemble_structure(adjoint);
 	      assemble_fluid(adjoint);
 	      assemble_ale(adjoint);
@@ -2882,9 +2881,11 @@ namespace FSI_Project
 	  else // fem_properties.optimization_method==CG
 	    {
 	      // x^0 = guess
-	      tmp=1;
+	      tmp=1e-10;
+	      rhs_for_linear_h=0;
 	      transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
-	      transfer_interface_dofs(tmp,rhs_for_linear_h,1,1);
+	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
+	      rhs_for_linear_h.block(1) *= -1./time_step;   // copy, negate
 
 	      // b = -u + [n^n-n^n-1]/dt	       
 	      tmp=0;
@@ -2896,7 +2897,7 @@ namespace FSI_Project
 	      tmp=0;
 	      transfer_interface_dofs(solution,tmp,0,0);
 	      rhs_for_adjoint.block(0)-=tmp.block(0);
-
+	     
 	      // get linearized variables
 	      rhs_for_linear = rhs_for_linear_h;
 	      assemble_structure(linear);
@@ -2916,6 +2917,8 @@ namespace FSI_Project
 	      
 	      // r^0 = b - Ax
 	      rhs_for_adjoint.block(0)+=tmp.block(0);
+	      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+	      rhs_for_adjoint*=-1;   // copy, negate
 	      // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
 	      rhs_for_adjoint_s=0;
 	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_adjoint_s,0,0);
@@ -2933,20 +2936,21 @@ namespace FSI_Project
 
 	      // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
 	      tmp=0; tmp2=0;
+	      rhs_for_linear_p=0;
 	      transfer_interface_dofs(adjoint_solution,tmp,1,0);
 	      tmp.block(0)*=-1/time_step;
 	      transfer_interface_dofs(adjoint_solution,tmp2,0,0);
 	      tmp.block(0)+=tmp2.block(0);
 	      tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
 	      transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
+	      transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+	      rhs_for_linear_p.block(1)*=-1./time_step;   // copy, negate
 	      double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
-	      std::cout <<  p_n_norm_square << std::endl;
+	      //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
+	      //std::cout <<  p_n_norm_square << std::endl;
 	      
 	      while (p_n_norm_square > 1e-8)
 		{
-		  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		  rhs_for_linear_p.block(1)*=-1;
-		  
 		  // get linearized variables
 		  rhs_for_linear = rhs_for_linear_p;
 		  assemble_structure(linear);
@@ -2967,19 +2971,21 @@ namespace FSI_Project
 		  rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
 		  rhs_for_linear_Ap_s *= sqrt(fem_properties.penalty_epsilon);
 		  double ap_norm_square = interface_norm(tmp.block(0));
-		  ap_norm_square += fem_properties.penalty_epsilon * interface_norm(rhs_for_linear_p.block(0));
+		  //double ap_norm_square = tmp.block(0).l2_norm();
+		  ap_norm_square += interface_norm(rhs_for_linear_p.block(0));
+		  //ap_norm_square += rhs_for_linear_p.block(0).l2_norm();
 		  double sigma = p_n_norm_square/ap_norm_square;
 
 		  // h^{n+1} = h^n + sigma * p^n
 		  rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
 		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-		  rhs_for_linear_h.block(1)*=-1;
+		  //rhs_for_linear_h.block(1)*=-1;   // copy, negate
 
 		  // r^{n+1} = r^n - sigma * Ap
 		  // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
 		  rhs_for_adjoint.block(0).add(-sigma, tmp.block(0));
 		  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
-		  rhs_for_adjoint.block(1)*=-1;
+		  rhs_for_adjoint.block(1)*=-1;   // copy, negate
 		  rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
 		  
 		  // get adjoint variables (b^{n+1},....)
@@ -2999,21 +3005,23 @@ namespace FSI_Project
 		  tmp.block(0)+=tmp2.block(0);
 		  tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
 		  double Astar_r_np1_norm_square = interface_norm(tmp.block(0));
+		  //double Astar_r_np1_norm_square = tmp.block(0).l2_norm();
 		  double tau = Astar_r_np1_norm_square / p_n_norm_square;
 
 		  // p^{n+1} = A*r^{n+1} + tau * p^{n}
 		  rhs_for_linear_p.block(0) *= tau;
 		  rhs_for_linear_p.block(0)+=tmp.block(0);
 		  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		  rhs_for_linear_p.block(1)*=-1;
+		  rhs_for_linear_p.block(1)*=-1./time_step;   // copy, negate
 		  p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
-		  std::cout << p_n_norm_square << std::endl;
+		  //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
+		  //std::cout << p_n_norm_square << std::endl;	  
 		}
 		  
 	      // update stress
 	      stress.block(0)+=rhs_for_linear_h.block(0);
 	      transfer_interface_dofs(stress,stress,0,1);
-	      stress.block(1)*=-1;
+	      //stress.block(1)*=-1;
 	    }
 
 	}
