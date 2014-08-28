@@ -104,7 +104,9 @@ namespace FSI_Project
     double		rho_f;
     double 		rho_s;
     bool		moving_domain;
+    bool                move_domain;
     int			n_fourier_coeffs;
+    bool                navier_stokes;
   };
 
 
@@ -250,6 +252,8 @@ namespace FSI_Project
 	  			  "density of the structure.");
 	  prm.declare_entry("number fourier coefficients", "20", Patterns::Integer(1),
 			  	  "# of fourier coefficients to use.");
+	  prm.declare_entry("navier stokes", "true", Patterns::Bool(),
+			  	  "should the convective term be added.");
 
 	  // Output Parameters
 	  prm.declare_entry("make plots", "true", Patterns::Bool(),
@@ -277,6 +281,8 @@ namespace FSI_Project
 			    "use Newton's method for convergence of nonlinearity in NS solve.");
 	  prm.declare_entry("moving domain", "true", Patterns::Bool(),
 	  			  "should the ALE be used.");
+	  prm.declare_entry("move domain", "true", Patterns::Bool(),
+	  			  "should the points be physically moved (vs using determinants).");
 
   }
 
@@ -301,23 +307,23 @@ namespace FSI_Project
 	  fem_properties.fluid_degree		= prm_.get_integer("fluid velocity degree");
 	  fem_properties.pressure_degree	= prm_.get_integer("fluid pressure degree");
 	  fem_properties.structure_degree	= prm_.get_integer("structure degree");
-	  fem_properties.ale_degree			= prm_.get_integer("ale degree");
+	  fem_properties.ale_degree		= prm_.get_integer("ale degree");
 	  // Time Parameters
-	  fem_properties.T					= prm_.get_double("T");
+	  fem_properties.T			= prm_.get_double("T");
 	  fem_properties.n_time_steps		= prm_.get_integer("number of time steps");
-	  fem_properties.fluid_theta				= prm_.get_double("fluid theta");
-	  fem_properties.structure_theta			= prm_.get_double("structure theta");
+	  fem_properties.fluid_theta		= prm_.get_double("fluid theta");
+	  fem_properties.structure_theta	= prm_.get_double("structure theta");
 	  // Domain Parameters
 	  fem_properties.fluid_width		= prm_.get_double("fluid width");
 	  fem_properties.fluid_height		= prm_.get_double("fluid height");
 	  fem_properties.structure_width	= prm_.get_double("structure width");
 	  fem_properties.structure_height	= prm_.get_double("structure height");
-	  fem_properties.nx_f				= prm_.get_integer("nx fluid");
-	  fem_properties.ny_f				= prm_.get_integer("ny fluid");
-	  fem_properties.nx_s				= prm_.get_integer("nx structure");
-	  fem_properties.ny_s				= prm_.get_integer("ny structure");
+	  fem_properties.nx_f			= prm_.get_integer("nx fluid");
+	  fem_properties.ny_f			= prm_.get_integer("ny fluid");
+	  fem_properties.nx_s			= prm_.get_integer("nx structure");
+	  fem_properties.ny_s			= prm_.get_integer("ny structure");
 	  // Output Parameters
-	  fem_properties.make_plots			= prm_.get_bool("make plots");
+	  fem_properties.make_plots		= prm_.get_bool("make plots");
 	  fem_properties.print_error		= prm_.get_bool("output error");
 	  fem_properties.convergence_mode	= prm_.get("convergence method");
 	  // Optimization Parameters
@@ -325,16 +331,18 @@ namespace FSI_Project
 	  fem_properties.steepest_descent_alpha = prm_.get_double("steepest descent alpha");
 	  fem_properties.penalty_epsilon	= prm_.get_double("penalty epsilon");
 	  fem_properties.max_optimization_iterations = prm_.get_integer("max optimization iterations");
-	  // Solver Paramters
+	  // Solver Parameters
 	  fem_properties.richardson		= prm_.get_bool("richardson");
 	  fem_properties.newton 		= prm_.get_bool("newton");
 	  physical_properties.moving_domain	= prm_.get_bool("moving domain");
+	  physical_properties.move_domain	= prm_.get_bool("move domain");
 
 	  // Problem Parameters
 	  physical_properties.viscosity		= prm_.get_double("viscosity");
 	  physical_properties.lambda		= prm_.get_double("lambda");
-	  physical_properties.mu			= prm_.get_double("mu");
-	  physical_properties.nu			= prm_.get_double("nu");
+	  physical_properties.mu		= prm_.get_double("mu");
+	  physical_properties.nu		= prm_.get_double("nu");
+	  physical_properties.navier_stokes     = prm_.get_bool("navier stokes");
 	  if (std::fabs(physical_properties.lambda)<1e-13) // Lambda is to be computed
 	  {
 		  physical_properties.lambda	= 2*physical_properties.mu*physical_properties.nu/(1-2*physical_properties.nu);
@@ -1261,8 +1269,8 @@ namespace FSI_Project
 	      for (unsigned int d=0; d<dim; ++d)
 		{
 		  u_star[d] = u_star_values[q](d);
-		  //u_old[d] = old_solution_values[q](d);
-		  //u_old_old[d] = old_old_solution_values[q](d);
+		  u_old[d] = old_solution_values[q](d);
+		  u_old_old[d] = old_old_solution_values[q](d);
 		}
 
 	      for (unsigned int k=0; k<dofs_per_cell; ++k)
@@ -1278,27 +1286,30 @@ namespace FSI_Project
 		  for (unsigned int j=0; j<dofs_per_cell; ++j)
 		    {
 		      double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
-		      if (enum_==state)
+		      if (physical_properties.navier_stokes)
 			{
-			  if (fem_properties.newton)
+			  if (enum_==state)
 			    {
+			      if (fem_properties.newton)
+				{
 
-			      local_matrix(i,j) += (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
-						    + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
+				  local_matrix(i,j) += (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+							+ physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
+				}
+			      else if (fem_properties.richardson)
+				{
+				  local_matrix(i,j) += physical_properties.rho_f * ((4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i]* fe_values.JxW(q);
+				}
+			      else
+				{
+				  local_matrix(i,j) += physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]* fe_values.JxW(q);
+				}
 			    }
-			  else if (fem_properties.richardson)
+			  else //adjoint
 			    {
-			      local_matrix(i,j) += physical_properties.rho_f * ((4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i]* fe_values.JxW(q);
+			      local_matrix(i,j) += (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
+						    + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
 			    }
-			  else
-			    {
-			      local_matrix(i,j) += physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]* fe_values.JxW(q);
-			    }
-			}
-		      else //adjoint
-			{
-			  local_matrix(i,j) += (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
-						+ physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
 			}
 		      local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
 					     //+ physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
@@ -1328,7 +1339,7 @@ namespace FSI_Project
 		    //const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
 		    const Tensor<2,dim> grad_phi_i_s = fe_values[velocities].gradient (i, q);
 		    const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
-		    if (fem_properties.newton)
+		    if (fem_properties.newton && physical_properties.navier_stokes)
 		      {
 			local_rhs(i) += physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_i_s * fe_values.JxW(q);
 		      }
@@ -2534,7 +2545,7 @@ namespace FSI_Project
         while (true)
         {
         	++count;
-            // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
+		// REMARK: Uncommenting this means that you will have the true stress based on the reference solution
 		if (count == 0)
 		  {
 			fluid_boundary_stress.set_time(time);
@@ -2543,7 +2554,7 @@ namespace FSI_Project
 			 					  stress.block(0));
 			transfer_interface_dofs(stress,stress,0,1);
 		  }
-            // End of section to uncomment
+		// End of section to uncomment
 
 		// RHS and Neumann conditions are inside these functions
 		// Solve for the state variables
@@ -2563,10 +2574,9 @@ namespace FSI_Project
 		  dirichlet_boundaries((System)0,state);
 		  solve(0,state);
 		  solution_star-=solution;
-		  if (fem_properties.richardson && !fem_properties.newton)
+		  if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
 		    {
 		      break;
-		      //solution_star = 0; // effectively a break
 		    }
 		  else
 		    {
