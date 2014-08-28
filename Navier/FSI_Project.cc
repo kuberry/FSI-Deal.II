@@ -90,6 +90,7 @@ namespace FSI_Project
     double		penalty_epsilon;
     unsigned int max_optimization_iterations;
     bool                true_control;
+    std::string 	optimization_method;
 
     // Solver Parameters
     bool                  richardson;
@@ -126,27 +127,35 @@ namespace FSI_Project
 
   private:
     enum Mode
-    {
-      state,
-      adjoint
-    };
+      {
+	state,
+	adjoint,
+	linear
+      };
     enum BoundaryCondition
-    {
-      Dirichlet,
-      Neumann,
-      Interface
-    };
+      {
+	Dirichlet,
+	Neumann,
+	Interface
+      };
     enum System
-    {
-      Fluid,
-      Structure,
-      ALE
-    };
+      {
+	Fluid,
+	Structure,
+	ALE
+      };
+    enum Optimization
+      {
+	CG,
+	Gradient
+      };
+
     void assemble_fluid (Mode enum_);
     void assemble_structure(Mode enum_);
     void assemble_ale(Mode enum_);
     void build_adjoint_rhs();
     double interface_error();
+    double interface_norm(Vector<double>   &values);
     void dirichlet_boundaries(System system, Mode enum_);
     void build_dof_mapping();
     void transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
@@ -167,9 +176,15 @@ namespace FSI_Project
 
     BlockVector<double>       	solution;
     BlockVector<double>       	solution_star;
-    BlockVector<double>		state_solution_for_rhs;
+    BlockVector<double>		rhs_for_adjoint;
+    BlockVector<double>		rhs_for_adjoint_s;
+    BlockVector<double>		rhs_for_linear;
+    BlockVector<double>		rhs_for_linear_h;
+    BlockVector<double>		rhs_for_linear_p;
+    BlockVector<double>		rhs_for_linear_Ap_s;
     BlockVector<double>		adjoint_solution;
-    BlockVector<double>		tmp;
+    BlockVector<double>		linear_solution;
+    BlockVector<double>		tmp, tmp2;
     BlockVector<double>       	old_solution;
     BlockVector<double>       	old_old_solution;
     BlockVector<double>       	system_rhs;
@@ -276,6 +291,8 @@ namespace FSI_Project
 			    "maximum number of optimization iterations per time step.");
 	  prm.declare_entry("true control","false", Patterns::Bool(),
 			    "Use the true stress as the initial control at each time step.");
+	  prm.declare_entry("optimization method","CG", Patterns::Selection("CG|Gradient"),
+			    "optimization method choices {CG,Gradient}.");
 
 	  // Operations Parameters
 	  prm.declare_entry("richardson", "true", Patterns::Bool(),
@@ -334,7 +351,8 @@ namespace FSI_Project
 	  fem_properties.steepest_descent_alpha = prm_.get_double("steepest descent alpha");
 	  fem_properties.penalty_epsilon	= prm_.get_double("penalty epsilon");
 	  fem_properties.max_optimization_iterations = prm_.get_integer("max optimization iterations");
-	  fem_properties.true_control           = prm_.get_bool("true control");	  
+	  fem_properties.true_control           = prm_.get_bool("true control");
+	  fem_properties.optimization_method    = prm_.get("optimization method");	  
 	  // Solver Parameters
 	  fem_properties.richardson		= prm_.get_bool("richardson");
 	  fem_properties.newton 		= prm_.get_bool("newton");
@@ -808,28 +826,28 @@ namespace FSI_Project
   template <int dim>
   void FSIProblem<dim>::build_adjoint_rhs()
   {
-	// here we build the state_solution_for_rhs vector from state variable information
+	// here we build the rhs_for_adjoint vector from state variable information
 	// build rhs of fluid adjoint problem
 	// [u^n - (n^n-n^{n-1})/delta t]
 	tmp=0;
-	state_solution_for_rhs=0;
-	transfer_interface_dofs(solution,state_solution_for_rhs,1,0);
-	state_solution_for_rhs.block(0)*=-1./time_step;
+	rhs_for_adjoint=0;
+	transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
+	rhs_for_adjoint.block(0)*=-1./time_step;
 	transfer_interface_dofs(old_solution,tmp,1,0);
-	state_solution_for_rhs.block(0).add(1./time_step,tmp.block(0));
+	rhs_for_adjoint.block(0).add(1./time_step,tmp.block(0));
 	tmp=0;
 	transfer_interface_dofs(solution,tmp,0,0);
-	state_solution_for_rhs.block(0)+=tmp.block(0);
+	rhs_for_adjoint.block(0)+=tmp.block(0);
 	// build rhs of structure adjoint problem
 
-	transfer_interface_dofs(state_solution_for_rhs,state_solution_for_rhs,0,1);
-	state_solution_for_rhs.block(1)*=-1./time_step;
+	transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+	rhs_for_adjoint.block(1)*=-1./time_step;
   }
 
   template <int dim>
   double FSIProblem<dim>::interface_error()
   {
-	QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+3);
+	QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
 	FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
                                       update_values    | update_normal_vectors |
                                       update_quadrature_points  | update_JxW_values);
@@ -847,35 +865,81 @@ namespace FSI_Project
 	endc = fluid_dof_handler.end();
 	for (; cell!=endc; ++cell)
 	{
-		for (unsigned int face_no=0;
-						   face_no<GeometryInfo<dim>::faces_per_cell;
-						   ++face_no)
+	  for (unsigned int face_no=0;
+	       face_no<GeometryInfo<dim>::faces_per_cell;
+	       ++face_no)
+	    {
+	      if (cell->at_boundary(face_no))
 		{
-		if (cell->at_boundary(face_no))
-		{
-			if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
-			{
-				fe_face_values.reinit (cell, face_no);
-				fe_face_values.get_function_values (state_solution_for_rhs.block(0), error_values);
-				fe_face_values.get_function_values (stress.block(0), stress_values);
+		  if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+		    {
+		      fe_face_values.reinit (cell, face_no);
+		      fe_face_values.get_function_values (rhs_for_adjoint.block(0), error_values);
+		      fe_face_values.get_function_values (stress.block(0), stress_values);
 
-				for (unsigned int q=0; q<n_face_q_points; ++q)
-				{
-				  Tensor<1,dim> error;
-				  Tensor<1,dim> g_stress;
-				  for (unsigned int d=0; d<dim; ++d)
-				  {
-				    error[d] = error_values[q](d);
-				    g_stress[d] = stress_values[q](d);
-				  }
-				  functional += 0.5 * error * error * fe_face_values.JxW(q);
-				  penalty_functional += fem_properties.penalty_epsilon * 0.5 * g_stress * g_stress * fe_face_values.JxW(q); 
-				}
+		      for (unsigned int q=0; q<n_face_q_points; ++q)
+			{
+			  Tensor<1,dim> error;
+			  Tensor<1,dim> g_stress;
+			  for (unsigned int d=0; d<dim; ++d)
+			    {
+			      error[d] = error_values[q](d);
+			      g_stress[d] = stress_values[q](d);
+			    }
+			  functional += 0.5 * error * error * fe_face_values.JxW(q);
+			  penalty_functional += fem_properties.penalty_epsilon * 0.5 * g_stress * g_stress * fe_face_values.JxW(q); 
 			}
+		    }
 		}
-		}
+	    }
 	}
 	return functional+penalty_functional;
+  }
+
+  template <int dim>
+  double FSIProblem<dim>::interface_norm(Vector<double>   &values)
+  {
+	QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
+	FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
+                                      update_values    | update_normal_vectors |
+                                      update_quadrature_points  | update_JxW_values);
+	const unsigned int   dofs_per_cell   = fluid_fe.dofs_per_cell;
+	const unsigned int   n_face_q_points = face_quadrature_formula.size();
+
+	std::vector<Vector<double> > actual_values(n_face_q_points, Vector<double>(dim+1));
+
+	double functional = 0;
+
+	typename DoFHandler<dim>::active_cell_iterator
+	cell = fluid_dof_handler.begin_active(),
+	endc = fluid_dof_handler.end();
+	for (; cell!=endc; ++cell)
+	{
+	  for (unsigned int face_no=0;
+	       face_no<GeometryInfo<dim>::faces_per_cell;
+	       ++face_no)
+	    {
+	      if (cell->at_boundary(face_no))
+		{
+		  if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+		    {
+		      fe_face_values.reinit (cell, face_no);
+		      fe_face_values.get_function_values (values, actual_values);
+
+		      for (unsigned int q=0; q<n_face_q_points; ++q)
+			{
+			  Tensor<1,dim> val;
+			  for (unsigned int d=0; d<dim; ++d)
+			    {
+			      val[d] = actual_values[q](d);
+			    }
+			  functional += val * val * fe_face_values.JxW(q); 
+			}
+		    }
+		}
+	    }
+	}
+	return functional;
   }
 
   template<int dim>
@@ -1182,14 +1246,14 @@ namespace FSI_Project
 	QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
 
 	FEValues<dim> fe_values (fluid_fe, quadrature_formula,
-						   update_values    |
-						   update_quadrature_points  |
-						   update_JxW_values |
-						   update_gradients);
+				 update_values    |
+				 update_quadrature_points  |
+				 update_JxW_values |
+				 update_gradients);
 
-    FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
-                                      update_values    | update_normal_vectors |
-                                      update_quadrature_points  | update_JxW_values);
+	FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
+					  update_values    | update_normal_vectors |
+					  update_quadrature_points  | update_JxW_values);
 
 	const unsigned int   dofs_per_cell   = fluid_fe.dofs_per_cell;
 	const unsigned int   n_q_points      = quadrature_formula.size();
@@ -1200,9 +1264,10 @@ namespace FSI_Project
 	std::vector<Vector<double> > old_solution_values(n_q_points, Vector<double>(dim+1));
 	std::vector<Vector<double> > old_old_solution_values(n_q_points, Vector<double>(dim+1));
 	std::vector<Vector<double> > adjoint_rhs_values(n_face_q_points, Vector<double>(dim+1));
+	std::vector<Vector<double> > linear_rhs_values(n_face_q_points, Vector<double>(dim+1));
 	std::vector<Vector<double> > u_star_values(n_q_points, Vector<double>(dim+1));
 
-	std::vector<Tensor<2,dim> > grad_u (n_q_points);
+	std::vector<Tensor<2,dim> > grad_u_old (n_q_points);
 	std::vector<Tensor<2,dim> > grad_u_star (n_q_points);
 	std::vector<Tensor<2,dim> > F (n_q_points);
 
@@ -1253,7 +1318,7 @@ namespace FSI_Project
 	  fe_values.get_function_values (old_solution.block(0), old_solution_values);
 	  fe_values.get_function_values (old_old_solution.block(0), old_old_solution_values);
 	  fe_values.get_function_values (solution_star.block(0),u_star_values);
-	  fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u);
+	  fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u_old);
 	  fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star);
 
 	  for (unsigned int q=0; q<n_q_points; ++q)
@@ -1309,10 +1374,15 @@ namespace FSI_Project
 				  local_matrix(i,j) += physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]* fe_values.JxW(q);
 				}
 			    }
-			  else //adjoint
+			  else if (enum_==adjoint) 
 			    {
 			      local_matrix(i,j) += (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
 						    + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
+			    }
+			  else // enum_==linear
+			    {
+			      local_matrix(i,j) += (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+						    + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
 			    }
 			}
 		      local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
@@ -1351,11 +1421,11 @@ namespace FSI_Project
 		    local_rhs(i) += (physical_properties.rho_f/time_step *phi_i_s*old_u
 				     + (1-fluid_theta)
 				     * (-2*physical_properties.viscosity
-					*0.25/determinantJ*scalar_product(grad_u[q]*detTimesFinv+transpose(grad_u[q]*detTimesFinv),grad_phi_i_s*detTimesFinv+transpose(grad_phi_i_s*detTimesFinv))
+					*0.25/determinantJ*scalar_product(grad_u_old[q]*detTimesFinv+transpose(grad_u_old[q]*detTimesFinv),grad_phi_i_s*detTimesFinv+transpose(grad_phi_i_s*detTimesFinv))
 					//*(-2*physical_properties.viscosity
-					//*(grad_u[q][0][0]*symgrad_phi_i_s[0][0]
-					//+ 0.5*(grad_u[q][1][0]+grad_u[q][0][1])*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
-					//+ grad_u[q][1][1]*symgrad_phi_i_s[1][1]
+					//*(grad_u_old[q][0][0]*symgrad_phi_i_s[0][0]
+					//+ 0.5*(grad_u_old[q][1][0]+grad_u_old[q][0][1])*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
+					//+ grad_u_old[q][1][1]*symgrad_phi_i_s[1][1]
 					)
 				     )
 		      * fe_values.JxW(q);
@@ -1426,23 +1496,40 @@ namespace FSI_Project
 				    }
 				}
 			    }
-			  else //adjoint
+			  else if (enum_==adjoint)
 			    {
 			      fe_face_values.reinit (cell, face_no);
-			      fe_face_values.get_function_values (state_solution_for_rhs.block(0), adjoint_rhs_values);
+			      fe_face_values.get_function_values (rhs_for_adjoint.block(0), adjoint_rhs_values);
 
 			      for (unsigned int q=0; q<n_face_q_points; ++q)
 				{
-				  Tensor<1,dim> g_stress;
+				  Tensor<1,dim> r;
 				  for (unsigned int d=0; d<dim; ++d)
-				    g_stress[d] = adjoint_rhs_values[q](d);
+				    r[d] = adjoint_rhs_values[q](d);
 				  for (unsigned int i=0; i<dofs_per_cell; ++i)
 				    {
 				      local_rhs(i) += (fe_face_values[velocities].value (i, q)*
-						       g_stress * fe_face_values.JxW(q));
+						       r * fe_face_values.JxW(q));
 				    }
 				  length += fe_face_values.JxW(q);
-				  residual += 0.5 * g_stress * g_stress * fe_face_values.JxW(q);
+				  residual += 0.5 * r * r * fe_face_values.JxW(q);
+				}
+			    }
+			  else // enum_==linear
+			    {
+			      fe_face_values.reinit (cell, face_no);
+			      fe_face_values.get_function_values (rhs_for_linear.block(0), linear_rhs_values);
+
+			      for (unsigned int q=0; q<n_face_q_points; ++q)
+				{
+				  Tensor<1,dim> h;
+				  for (unsigned int d=0; d<dim; ++d)
+				    h[d] = linear_rhs_values[q](d);
+				  for (unsigned int i=0; i<dofs_per_cell; ++i)
+				    {
+				      local_rhs(i) += (fe_face_values[velocities].value (i, q)*
+						       h * fe_face_values.JxW(q));
+				    }
 				}
 			    }
 			}
@@ -1492,7 +1579,7 @@ namespace FSI_Project
 	// 				if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 	// 				{
 	// 					fe_face_values.reinit (cell, face_no);
-	// 					fe_face_values.get_function_values (state_solution_for_rhs.block(0), adjoint_rhs_values);
+	// 					fe_face_values.get_function_values (rhs_for_adjoint.block(0), adjoint_rhs_values);
 
 	// 					for (unsigned int q=0; q<n_face_q_points; ++q)
 	// 					{
@@ -1554,6 +1641,7 @@ namespace FSI_Project
 
 	std::vector<Vector<double> > old_solution_values(n_q_points, Vector<double>(2*dim));
 	std::vector<Vector<double> > adjoint_rhs_values(n_face_q_points, Vector<double>(2*dim));
+	std::vector<Vector<double> > linear_rhs_values(n_face_q_points, Vector<double>(2*dim));
 	std::vector<Tensor<2,dim> > grad_n (n_q_points);
 
 	if (enum_==state)
@@ -1587,242 +1675,314 @@ namespace FSI_Project
 	const FEValuesExtractors::Vector displacements (0);
 	const FEValuesExtractors::Vector velocities (dim);
 	typename DoFHandler<dim>::active_cell_iterator cell = structure_dof_handler.begin_active(),
-												   endc = structure_dof_handler.end();
-	if (enum_==state)
+	  endc = structure_dof_handler.end();
 	for (; cell!=endc; ++cell)
 	  {
-		fe_values.reinit (cell);
-		local_matrix = 0;
-		local_rhs = 0;
-		fe_values.get_function_values (old_solution.block(1), old_solution_values);
-		fe_values[displacements].get_function_gradients(old_solution.block(1),grad_n);
-		for (unsigned int q_point=0; q_point<n_q_points;
-							 ++q_point)
-		{
-			for (unsigned int k=0; k<dofs_per_cell; ++k)
-			{
-			  phi_n[k]		   = fe_values[displacements].value (k, q_point);
-			  symgrad_phi_n[k] = fe_values[displacements].symmetric_gradient (k, q_point);
-			  div_phi_n[k]     = fe_values[displacements].divergence (k, q_point);
-			  phi_v[k]         = fe_values[velocities].value (k, q_point);
-			}
-			for (unsigned int i=0; i<dofs_per_cell; ++i)
-			  {
-				const unsigned int
-				component_i = structure_fe.system_to_component_index(i).first;
-				for (unsigned int j=0; j<dofs_per_cell; ++j)
-				  {
-					const unsigned int
-					component_j = structure_fe.system_to_component_index(j).first;
-
-					if (component_i<dim)
-					{
-						if (component_j<dim)
-						{
-							local_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
-														 + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
-												*fe_values.JxW(q_point);
-						}
-						else
-						{
-							local_matrix(i,j)+=physical_properties.rho_s/time_step*phi_n[i]*phi_v[j]*fe_values.JxW(q_point);
-						}
-					}
-					else
-					{
-						if (component_j<dim)
-						{
-							local_matrix(i,j)+=(-1./time_step*phi_v[i]*phi_n[j])
-							                    *fe_values.JxW(q_point);
-						}
-						else
-						{
-							local_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
-							                    *fe_values.JxW(q_point);
-						}
-					}
-				  }
-			  }
-			for (unsigned int i=0; i<dofs_per_cell; ++i)
-			  {
-	            const unsigned int component_i = structure_fe.system_to_component_index(i).first;
-				Tensor<1,dim> old_n;
-				Tensor<1,dim> old_v;
-				for (unsigned int d=0; d<dim; ++d)
-				old_n[d] = old_solution_values[q_point](d);
-				for (unsigned int d=0; d<dim; ++d)
-				old_v[d] = old_solution_values[q_point](d+dim);
-				const Tensor<1,dim> phi_i_eta      	= fe_values[displacements].value (i, q_point);
-				const Tensor<2,dim> symgrad_phi_i_eta 	= fe_values[displacements].symmetric_gradient (i, q_point);
-				const double div_phi_i_eta 			= fe_values[displacements].divergence (i, q_point);
-				const Tensor<1,dim> phi_i_eta_dot  	= fe_values[velocities].value (i, q_point);
-				if (component_i<dim)
-				{
-					local_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
-							 +0.5*(-2*physical_properties.mu*(scalar_product(grad_n[q_point],symgrad_phi_i_eta))
-							       -physical_properties.lambda*((grad_n[q_point][0][0]+grad_n[q_point][1][1])*div_phi_i_eta))
-							 )
-					  * fe_values.JxW(q_point);
-				}
-				else
-				{
-					local_rhs(i) += (-0.5*phi_i_eta_dot*old_v
-							 -1./time_step*phi_i_eta_dot*old_n
-							 )
-					  * fe_values.JxW(q_point);
-				}
-			  }
-		}
-		for (unsigned int i=0; i<2; ++i)
-		{
-			double multiplier;
-			Vector<double> *stress_vector;
-			if (i==0)
-			{
-				structure_stress_values.set_time(time);
-				multiplier=0.5;
-				stress_vector=&stress.block(1);
-			}
-			else
-			{
-				structure_stress_values.set_time(time-time_step);
-				multiplier=0.5;
-				stress_vector=&old_stress.block(1);
-			}
-
-			for (unsigned int face_no=0;
-				   face_no<GeometryInfo<dim>::faces_per_cell;
-				   ++face_no)
-			{
-				if (cell->at_boundary(face_no))
-				  {
-					if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
-					{
-						fe_face_values.reinit (cell, face_no);
-						// GET SIDE ID!
-
-						for (unsigned int q=0; q<n_face_q_points; ++q)
-						  for (unsigned int i=0; i<dofs_per_cell; ++i)
-						  {
-							  structure_stress_values.vector_gradient(fe_face_values.quadrature_point(q),
-									 stress_values);
-							  Tensor<2,dim> new_stresses;
-							  new_stresses[0][0]=stress_values[0][0];
-							  new_stresses[1][0]=stress_values[1][0];
-							  new_stresses[1][1]=stress_values[1][1];
-							  new_stresses[0][1]=stress_values[0][1];
-							  local_rhs(i) += multiplier*(fe_face_values[displacements].value (i, q)*
-										new_stresses*fe_face_values.normal_vector(q) *
-											  fe_face_values.JxW(q));
-						  }
-					}
-					else if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
-					{
-						fe_face_values.reinit (cell, face_no);
-						fe_face_values.get_function_values (*stress_vector, g_stress_values);
-
-						for (unsigned int q=0; q<n_face_q_points; ++q)
-						{
-						  Tensor<1,dim> g_stress;
-						  for (unsigned int d=0; d<dim; ++d)
-								g_stress[d] = g_stress_values[q](d);
-						  for (unsigned int i=0; i<dofs_per_cell; ++i)
-						  {
-							  local_rhs(i) += multiplier*(fe_face_values[displacements].value (i, q)*
-										(-g_stress) * fe_face_values.JxW(q));
-						  }
-						}
-					}
-				  }
-			}
-		}
-		cell->get_dof_indices (local_dof_indices);
-		structure_constraints.distribute_local_to_global (local_matrix, local_rhs,
-											  local_dof_indices,
-											  structure_matrix, structure_rhs);
-	  }
-	else // adjoint mode
-		for (; cell!=endc; ++cell)
+	    fe_values.reinit (cell);
+	    local_matrix = 0;
+	    local_rhs = 0;
+	    fe_values.get_function_values (old_solution.block(1), old_solution_values);
+	    fe_values[displacements].get_function_gradients(old_solution.block(1),grad_n);
+	    for (unsigned int q_point=0; q_point<n_q_points;
+		 ++q_point)
+	      {
+		for (unsigned int k=0; k<dofs_per_cell; ++k)
 		  {
-			fe_values.reinit (cell);
-			local_matrix = 0;
-			local_rhs = 0;
-			for (unsigned int q_point=0; q_point<n_q_points;
-								 ++q_point)
-			{
-				for (unsigned int k=0; k<dofs_per_cell; ++k)
-				{
-				  phi_n[k]		   = fe_values[displacements].value (k, q_point);
-				  symgrad_phi_n[k] = fe_values[displacements].symmetric_gradient (k, q_point);
-				  div_phi_n[k]     = fe_values[displacements].divergence (k, q_point);
-				  phi_v[k]         = fe_values[velocities].value (k, q_point);
-				}
-				for (unsigned int i=0; i<dofs_per_cell; ++i)
-				  {
-					const unsigned int
-					component_i = structure_fe.system_to_component_index(i).first;
-					for (unsigned int j=0; j<dofs_per_cell; ++j)
-					  {
-						const unsigned int
-						component_j = structure_fe.system_to_component_index(j).first;
-
-						if (component_i<dim)
-						{
-							if (component_j<dim)
-							{
-								local_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
-											  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
-								  *fe_values.JxW(q_point);
-							}
-							else
-							{
-								local_matrix(i,j)+=-1./time_step*phi_n[i]*phi_v[j]*fe_values.JxW(q_point);
-							}
-						}
-						else
-						{
-							if (component_j<dim)
-							{
-								local_matrix(i,j)+=physical_properties.rho_s/time_step*phi_v[i]*phi_n[j]*fe_values.JxW(q_point);
-							}
-							else
-							{
-								local_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
-								  *fe_values.JxW(q_point);
-							}
-						}
-					  }
-				  }
-			}
-			for (unsigned int face_no=0;
-				   face_no<GeometryInfo<dim>::faces_per_cell;
-				   ++face_no)
-			{
-				if (cell->at_boundary(face_no))
-				  {
-					if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
-					{
-						fe_face_values.reinit (cell, face_no);
-						fe_face_values.get_function_values (state_solution_for_rhs.block(1), adjoint_rhs_values);
-						for (unsigned int q=0; q<n_face_q_points; ++q)
-						{
-						  Tensor<1,dim> g_stress;
-						  for (unsigned int d=0; d<dim; ++d)
-								g_stress[d] = adjoint_rhs_values[q](d);
-						  for (unsigned int i=0; i<dofs_per_cell; ++i)
-						  {
-							  local_rhs(i) += (fe_face_values[displacements].value (i, q)*
-										(g_stress) * fe_face_values.JxW(q));
-						  }
-						}
-					}
-				  }
-			}
-			cell->get_dof_indices (local_dof_indices);
-			structure_constraints.distribute_local_to_global (local_matrix, local_rhs,
-												  local_dof_indices,
-												  structure_matrix, structure_rhs);
+		    phi_n[k]		   = fe_values[displacements].value (k, q_point);
+		    symgrad_phi_n[k] = fe_values[displacements].symmetric_gradient (k, q_point);
+		    div_phi_n[k]     = fe_values[displacements].divergence (k, q_point);
+		    phi_v[k]         = fe_values[velocities].value (k, q_point);
 		  }
+		for (unsigned int i=0; i<dofs_per_cell; ++i)
+		  {
+		    const unsigned int
+		      component_i = structure_fe.system_to_component_index(i).first;
+		    for (unsigned int j=0; j<dofs_per_cell; ++j)
+		      {
+			const unsigned int
+			  component_j = structure_fe.system_to_component_index(j).first;
+
+			if (enum_==state || enum_==linear)
+			  {
+
+			    if (component_i<dim)
+			      {
+				if (component_j<dim)
+				  {
+				    local_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
+								  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
+				      *fe_values.JxW(q_point);
+				  }
+				else
+				  {
+				    local_matrix(i,j)+=physical_properties.rho_s/time_step*phi_n[i]*phi_v[j]*fe_values.JxW(q_point);
+				  }
+			      }
+			    else
+			      {
+				if (component_j<dim)
+				  {
+				    local_matrix(i,j)+=(-1./time_step*phi_v[i]*phi_n[j])
+				      *fe_values.JxW(q_point);
+				  }
+				else
+				  {
+				    local_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
+				      *fe_values.JxW(q_point);
+				  }
+			      }
+			  }
+			else // enum_==adjoint
+			  {
+			    if (component_i<dim)
+			      {
+				if (component_j<dim)
+				  {
+				    local_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
+								  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
+				      *fe_values.JxW(q_point);
+				  }
+				else
+				  {
+				    local_matrix(i,j)+=-1./time_step*phi_n[i]*phi_v[j]*fe_values.JxW(q_point);
+				  }
+			      }
+			    else
+			      {
+				if (component_j<dim)
+				  {
+				    local_matrix(i,j)+=physical_properties.rho_s/time_step*phi_v[i]*phi_n[j]*fe_values.JxW(q_point);
+				  }
+				else
+				  {
+				    local_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
+				      *fe_values.JxW(q_point);
+				  }
+			      }
+			  }
+		      }
+		  }
+		if (enum_==state)
+		  {
+		    for (unsigned int i=0; i<dofs_per_cell; ++i)
+		      {
+			const unsigned int component_i = structure_fe.system_to_component_index(i).first;
+			Tensor<1,dim> old_n;
+			Tensor<1,dim> old_v;
+			for (unsigned int d=0; d<dim; ++d)
+			  old_n[d] = old_solution_values[q_point](d);
+			for (unsigned int d=0; d<dim; ++d)
+			  old_v[d] = old_solution_values[q_point](d+dim);
+			const Tensor<1,dim> phi_i_eta      	= fe_values[displacements].value (i, q_point);
+			const Tensor<2,dim> symgrad_phi_i_eta 	= fe_values[displacements].symmetric_gradient (i, q_point);
+			const double div_phi_i_eta 			= fe_values[displacements].divergence (i, q_point);
+			const Tensor<1,dim> phi_i_eta_dot  	= fe_values[velocities].value (i, q_point);
+			if (component_i<dim)
+			  {
+			    local_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
+					     +0.5*(-2*physical_properties.mu*(scalar_product(grad_n[q_point],symgrad_phi_i_eta))
+						   -physical_properties.lambda*((grad_n[q_point][0][0]+grad_n[q_point][1][1])*div_phi_i_eta))
+					     )
+			      * fe_values.JxW(q_point);
+			  }
+			else
+			  {
+			    local_rhs(i) += (-0.5*phi_i_eta_dot*old_v
+					     -1./time_step*phi_i_eta_dot*old_n
+					     )
+			      * fe_values.JxW(q_point);
+			  }
+		      }
+		  }
+	      }
+	    for (unsigned int i=0; i<2; ++i)
+	      {
+		double multiplier;
+		Vector<double> *stress_vector;
+		if (i==0)
+		  {
+		    structure_stress_values.set_time(time);
+		    multiplier=0.5;
+		    stress_vector=&stress.block(1);
+		  }
+		else
+		  {
+		    structure_stress_values.set_time(time-time_step);
+		    multiplier=0.5;
+		    stress_vector=&old_stress.block(1);
+		  }
+
+		for (unsigned int face_no=0;
+		     face_no<GeometryInfo<dim>::faces_per_cell;
+		     ++face_no)
+		  {
+		    if (cell->at_boundary(face_no))
+		      {
+			if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
+			  {
+			    if (enum_==state)
+			      {
+				fe_face_values.reinit (cell, face_no);
+				// GET SIDE ID!
+
+				for (unsigned int q=0; q<n_face_q_points; ++q)
+				  for (unsigned int i=0; i<dofs_per_cell; ++i)
+				    {
+				      structure_stress_values.vector_gradient(fe_face_values.quadrature_point(q),
+									      stress_values);
+				      Tensor<2,dim> new_stresses;
+				      new_stresses[0][0]=stress_values[0][0];
+				      new_stresses[1][0]=stress_values[1][0];
+				      new_stresses[1][1]=stress_values[1][1];
+				      new_stresses[0][1]=stress_values[0][1];
+				      local_rhs(i) += multiplier*(fe_face_values[displacements].value (i, q)*
+								  new_stresses*fe_face_values.normal_vector(q) *
+								  fe_face_values.JxW(q));
+				    }
+			      }
+			  }
+			else if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+			  {
+			    if (enum_==state)
+			      {
+				fe_face_values.reinit (cell, face_no);
+				fe_face_values.get_function_values (*stress_vector, g_stress_values);
+
+				for (unsigned int q=0; q<n_face_q_points; ++q)
+				  {
+				    Tensor<1,dim> g_stress;
+				    for (unsigned int d=0; d<dim; ++d)
+				      g_stress[d] = g_stress_values[q](d);
+				    for (unsigned int i=0; i<dofs_per_cell; ++i)
+				      {
+					local_rhs(i) += multiplier*(fe_face_values[displacements].value (i, q)*
+								    (-g_stress) * fe_face_values.JxW(q));
+				      }
+				  }
+			      }
+			    else if (enum_==adjoint)
+			      {
+				fe_face_values.reinit (cell, face_no);
+				fe_face_values.get_function_values (rhs_for_adjoint.block(1), adjoint_rhs_values);
+				for (unsigned int q=0; q<n_face_q_points; ++q)
+				  {
+				    Tensor<1,dim> r;
+				    for (unsigned int d=0; d<dim; ++d)
+				      r[d] = adjoint_rhs_values[q](d);
+				    for (unsigned int i=0; i<dofs_per_cell; ++i)
+				      {
+					local_rhs(i) += (fe_face_values[displacements].value (i, q)*
+							 r * fe_face_values.JxW(q));
+				      }
+				  }
+			      }
+			    else // enum_==linear
+			      {
+				fe_face_values.reinit (cell, face_no);
+				fe_face_values.get_function_values (rhs_for_linear.block(1), linear_rhs_values);
+				for (unsigned int q=0; q<n_face_q_points; ++q)
+				  {
+				    Tensor<1,dim> h;
+				    for (unsigned int d=0; d<dim; ++d)
+				      h[d] = linear_rhs_values[q](d);
+				    for (unsigned int i=0; i<dofs_per_cell; ++i)
+				      {
+					local_rhs(i) += (fe_face_values[displacements].value (i, q)*
+							 h * fe_face_values.JxW(q));
+				      }
+				  }
+			      }
+			  }
+		      }
+		  }
+	      }
+	    cell->get_dof_indices (local_dof_indices);
+	    structure_constraints.distribute_local_to_global (local_matrix, local_rhs,
+							      local_dof_indices,
+							      structure_matrix, structure_rhs);
+	  }
+	// else // adjoint mode
+	// 	for (; cell!=endc; ++cell)
+	// 	  {
+	// 		fe_values.reinit (cell);
+	// 		local_matrix = 0;
+	// 		local_rhs = 0;
+	// 		for (unsigned int q_point=0; q_point<n_q_points;
+	// 							 ++q_point)
+	// 		{
+	// 			for (unsigned int k=0; k<dofs_per_cell; ++k)
+	// 			{
+	// 			  phi_n[k]		   = fe_values[displacements].value (k, q_point);
+	// 			  symgrad_phi_n[k] = fe_values[displacements].symmetric_gradient (k, q_point);
+	// 			  div_phi_n[k]     = fe_values[displacements].divergence (k, q_point);
+	// 			  phi_v[k]         = fe_values[velocities].value (k, q_point);
+	// 			}
+	// 			for (unsigned int i=0; i<dofs_per_cell; ++i)
+	// 			  {
+	// 				const unsigned int
+	// 				component_i = structure_fe.system_to_component_index(i).first;
+	// 				for (unsigned int j=0; j<dofs_per_cell; ++j)
+	// 				  {
+	// 					const unsigned int
+	// 					component_j = structure_fe.system_to_component_index(j).first;
+
+	// 					if (component_i<dim)
+	// 					{
+	// 						if (component_j<dim)
+	// 						{
+	// 							local_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
+	// 										  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
+	// 							  *fe_values.JxW(q_point);
+	// 						}
+	// 						else
+	// 						{
+	// 							local_matrix(i,j)+=-1./time_step*phi_n[i]*phi_v[j]*fe_values.JxW(q_point);
+	// 						}
+	// 					}
+	// 					else
+	// 					{
+	// 						if (component_j<dim)
+	// 						{
+	// 							local_matrix(i,j)+=physical_properties.rho_s/time_step*phi_v[i]*phi_n[j]*fe_values.JxW(q_point);
+	// 						}
+	// 						else
+	// 						{
+	// 							local_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
+	// 							  *fe_values.JxW(q_point);
+	// 						}
+	// 					}
+	// 				  }
+	// 			  }
+	// 		}
+	// 		for (unsigned int face_no=0;
+	// 			   face_no<GeometryInfo<dim>::faces_per_cell;
+	// 			   ++face_no)
+	// 		{
+	// 			if (cell->at_boundary(face_no))
+	// 			  {
+	// 				if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+	// 				{
+	// 					fe_face_values.reinit (cell, face_no);
+	// 					fe_face_values.get_function_values (rhs_for_adjoint.block(1), adjoint_rhs_values);
+	// 					for (unsigned int q=0; q<n_face_q_points; ++q)
+	// 					{
+	// 					  Tensor<1,dim> g_stress;
+	// 					  for (unsigned int d=0; d<dim; ++d)
+	// 							g_stress[d] = adjoint_rhs_values[q](d);
+	// 					  for (unsigned int i=0; i<dofs_per_cell; ++i)
+	// 					  {
+	// 						  local_rhs(i) += (fe_face_values[displacements].value (i, q)*
+	// 									(g_stress) * fe_face_values.JxW(q));
+	// 					  }
+	// 					}
+	// 				}
+	// 			  }
+	// 		}
+	// 		cell->get_dof_indices (local_dof_indices);
+	// 		structure_constraints.distribute_local_to_global (local_matrix, local_rhs,
+	// 											  local_dof_indices,
+	// 											  structure_matrix, structure_rhs);
+	// 	  }
   }
 
   template <int dim>
@@ -1957,7 +2117,7 @@ namespace FSI_Project
 						system_rhs.block(2));
 	  }
       }
-    else // Mode is adjoint
+    else //  enum_==adjoint or enum_==linear
       {
 	if (system==Fluid)
 	  {
@@ -1973,10 +2133,16 @@ namespace FSI_Project
 							      fluid_fe.component_mask(velocities));
 		  }
 	      }
-	    MatrixTools::apply_boundary_values (fluid_boundary_values,
-						system_matrix.block(0,0),
-						adjoint_solution.block(0),
-						system_rhs.block(0));
+	    if (enum_==adjoint)
+	      MatrixTools::apply_boundary_values (fluid_boundary_values,
+						  system_matrix.block(0,0),
+						  adjoint_solution.block(0),
+						  system_rhs.block(0));
+	    else 
+	      MatrixTools::apply_boundary_values (fluid_boundary_values,
+						  system_matrix.block(0,0),
+						  linear_solution.block(0),
+						  system_rhs.block(0));
 	  }
 	else if (system==Structure)
 	  {
@@ -1992,10 +2158,16 @@ namespace FSI_Project
 							      structure_fe.component_mask(displacements));
 		  }
 	      }
-	    MatrixTools::apply_boundary_values (structure_boundary_values,
-						system_matrix.block(1,1),
-						adjoint_solution.block(1),
-						system_rhs.block(1));
+	    if (enum_==adjoint)
+	      MatrixTools::apply_boundary_values (structure_boundary_values,
+						  system_matrix.block(1,1),
+						  adjoint_solution.block(1),
+						  system_rhs.block(1));
+	    else
+	      MatrixTools::apply_boundary_values (structure_boundary_values,
+						  system_matrix.block(1,1),
+						  linear_solution.block(1),
+						  system_rhs.block(1));
 	  }
 	else
 	  {
@@ -2010,14 +2182,18 @@ namespace FSI_Project
 							      ale_boundary_values);
 		  }
 	      }
-	    MatrixTools::apply_boundary_values (ale_boundary_values,
-						system_matrix.block(2,2),
-						adjoint_solution.block(2),
-						system_rhs.block(2));
+	    if (enum_==adjoint)
+	      MatrixTools::apply_boundary_values (ale_boundary_values,
+						  system_matrix.block(2,2),
+						  adjoint_solution.block(2),
+						  system_rhs.block(2));
+	    else
+	      MatrixTools::apply_boundary_values (ale_boundary_values,
+						  system_matrix.block(2,2),
+						  linear_solution.block(2),
+						  system_rhs.block(2));
 	  }
       }
-
-
   }
 
   template <int dim>
@@ -2219,9 +2395,16 @@ namespace FSI_Project
 
     solution.reinit (n_big_blocks);
     solution_star.reinit (n_big_blocks);
-    state_solution_for_rhs.reinit(n_big_blocks);
+    rhs_for_adjoint.reinit(n_big_blocks);
+    rhs_for_adjoint_s.reinit(n_big_blocks);
+    rhs_for_linear.reinit(n_big_blocks);
+    rhs_for_linear_h.reinit(n_big_blocks);
+    rhs_for_linear_p.reinit(n_big_blocks);
+    rhs_for_linear_Ap_s.reinit(n_big_blocks);
     adjoint_solution.reinit (n_big_blocks);
+    linear_solution.reinit (n_big_blocks);
     tmp.reinit (n_big_blocks);
+    tmp2.reinit (n_big_blocks);
     old_solution.reinit (n_big_blocks);
     old_old_solution.reinit (n_big_blocks);
     system_rhs.reinit (n_big_blocks);
@@ -2231,9 +2414,16 @@ namespace FSI_Project
     {
     	solution.block(i).reinit (dofs_per_big_block[i]);
     	solution_star.block(i).reinit (dofs_per_big_block[i]);
-    	state_solution_for_rhs.block(i).reinit(dofs_per_big_block[i]);
+    	rhs_for_adjoint.block(i).reinit(dofs_per_big_block[i]);
+    	rhs_for_adjoint_s.block(i).reinit(dofs_per_big_block[i]);
+    	rhs_for_linear.block(i).reinit(dofs_per_big_block[i]);
+    	rhs_for_linear_h.block(i).reinit(dofs_per_big_block[i]);
+    	rhs_for_linear_p.block(i).reinit(dofs_per_big_block[i]);
+    	rhs_for_linear_Ap_s.block(i).reinit(dofs_per_big_block[i]);
     	adjoint_solution.block(i).reinit (dofs_per_big_block[i]);
+    	linear_solution.block(i).reinit (dofs_per_big_block[i]);
     	tmp.block(i).reinit (dofs_per_big_block[i]);
+    	tmp2.block(i).reinit (dofs_per_big_block[i]);
     	old_solution.block(i).reinit (dofs_per_big_block[i]);
     	old_old_solution.block(i).reinit (dofs_per_big_block[i]);
     	system_rhs.block(i).reinit (dofs_per_big_block[i]);
@@ -2242,9 +2432,16 @@ namespace FSI_Project
     }
 	solution.collect_sizes ();
 	solution_star.collect_sizes ();
-	state_solution_for_rhs.collect_sizes ();
+	rhs_for_adjoint.collect_sizes ();
+	rhs_for_adjoint_s.collect_sizes ();
+	rhs_for_linear.collect_sizes ();
+	rhs_for_linear_h.collect_sizes ();
+	rhs_for_linear_p.collect_sizes ();
+	rhs_for_linear_Ap_s.collect_sizes ();
 	adjoint_solution.collect_sizes ();
+	linear_solution.collect_sizes ();
 	tmp.collect_sizes ();
+	tmp2.collect_sizes ();
 	old_solution.collect_sizes ();
 	old_old_solution.collect_sizes ();
 	system_rhs.collect_sizes ();
@@ -2265,28 +2462,32 @@ namespace FSI_Project
 	direct_solver.initialize (system_matrix.block(block_num,block_num));
 	BlockVector<double> *solution_vector;
 	if (enum_==state)
-	{
-		solution_vector=&solution;
-	}
-	else // adjoint mode
-	{
-		solution_vector=&adjoint_solution;
-	}
+	  {
+	    solution_vector=&solution;
+	  }
+	else if (enum_==adjoint)
+	  {
+	    solution_vector=&adjoint_solution;
+	  }
+	else // enum_==linear
+	  {
+	    solution_vector=&linear_solution;
+	  }
 	direct_solver.vmult (solution_vector->block(block_num), system_rhs.block(block_num));
 	switch (block_num)
-	{
-	case 0:
-		fluid_constraints.distribute (solution_vector->block(block_num));
-		break;
-	case 1:
-		structure_constraints.distribute (solution_vector->block(block_num));
-		break;
-	case 2:
-		ale_constraints.distribute (solution_vector->block(block_num));
-		break;
-	default:
-		Assert(false,ExcNotImplemented());
-	}
+	  {
+	  case 0:
+	    fluid_constraints.distribute (solution_vector->block(block_num));
+	    break;
+	  case 1:
+	    structure_constraints.distribute (solution_vector->block(block_num));
+	    break;
+	  case 2:
+	    ale_constraints.distribute (solution_vector->block(block_num));
+	    break;
+	  default:
+	    Assert(false,ExcNotImplemented());
+	  }
   }
 
 
@@ -2335,7 +2536,7 @@ namespace FSI_Project
 	        Assert (false, ExcNotImplemented());
 	      }
 	    DataOut<dim> fluid_data_out, structure_data_out;
-	    fluid_data_out.add_data_vector (fluid_dof_handler,state_solution_for_rhs.block(0), solution_names[0]);
+	    fluid_data_out.add_data_vector (fluid_dof_handler,solution.block(0), solution_names[0]);
 	    fluid_data_out.add_data_vector (ale_dof_handler,solution.block(2), solution_names[2]);
 	    structure_data_out.add_data_vector (structure_dof_handler,solution.block(1), solution_names[1]);
 	    fluid_data_out.build_patches (fem_properties.fluid_degree-1);
@@ -2540,142 +2741,282 @@ namespace FSI_Project
         //unsigned int total_relrecord=0;
 
         unsigned int count = 0;
-        state_solution_for_rhs=1;
+        rhs_for_adjoint=1;
 
 	double alpha = fem_properties.steepest_descent_alpha;
 	unsigned int imprecord = 0;
 	unsigned int relrecord = 0;
 	unsigned int consecutiverelrecord = 0;
 
+	stress=old_stress;
+
         while (true)
         {
-        	++count;
-		// REMARK: Uncommenting this means that you will have the true stress based on the reference solution
-		if (count == 1 && fem_properties.true_control)
-		  {
-			fluid_boundary_stress.set_time(time);
-			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-			 					  fluid_boundary_stress,
-			 					  stress.block(0));
-			transfer_interface_dofs(stress,stress,0,1);
-		  }
-		// End of section to uncomment
+	  ++count;
+	  // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
+	  if (count == 1 && fem_properties.true_control)
+	    {
+	      fluid_boundary_stress.set_time(time);
+	      VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+				   fluid_boundary_stress,
+				   stress.block(0));
+	      transfer_interface_dofs(stress,stress,0,1);
+	    }
+	  // End of section to uncomment
 
-		// RHS and Neumann conditions are inside these functions
-		// Solve for the state variables
-		assemble_structure(state);
-		assemble_ale(state);
-		// This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
-		for (unsigned int i=1; i<3; ++i)
-		  {
-		    dirichlet_boundaries((System)i,state);
-		    solve(i,state);
-		  }
+	  // RHS and Neumann conditions are inside these functions
+	  // Solve for the state variables
+	  assemble_structure(state);
+	  assemble_ale(state);
+	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
+	  for (unsigned int i=1; i<3; ++i)
+	    {
+	      dirichlet_boundaries((System)i,state);
+	      solve(i,state);
+	    }
 
-		solution_star=1;
-		while (solution_star.l2_norm()>1e-8){
-		  solution_star=solution;
-		  assemble_fluid(state);
-		  dirichlet_boundaries((System)0,state);
-		  solve(0,state);
-		  solution_star-=solution;
-		  if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
-		    {
-		      break;
-		    }
-		  else
-		    {
-		      std::cout << solution_star.l2_norm() << std::endl;
-		    }
-		}
-		solution_star = solution; 
-
-
-
-		build_adjoint_rhs();
-		velocity_jump_old = velocity_jump;
-		velocity_jump=interface_error();
-
-		if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-		if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
-
-
-		assemble_structure(adjoint);
-		assemble_fluid(adjoint);
-		assemble_ale(adjoint);
-		// Solve for the adjoint
-		for (unsigned int i=0; i<2; ++i)
-		  {
-		    dirichlet_boundaries((System)i,adjoint);
-		    solve(i,adjoint);
-		  }
-
-
-	    if (velocity_jump>velocity_jump_old)
+	  solution_star=1;
+	  while (solution_star.l2_norm()>1e-8){
+	    solution_star=solution;
+	    assemble_fluid(state);
+	    dirichlet_boundaries((System)0,state);
+	    solve(0,state);
+	    solution_star-=solution;
+	    if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
 	      {
-		++imprecord;
-		//std::cout << "Bad Move." << std::endl;
-		consecutiverelrecord = 0;
-	      }
-	    else if ((velocity_jump/velocity_jump_old)>=0.995) 
-	      {
-		++relrecord;
-		++consecutiverelrecord;
-		//std::cout << "Rel. Bad Move." << std::endl;
-		//std::cout << consecutiverelrecord << std::endl;
+		break;
 	      }
 	    else
 	      {
-		imprecord = 0;
-		relrecord = 0;
-		alpha *= 1.01;
-		//std::cout << "Good Move." << std::endl;
-		consecutiverelrecord = 0;
+		std::cout << solution_star.l2_norm() << std::endl;
 	      }
+	  }
+	  solution_star = solution; 
 
-	    if (relrecord > 1) 
-	      {
-		alpha *= 1.01;
-		relrecord = 0;
-	      }
-	    else if (imprecord > 0)
-	      {
-		alpha *= 0.95;
-		imprecord = 0;
-	      }
+	  velocity_jump_old = velocity_jump;
+	  velocity_jump=interface_error();
+
+	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
+	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
+
+	  if (fem_properties.optimization_method.compare("Gradient")==0)
+	    {
+	      build_adjoint_rhs();
+
+	      assemble_structure(adjoint);
+	      assemble_fluid(adjoint);
+	      assemble_ale(adjoint);
+	      // Solve for the adjoint
+	      for (unsigned int i=0; i<2; ++i)
+		{
+		  dirichlet_boundaries((System)i,adjoint);
+		  solve(i,adjoint);
+		}
+
+
+	      if (velocity_jump>velocity_jump_old)
+		{
+		  ++imprecord;
+		  //std::cout << "Bad Move." << std::endl;
+		  consecutiverelrecord = 0;
+		}
+	      else if ((velocity_jump/velocity_jump_old)>=0.995) 
+		{
+		  ++relrecord;
+		  ++consecutiverelrecord;
+		  //std::cout << "Rel. Bad Move." << std::endl;
+		  //std::cout << consecutiverelrecord << std::endl;
+		}
+	      else
+		{
+		  imprecord = 0;
+		  relrecord = 0;
+		  alpha *= 1.01;
+		  //std::cout << "Good Move." << std::endl;
+		  consecutiverelrecord = 0;
+		}
+
+	      if (relrecord > 1) 
+		{
+		  alpha *= 1.01;
+		  relrecord = 0;
+		}
+	      else if (imprecord > 0)
+		{
+		  alpha *= 0.95;
+		  imprecord = 0;
+		}
 	    
-	    if (consecutiverelrecord>50)
-	      {
-		std::cout << "Break!" << std::endl;
-		//break;
-	      }
+	      if (consecutiverelrecord>50)
+		{
+		  std::cout << "Break!" << std::endl;
+		  //break;
+		}
 
-            // Update the stress using the adjoint variables
-            stress.block(0)*=(1-alpha);
-            tmp=0;
+	      // Update the stress using the adjoint variables
+	      stress.block(0)*=(1-alpha);
+	      tmp=0;
             
 	    
-	    transfer_interface_dofs(adjoint_solution,tmp,1,0);
-	    tmp.block(0)*=fem_properties.structure_theta;
-	    tmp.block(0).add(-fem_properties.fluid_theta,adjoint_solution.block(0));
+	      transfer_interface_dofs(adjoint_solution,tmp,1,0);
+	      tmp.block(0)*=fem_properties.structure_theta;
+	      tmp.block(0).add(-fem_properties.fluid_theta,adjoint_solution.block(0));
 
-	    //std::cout << "L2 " << tmp.block(0).l2_norm() << std::endl;
+	      //std::cout << "L2 " << tmp.block(0).l2_norm() << std::endl;
 
-	    // not negated since tmp has reverse of proper negation
-            double multiplier = float(alpha)/fem_properties.penalty_epsilon;
+	      // not negated since tmp has reverse of proper negation
+	      double multiplier = float(alpha)/fem_properties.penalty_epsilon;
             
-	    stress.block(0).add(multiplier,tmp.block(0));
+	      stress.block(0).add(multiplier,tmp.block(0));
 
-	    //std::cout << "STRESS: " << stress.block(0).l2_norm() << std::endl;
+	      //std::cout << "STRESS: " << stress.block(0).l2_norm() << std::endl;
 
-	    tmp=0;
-	    transfer_interface_dofs(stress,tmp,0,0);
-	    stress=0;
-	    transfer_interface_dofs(tmp,stress,0,0);
+	      tmp=0;
+	      transfer_interface_dofs(stress,tmp,0,0);
+	      stress=0;
+	      transfer_interface_dofs(tmp,stress,0,0);
 
-            transfer_interface_dofs(stress,stress,0,1);
-            //if (count%50==0) std::cout << "alpha: " << alpha << std::endl;
-        }
+	      transfer_interface_dofs(stress,stress,0,1);
+	      //if (count%50==0) std::cout << "alpha: " << alpha << std::endl;
+	    }
+	  else // fem_properties.optimization_method==CG
+	    {
+	      // x^0 = guess
+	      tmp=1;
+	      transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
+	      transfer_interface_dofs(tmp,rhs_for_linear_h,1,1);
+
+	      // b = -u + [n^n-n^n-1]/dt	       
+	      tmp=0;
+	      rhs_for_adjoint=0;
+	      transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
+	      rhs_for_adjoint.block(0)*=1./time_step;
+	      transfer_interface_dofs(old_solution,tmp,1,0);
+	      rhs_for_adjoint.block(0).add(-1./time_step,tmp.block(0));
+	      tmp=0;
+	      transfer_interface_dofs(solution,tmp,0,0);
+	      rhs_for_adjoint.block(0)-=tmp.block(0);
+
+	      // get linearized variables
+	      rhs_for_linear = rhs_for_linear_h;
+	      assemble_structure(linear);
+	      assemble_fluid(linear);
+	      for (unsigned int i=0; i<2; ++i)
+		{
+		  dirichlet_boundaries((System)i,linear);
+		  solve(i,linear);
+		}
+	      
+	      // -Ax = -w^n + phi^n/dt
+	      tmp=0;tmp2=0;
+	      transfer_interface_dofs(linear_solution,tmp,1,0);
+	      tmp.block(0)*=1./time_step;
+	      transfer_interface_dofs(linear_solution,tmp2,0,0);
+	      tmp.block(0)-=tmp2.block(0);
+	      
+	      // r^0 = b - Ax
+	      rhs_for_adjoint.block(0)+=tmp.block(0);
+	      // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
+	      rhs_for_adjoint_s=0;
+	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_adjoint_s,0,0);
+	      rhs_for_adjoint_s.block(0)+=stress.block(0);
+	      rhs_for_adjoint_s.block(0)*=-sqrt(fem_properties.penalty_epsilon);
+
+	      // get adjoint variables 
+	      assemble_structure(adjoint);
+	      assemble_fluid(adjoint);
+	      for (unsigned int i=0; i<2; ++i)
+		{
+		  dirichlet_boundaries((System)i,adjoint);
+		  solve(i,adjoint);
+		}
+
+	      // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
+	      tmp=0; tmp2=0;
+	      transfer_interface_dofs(adjoint_solution,tmp,1,0);
+	      tmp.block(0)*=-1/time_step;
+	      transfer_interface_dofs(adjoint_solution,tmp2,0,0);
+	      tmp.block(0)+=tmp2.block(0);
+	      tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
+	      transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
+	      double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+	      std::cout <<  p_n_norm_square << std::endl;
+	      
+	      while (p_n_norm_square > 1e-8)
+		{
+		  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+		  rhs_for_linear_p.block(1)*=-1;
+		  
+		  // get linearized variables
+		  rhs_for_linear = rhs_for_linear_p;
+		  assemble_structure(linear);
+		  assemble_fluid(linear);
+		  for (unsigned int i=0; i<2; ++i)
+		    {
+		      dirichlet_boundaries((System)i,linear);
+		      solve(i,linear);
+		    }
+		  
+
+		  // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
+		  tmp=0;tmp2=0;
+		  transfer_interface_dofs(linear_solution,tmp,1,0);
+		  tmp.block(0)*=-1./time_step;
+		  transfer_interface_dofs(linear_solution,tmp2,0,0);
+		  tmp.block(0)+=tmp2.block(0);
+		  rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
+		  rhs_for_linear_Ap_s *= sqrt(fem_properties.penalty_epsilon);
+		  double ap_norm_square = interface_norm(tmp.block(0));
+		  ap_norm_square += fem_properties.penalty_epsilon * interface_norm(rhs_for_linear_p.block(0));
+		  double sigma = p_n_norm_square/ap_norm_square;
+
+		  // h^{n+1} = h^n + sigma * p^n
+		  rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
+		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
+		  rhs_for_linear_h.block(1)*=-1;
+
+		  // r^{n+1} = r^n - sigma * Ap
+		  // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
+		  rhs_for_adjoint.block(0).add(-sigma, tmp.block(0));
+		  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+		  rhs_for_adjoint.block(1)*=-1;
+		  rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
+		  
+		  // get adjoint variables (b^{n+1},....)
+		  assemble_structure(adjoint);
+		  assemble_fluid(adjoint);
+		  for (unsigned int i=0; i<2; ++i)
+		    {
+		      dirichlet_boundaries((System)i,adjoint);
+		      solve(i,adjoint);
+		    }
+		  
+		  // A*r^{n+1} = beta^{n+1} - psi^{n+1}/dt + sqrt(delta)(second part of r)
+		  tmp=0; tmp2=0;
+		  transfer_interface_dofs(adjoint_solution,tmp,1,0);
+		  tmp.block(0)*=-1/time_step;
+		  transfer_interface_dofs(adjoint_solution,tmp2,0,0);
+		  tmp.block(0)+=tmp2.block(0);
+		  tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
+		  double Astar_r_np1_norm_square = interface_norm(tmp.block(0));
+		  double tau = Astar_r_np1_norm_square / p_n_norm_square;
+
+		  // p^{n+1} = A*r^{n+1} + tau * p^{n}
+		  rhs_for_linear_p.block(0) *= tau;
+		  rhs_for_linear_p.block(0)+=tmp.block(0);
+		  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+		  rhs_for_linear_p.block(1)*=-1;
+		  p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+		  std::cout << p_n_norm_square << std::endl;
+		}
+		  
+	      // update stress
+	      stress.block(0)+=rhs_for_linear_h.block(0);
+	      transfer_interface_dofs(stress,stress,0,1);
+	      stress.block(1)*=-1;
+	    }
+
+	}
 
         if (fem_properties.make_plots) output_results ();
 	if (fem_properties.richardson) 
