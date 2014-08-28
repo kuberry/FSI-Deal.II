@@ -44,63 +44,67 @@ namespace FSI_Project
 
   struct ComputationData
   {
-	  unsigned int fluid_active_cells;
-	  unsigned int fluid_velocity_dofs;
-	  unsigned int fluid_pressure_dofs;
-	  double fluid_velocity_L2_Error;
-	  double fluid_velocity_H1_Error;
-	  double fluid_pressure_L2_Error;
+    unsigned int fluid_active_cells;
+    unsigned int fluid_velocity_dofs;
+    unsigned int fluid_pressure_dofs;
+    double fluid_velocity_L2_Error;
+    double fluid_velocity_H1_Error;
+    double fluid_pressure_L2_Error;
 
-	  unsigned int structure_active_cells;
-	  unsigned int structure_displacement_dofs;
-	  unsigned int structure_velocity_dofs;
-	  double structure_displacement_L2_Error;
-	  double structure_displacement_H1_Error;
-	  double structure_velocity_L2_Error;
+    unsigned int structure_active_cells;
+    unsigned int structure_displacement_dofs;
+    unsigned int structure_velocity_dofs;
+    double structure_displacement_L2_Error;
+    double structure_displacement_H1_Error;
+    double structure_velocity_L2_Error;
   };
   struct SimulationProperties
   {
-	  // FE_Q Degrees
-	  unsigned int fluid_degree;
-	  unsigned int pressure_degree;
-	  unsigned int structure_degree;
-	  unsigned int ale_degree;
+    // FE_Q Degrees
+    unsigned int fluid_degree;
+    unsigned int pressure_degree;
+    unsigned int structure_degree;
+    unsigned int ale_degree;
 
-	  // Time Parameters
-	  double	T;
-	  unsigned int	n_time_steps;
-	  double 	fluid_theta;
-          double        structure_theta;
+    // Time Parameters
+    double	T;
+    unsigned int	n_time_steps;
+    double 	fluid_theta;
+    double        structure_theta;
 
-	  // Domain Parameters
-	  double		fluid_width;
-	  double		fluid_height;
-	  double 		structure_width;
-	  double		structure_height;
-	  unsigned int	nx_f,ny_f,nx_s,ny_s;
+    // Domain Parameters
+    double		fluid_width;
+    double		fluid_height;
+    double 		structure_width;
+    double		structure_height;
+    unsigned int	nx_f,ny_f,nx_s,ny_s;
 
-	  // Output Parameters
-	  bool			make_plots;
-	  bool			print_error;
-	  std::string 	convergence_mode;
+    // Output Parameters
+    bool			make_plots;
+    bool			print_error;
+    std::string 	convergence_mode;
 
-	  // Optimization Parameters
-	  double		jump_tolerance;
-	  double		steepest_descent_alpha;
-	  double		penalty_epsilon;
-	  unsigned int max_optimization_iterations;
+    // Optimization Parameters
+    double		jump_tolerance;
+    double		steepest_descent_alpha;
+    double		penalty_epsilon;
+    unsigned int max_optimization_iterations;
+
+    // Solver Parameters
+    bool                  richardson;
+    bool                  newton; 
   };
   struct PhysicalProperties
   {
-	  // Problem Parameters
-	  double		viscosity;
-	  double		lambda;
-	  double		mu;
-	  double		nu;
-	  double		rho_f;
-	  double 		rho_s;
-	  bool			moving_domain;
-	  int			n_fourier_coeffs;
+    // Problem Parameters
+    double		viscosity;
+    double		lambda;
+    double		mu;
+    double		nu;
+    double		rho_f;
+    double 		rho_s;
+    bool		moving_domain;
+    int			n_fourier_coeffs;
   };
 
 
@@ -164,6 +168,7 @@ namespace FSI_Project
     BlockVector<double>		adjoint_solution;
     BlockVector<double>		tmp;
     BlockVector<double>       	old_solution;
+    BlockVector<double>       	old_old_solution;
     BlockVector<double>       	system_rhs;
     BlockVector<double>		stress;
     BlockVector<double>		old_stress;
@@ -182,10 +187,10 @@ namespace FSI_Project
     std::vector<unsigned int> dofs_per_big_block;
     SimulationProperties fem_properties;
     PhysicalProperties physical_properties;
-	std::vector<unsigned int> fluid_interface_cells, fluid_interface_faces;
-	std::vector<unsigned int> structure_interface_cells, structure_interface_faces;
-	std::map<unsigned int, unsigned int> f2s, s2f, s2a, a2s, a2f, f2a, a2f_all, f2a_all;
-	std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
+    std::vector<unsigned int> fluid_interface_cells, fluid_interface_faces;
+    std::vector<unsigned int> structure_interface_cells, structure_interface_faces;
+    std::map<unsigned int, unsigned int> f2s, s2f, s2a, a2s, a2f, f2a, a2f_all, f2a_all;
+    std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
   };
 
 
@@ -251,23 +256,28 @@ namespace FSI_Project
 	  			  "create plots of the solution at each time step.");
 	  prm.declare_entry("output error", "true", Patterns::Bool(),
 	  			  "give error output info at each time step.");
-      prm.declare_entry("convergence method", "time",
-    		  	  Patterns::Selection("time|space"),
-    		  	  "convergence method. choice between 'time' and 'space'.");
+	  prm.declare_entry("convergence method", "time",
+			    Patterns::Selection("time|space"),
+			    "convergence method. choice between 'time' and 'space'.");
 
-      // Optimization Parameters
-      prm.declare_entry("jump tolerance","1.0", Patterns::Double(0),
-    		  	  "tolerance to which the velocities must match on the interface.");
-      prm.declare_entry("steepest descent alpha","0.0001", Patterns::Double(0),
-    		  	  "tuning parameter for the steepest descent algorithm.");
-      prm.declare_entry("penalty epsilon","0.01", Patterns::Double(0),
-    		  	  "second tuning parameter for the steepest descent algorithm.");
-      prm.declare_entry("max optimization iterations","100", Patterns::Integer(1),
-    		  	  "maximum number of optimization iterations per time step.");
+	  // Optimization Parameters
+	  prm.declare_entry("jump tolerance","1.0", Patterns::Double(0),
+			    "tolerance to which the velocities must match on the interface.");
+	  prm.declare_entry("steepest descent alpha","0.0001", Patterns::Double(0),
+			    "tuning parameter for the steepest descent algorithm.");
+	  prm.declare_entry("penalty epsilon","0.01", Patterns::Double(0),
+			    "second tuning parameter for the steepest descent algorithm.");
+	  prm.declare_entry("max optimization iterations","100", Patterns::Integer(1),
+			    "maximum number of optimization iterations per time step.");
 
 	  // Operations Parameters
+	  prm.declare_entry("richardson", "true", Patterns::Bool(),
+			    "use Richardson extrapolation for the convective term.");
+	  prm.declare_entry("newton", "true", Patterns::Bool(),
+			    "use Newton's method for convergence of nonlinearity in NS solve.");
 	  prm.declare_entry("moving domain", "true", Patterns::Bool(),
 	  			  "should the ALE be used.");
+
   }
 
   template <int dim>
@@ -315,7 +325,10 @@ namespace FSI_Project
 	  fem_properties.steepest_descent_alpha = prm_.get_double("steepest descent alpha");
 	  fem_properties.penalty_epsilon	= prm_.get_double("penalty epsilon");
 	  fem_properties.max_optimization_iterations = prm_.get_integer("max optimization iterations");
-	  physical_properties.moving_domain		= prm_.get_bool("moving domain");
+	  // Solver Paramters
+	  fem_properties.richardson		= prm_.get_bool("richardson");
+	  fem_properties.newton 		= prm_.get_bool("newton");
+	  physical_properties.moving_domain	= prm_.get_bool("moving domain");
 
 	  // Problem Parameters
 	  physical_properties.viscosity		= prm_.get_double("viscosity");
@@ -529,26 +542,28 @@ namespace FSI_Project
   double FluidRightHandSide<dim>::value (const Point<dim>  &p,
                                     const unsigned int component) const
   {
-	const double t = this->get_time();
-	const double x = p[0];
-	const double y = p[1];
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
     // >> u1=cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x);
     // >> u2=- cos(t + x)*sin(t + y) - cos(t + y)*sin(t + x);
     // >> p=2*mu*cos(t + x)*sin(t + y) - 2*viscosity*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y));
-    // >> rho_f*diff(u1,t)-2*viscosity*(diff(diff(u1,x),x)+0.5*(diff(diff(u1,y),y)+diff(diff(u2,x),y)))+diff(p,x)
-    // >> rho_f*diff(u2,t)-2*viscosity*(diff(diff(u2,y),y)+0.5*(diff(diff(u2,x),x)+diff(diff(u1,y),x)))+diff(p,y)
-	switch (component)
-	{
-	case 0:
-		return physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y)) + 4*physical_properties.viscosity*(cos(t + x)*sin(t + y)
-				+ cos(t + y)*sin(t + x)) - 2*physical_properties.mu*sin(t + x)*sin(t + y);
-	case 1:
-		return 2*physical_properties.mu*cos(t + x)*cos(t + y) - physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y));
-	case 2:
-		return 0;
-	default:
-		return 0;
-	}
+    // >> rho_f*diff(u1,t)-2*viscosity*(diff(diff(u1,x),x)+0.5*(diff(diff(u1,y),y)+diff(diff(u2,x),y)))+diff(p,x) + convection
+    // >> rho_f*diff(u2,t)-2*viscosity*(diff(diff(u2,y),y)+0.5*(diff(diff(u2,x),x)+diff(diff(u1,y),x)))+diff(p,y) + convection
+    switch (component)
+      {
+      case 0:
+	return physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y)) + 4*physical_properties.viscosity 
+	  * (cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x)) - 2*physical_properties.mu*sin(t + x)*sin(t + y);
+	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
+      case 1:
+	return 2*physical_properties.mu*cos(t + x)*cos(t + y) - physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y));
+	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
+      case 2:
+	return 0;
+      default:
+	return 0;
+      }
   }
   template <int dim>
   class StructureRightHandSide : public Function<dim>
@@ -1171,7 +1186,9 @@ namespace FSI_Project
 	Vector<double>       local_rhs (dofs_per_cell);
 
 	std::vector<Vector<double> > old_solution_values(n_q_points, Vector<double>(dim+1));
+	std::vector<Vector<double> > old_old_solution_values(n_q_points, Vector<double>(dim+1));
 	std::vector<Vector<double> > adjoint_rhs_values(n_face_q_points, Vector<double>(dim+1));
+	std::vector<Vector<double> > u_star_values(n_q_points, Vector<double>(dim+1));
 
 	std::vector<Tensor<2,dim> > grad_u (n_q_points);
 	std::vector<Tensor<2,dim> > grad_u_star (n_q_points);
@@ -1222,6 +1239,8 @@ namespace FSI_Project
 	  local_matrix = 0;
 	  local_rhs = 0;
 	  fe_values.get_function_values (old_solution.block(0), old_solution_values);
+	  fe_values.get_function_values (old_old_solution.block(0), old_old_solution_values);
+	  fe_values.get_function_values (solution_star.block(0),u_star_values);
 	  fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u);
 	  fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star);
 
@@ -1231,22 +1250,26 @@ namespace FSI_Project
 		  F[q][0][0]=1;
 		  F[q][1][1]=1;
 		  double determinantJ = determinant(F[q]);
+		  //std::cout << determinantJ << std::endl;
 		  Tensor<2,dim> detTimesFinv;
 		  detTimesFinv[0][0]=F[q][1][1];
 		  detTimesFinv[0][1]=-F[q][0][1];
 		  detTimesFinv[1][0]=-F[q][1][0];
 		  detTimesFinv[1][1]=F[q][0][0];
 
-		  Tensor<1,dim> u_star;
+		  Tensor<1,dim> u_star, u_old, u_old_old;
 		  for (unsigned int d=0; d<dim; ++d)
 		  {
 		    u_star[d] = u_star_values[q](d);
+		    //u_old[d] = old_solution_values[q](d);
+		    //u_old_old[d] = old_old_solution_values[q](d);
 		  }
 
 		  for (unsigned int k=0; k<dofs_per_cell; ++k)
 			{
-			  phi_u[k]		   = fe_values[velocities].value (k, q);
+			  phi_u[k]	   = fe_values[velocities].value (k, q);
 			  symgrad_phi_u[k] = fe_values[velocities].symmetric_gradient (k, q);
+			  grad_phi_u[k]    = fe_values[velocities].gradient (k, q);
 			  div_phi_u[k]     = fe_values[velocities].divergence (k, q);
 			  phi_p[k]         = fe_values[pressure].value (k, q);
 			}
@@ -1255,19 +1278,34 @@ namespace FSI_Project
 			  for (unsigned int j=0; j<dofs_per_cell; ++j)
 				{
 				  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
+				  if (fem_properties.newton)
+				    {
+				      local_matrix(i,j) += (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+							    + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
+				    }
+				  else if (fem_properties.richardson)
+				    {
+				      local_matrix(i,j) += physical_properties.rho_f * ((4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i]* fe_values.JxW(q);
+				    }
+				  else
+				    {
+				      local_matrix(i,j) += physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]* fe_values.JxW(q);
+				    }
+
 				  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-							 + physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
-							 + 0 * fluid_theta 
-							     * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j])
+							 //+ physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+							 //+ physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
 							 + fluid_theta * ( 2*physical_properties.viscosity
 									   *0.25*1./determinantJ
 									   *scalar_product(grad_phi_u[i]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[i]),grad_phi_u[j]*detTimesFinv+transpose(detTimesFinv)*transpose(grad_phi_u[j]))
-									   - scalar_product(grad_phi_u[i],transpose(detTimesFinv)) * phi_p[j]) // momentum
-							 - phi_p[i] * scalar_product(grad_phi_u[j],transpose(detTimesFinv)) // mass
+									   )		   
+							 - scalar_product(grad_phi_u[i],transpose(detTimesFinv)) * phi_p[j] // (p,\div v)  momentum
+							 - phi_p[i] * scalar_product(grad_phi_u[j],transpose(detTimesFinv)) // (\div u, q) mass
 				    //- div_phi_u[i] * phi_p[j] // momentum conservation
 				    //- phi_p[i] * div_phi_u[j] // mass conservation
 							 + epsilon * phi_p[i] * phi_p[j])
 				    * fe_values.JxW(q);
+				  //std::cout << physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i] << std::endl;
 				}
 			}
 		  for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -1277,16 +1315,27 @@ namespace FSI_Project
 			  for (unsigned int d=0; d<dim; ++d)
 				old_u[d] = old_solution_values[q](d);
 			  const Tensor<1,dim> phi_i_s      = fe_values[velocities].value (i, q);
-			  const Tensor<2,dim> symgrad_phi_i_s = fe_values[velocities].symmetric_gradient (i, q);
+			  //const Tensor<2,dim> symgrad_phi_i_s = fe_values[velocities].symmetric_gradient (i, q);
+			  //const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
+			  const Tensor<2,dim> grad_phi_i_s = fe_values[velocities].gradient (i, q);
 			  const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
+			  if (fem_properties.newton)
+			    {
+			      local_rhs(i) += physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_i_s * fe_values.JxW(q);
+			    }
 
 			  local_rhs(i) += (physical_properties.rho_f/time_step *phi_i_s*old_u
-							   + (1-fluid_theta)*(-2*physical_properties.viscosity*(
-							    grad_u[q][0][0]*symgrad_phi_i_s[0][0]
-							   + 0.5*(grad_u[q][1][0]+grad_u[q][0][1])*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
-							   + grad_u[q][1][1]*symgrad_phi_i_s[1][1]
-													  )))
-							   * fe_values.JxW(q);
+					   + (1-fluid_theta)
+					   * (-2*physical_properties.viscosity
+					      *0.25/determinantJ*scalar_product(grad_u[q]*detTimesFinv+transpose(grad_u[q]*detTimesFinv),grad_phi_i_s*detTimesFinv+transpose(grad_phi_i_s*detTimesFinv))
+					      //*(-2*physical_properties.viscosity
+					      //*(grad_u[q][0][0]*symgrad_phi_i_s[0][0]
+					      //+ 0.5*(grad_u[q][1][0]+grad_u[q][0][1])*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
+					      //+ grad_u[q][1][1]*symgrad_phi_i_s[1][1]
+					      )
+					   )
+			    * fe_values.JxW(q);
+			  
 			}
 		}
 		for (unsigned int i=0; i<2; ++i)
@@ -2120,29 +2169,35 @@ namespace FSI_Project
     system_matrix.reinit (sparsity_pattern);
 
     solution.reinit (n_big_blocks);
+    solution_star.reinit (n_big_blocks);
     state_solution_for_rhs.reinit(n_big_blocks);
     adjoint_solution.reinit (n_big_blocks);
     tmp.reinit (n_big_blocks);
     old_solution.reinit (n_big_blocks);
-	system_rhs.reinit (n_big_blocks);
-	stress.reinit (n_big_blocks);
-	old_stress.reinit (n_big_blocks);
+    old_old_solution.reinit (n_big_blocks);
+    system_rhs.reinit (n_big_blocks);
+    stress.reinit (n_big_blocks);
+    old_stress.reinit (n_big_blocks);
     for (unsigned int i=0; i<n_big_blocks; ++i)
     {
     	solution.block(i).reinit (dofs_per_big_block[i]);
+    	solution_star.block(i).reinit (dofs_per_big_block[i]);
     	state_solution_for_rhs.block(i).reinit(dofs_per_big_block[i]);
     	adjoint_solution.block(i).reinit (dofs_per_big_block[i]);
     	tmp.block(i).reinit (dofs_per_big_block[i]);
     	old_solution.block(i).reinit (dofs_per_big_block[i]);
+    	old_old_solution.block(i).reinit (dofs_per_big_block[i]);
     	system_rhs.block(i).reinit (dofs_per_big_block[i]);
     	stress.block(i).reinit (dofs_per_big_block[i]);
     	old_stress.block(i).reinit (dofs_per_big_block[i]);
     }
 	solution.collect_sizes ();
+	solution_star.collect_sizes ();
 	state_solution_for_rhs.collect_sizes ();
 	adjoint_solution.collect_sizes ();
 	tmp.collect_sizes ();
 	old_solution.collect_sizes ();
+	old_old_solution.collect_sizes ();
 	system_rhs.collect_sizes ();
 	stress.collect_sizes ();
 	old_stress.collect_sizes ();
@@ -2393,6 +2448,13 @@ namespace FSI_Project
     StructureStressValues<dim> structure_boundary_stress(physical_properties);
     FluidStressValues<dim> fluid_boundary_stress(physical_properties);
 
+    structure_boundary_values.set_time(-time_step);
+    fluid_boundary_values.set_time(-time_step);
+
+    VectorTools::project (fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+                          fluid_boundary_values,
+                          old_old_solution.block(0));
+
     structure_boundary_values.set_time(0);
     fluid_boundary_values.set_time(0);
 
@@ -2439,7 +2501,7 @@ namespace FSI_Project
         {
         	++count;
             // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
-		if (count == 0)
+		if (count == 1)
 		  {
 			fluid_boundary_stress.set_time(time);
 			VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
@@ -2449,35 +2511,52 @@ namespace FSI_Project
 		  }
             // End of section to uncomment
 
-			// RHS and Neumann conditions are inside these functions
-			// Solve for the state variables
-			assemble_structure(state);
-			assemble_fluid(state);
-			assemble_ale(state);
-			// This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
-			for (unsigned int i=0; i<3; ++i)
-			{
-				dirichlet_boundaries((System)i,state);
-				solve(i,state);
-			}
+		// RHS and Neumann conditions are inside these functions
+		// Solve for the state variables
+		assemble_structure(state);
+		assemble_ale(state);
+		// This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
+		for (unsigned int i=1; i<3; ++i)
+		  {
+		    dirichlet_boundaries((System)i,state);
+		    solve(i,state);
+		  }
 
-			build_adjoint_rhs();
-			velocity_jump_old = velocity_jump;
-			velocity_jump=interface_error();
+		solution_star=1;
+		while (solution_star.l2_norm()>1e-8){
+		  solution_star=solution;
+		  assemble_fluid(state);
+		  dirichlet_boundaries((System)0,state);
+		  solve(0,state);
+		  solution_star-=solution;
+		  std::cout << solution_star.l2_norm() << std::endl;
+		  if (fem_properties.richardson)
+		    {
+		      break;
+		      //solution_star = 0; // effectively a break
+		    }
+		}
+		solution_star = solution; 
 
-			if (count%50==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-			if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
 
 
-			assemble_structure(adjoint);
-			assemble_fluid(adjoint);
-			assemble_ale(adjoint);
-			// Solve for the adjoint
-			for (unsigned int i=0; i<2; ++i)
-			{
-				dirichlet_boundaries((System)i,adjoint);
-				solve(i,adjoint);
-			}
+		build_adjoint_rhs();
+		velocity_jump_old = velocity_jump;
+		velocity_jump=interface_error();
+
+		if (count%50==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
+		if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
+
+
+		assemble_structure(adjoint);
+		assemble_fluid(adjoint);
+		assemble_ale(adjoint);
+		// Solve for the adjoint
+		for (unsigned int i=0; i<2; ++i)
+		  {
+		    dirichlet_boundaries((System)i,adjoint);
+		    solve(i,adjoint);
+		  }
 
 
 	    if (velocity_jump>velocity_jump_old)
@@ -2547,6 +2626,10 @@ namespace FSI_Project
         }
 
         if (fem_properties.make_plots) output_results ();
+	if (fem_properties.richardson) 
+	  {
+	    old_old_solution = old_solution;
+	  }
         old_solution = solution;
         old_stress = stress;
         if (fem_properties.print_error)compute_error();
