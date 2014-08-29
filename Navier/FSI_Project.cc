@@ -37,6 +37,7 @@
 #include <deal.II/base/function_parser.h>
 #include <fstream>
 #include <iostream>
+#include <boost/timer.hpp>
 
 namespace FSI_Project
 {
@@ -1432,7 +1433,16 @@ namespace FSI_Project
 			  
 		  }
 	    }
-	  for (unsigned int i=0; i<2; ++i)
+	  unsigned int total_loops;
+	  if (enum_==state)
+	    {
+	      total_loops = 2;
+	    }
+	  else
+	    {
+	      total_loops = 1;
+	    }
+	  for (unsigned int i=0; i<total_loops; ++i)
 	    {
 	      double multiplier;
 	      Vector<double> *stress_vector;
@@ -1448,7 +1458,6 @@ namespace FSI_Project
 		  multiplier=(1-fluid_theta);
 		  stress_vector = &old_stress.block(0);
 		}
-
 	      for (unsigned int face_no=0;
 		   face_no<GeometryInfo<dim>::faces_per_cell;
 		   ++face_no)
@@ -1508,7 +1517,7 @@ namespace FSI_Project
 				    r[d] = adjoint_rhs_values[q](d);
 				  for (unsigned int i=0; i<dofs_per_cell; ++i)
 				    {
-				      local_rhs(i) += (fe_face_values[velocities].value (i, q)*
+				      local_rhs(i) += fluid_theta*(fe_face_values[velocities].value (i, q)*
 						       r * fe_face_values.JxW(q));
 				    }
 				  length += fe_face_values.JxW(q);
@@ -1527,7 +1536,7 @@ namespace FSI_Project
 				    h[d] = linear_rhs_values[q](d);
 				  for (unsigned int i=0; i<dofs_per_cell; ++i)
 				    {
-				      local_rhs(i) += (fe_face_values[velocities].value (i, q)*
+				      local_rhs(i) += fluid_theta*(fe_face_values[velocities].value (i, q)*
 						       h * fe_face_values.JxW(q));
 				    }
 				}
@@ -1541,68 +1550,6 @@ namespace FSI_Project
 							local_dof_indices,
 							fluid_matrix, fluid_rhs);
 	}
-	// else //adjoint
-	// for (; cell!=endc; ++cell)
-	// 	{
-	// 	  fe_values.reinit (cell);
-	// 	  local_matrix = 0;
-	// 	  local_rhs = 0;
-	// 	  for (unsigned int q=0; q<n_q_points; ++q)
-	// 		{
-	// 		  for (unsigned int k=0; k<dofs_per_cell; ++k)
-	// 			{
-	// 			  phi_u[k]		   = fe_values[velocities].value (k, q);
-	// 			  symgrad_phi_u[k] = fe_values[velocities].symmetric_gradient (k, q);
-	// 			  div_phi_u[k]     = fe_values[velocities].divergence (k, q);
-	// 			  phi_p[k]         = fe_values[pressure].value (k, q);
-	// 			}
-	// 		  for (unsigned int i=0; i<dofs_per_cell; ++i)
-	// 			{
-	// 			  for (unsigned int j=0; j<dofs_per_cell; ++j)
-	// 				{
-	// 				  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
-	// 				  local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-	// 							 + fluid_theta * ( 2*physical_properties.viscosity*symgrad_phi_u[i] * symgrad_phi_u[j])
-	// 							 - div_phi_u[i] * phi_p[j] // momentum
-	// 							 - phi_p[i] * div_phi_u[j] // mass
-	// 							 + epsilon * phi_p[i] * phi_p[j])
-	// 				    * fe_values.JxW(q);
-	// 				}
-	// 			}
-	// 		}
-	// 		for (unsigned int face_no=0;
-	// 			   face_no<GeometryInfo<dim>::faces_per_cell;
-	// 			   ++face_no)
-	// 		{
-	// 			if (cell->at_boundary(face_no))
-	// 			  {
-	// 				if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
-	// 				{
-	// 					fe_face_values.reinit (cell, face_no);
-	// 					fe_face_values.get_function_values (rhs_for_adjoint.block(0), adjoint_rhs_values);
-
-	// 					for (unsigned int q=0; q<n_face_q_points; ++q)
-	// 					{
-	// 					  Tensor<1,dim> g_stress;
-	// 					  for (unsigned int d=0; d<dim; ++d)
-	// 							g_stress[d] = adjoint_rhs_values[q](d);
-	// 					  for (unsigned int i=0; i<dofs_per_cell; ++i)
-	// 					  {
-	// 						  local_rhs(i) += (fe_face_values[velocities].value (i, q)*
-	// 									g_stress * fe_face_values.JxW(q));
-	// 					  }
-        //                                           length += fe_face_values.JxW(q);
-        //                                           residual += 0.5 * g_stress * g_stress * fe_face_values.JxW(q);
-	// 					}
-	// 				}
-	// 			  }
-	// 		}
-	// 	  cell->get_dof_indices (local_dof_indices);
-	// 	  fluid_constraints.distribute_local_to_global (local_matrix, local_rhs,
-	// 											  local_dof_indices,
-	// 											  fluid_matrix, fluid_rhs);
-	// 	}
-        //std::cout << length << " " << residual << std::endl;
   }
 
   template <int dim>
@@ -1795,20 +1742,29 @@ namespace FSI_Project
 		      }
 		  }
 	      }
-	    for (unsigned int i=0; i<2; ++i)
+	    unsigned int total_loops;
+	    if (enum_==state)
+	      {
+		total_loops = 2;
+	      }
+	    else
+	      {
+		total_loops = 1;
+	      }
+	    for (unsigned int i=0; i<total_loops; ++i)
 	      {
 		double multiplier;
 		Vector<double> *stress_vector;
 		if (i==0)
 		  {
 		    structure_stress_values.set_time(time);
-		    multiplier=0.5;
+		    multiplier=structure_theta;
 		    stress_vector=&stress.block(1);
 		  }
 		else
 		  {
 		    structure_stress_values.set_time(time-time_step);
-		    multiplier=0.5;
+		    multiplier=(1-structure_theta);
 		    stress_vector=&old_stress.block(1);
 		  }
 
@@ -1871,7 +1827,7 @@ namespace FSI_Project
 				      r[d] = adjoint_rhs_values[q](d);
 				    for (unsigned int i=0; i<dofs_per_cell; ++i)
 				      {
-					local_rhs(i) += (fe_face_values[displacements].value (i, q)*
+					local_rhs(i) += structure_theta*(fe_face_values[displacements].value (i, q)*
 							 r * fe_face_values.JxW(q));
 				      }
 				  }
@@ -1887,7 +1843,7 @@ namespace FSI_Project
 				      h[d] = linear_rhs_values[q](d);
 				    for (unsigned int i=0; i<dofs_per_cell; ++i)
 				      {
-					local_rhs(i) += (fe_face_values[displacements].value (i, q)*
+					local_rhs(i) += structure_theta*(fe_face_values[displacements].value (i, q)*
 							 h * fe_face_values.JxW(q));
 				      }
 				  }
@@ -1901,88 +1857,6 @@ namespace FSI_Project
 							      local_dof_indices,
 							      structure_matrix, structure_rhs);
 	  }
-	// else // adjoint mode
-	// 	for (; cell!=endc; ++cell)
-	// 	  {
-	// 		fe_values.reinit (cell);
-	// 		local_matrix = 0;
-	// 		local_rhs = 0;
-	// 		for (unsigned int q_point=0; q_point<n_q_points;
-	// 							 ++q_point)
-	// 		{
-	// 			for (unsigned int k=0; k<dofs_per_cell; ++k)
-	// 			{
-	// 			  phi_n[k]		   = fe_values[displacements].value (k, q_point);
-	// 			  symgrad_phi_n[k] = fe_values[displacements].symmetric_gradient (k, q_point);
-	// 			  div_phi_n[k]     = fe_values[displacements].divergence (k, q_point);
-	// 			  phi_v[k]         = fe_values[velocities].value (k, q_point);
-	// 			}
-	// 			for (unsigned int i=0; i<dofs_per_cell; ++i)
-	// 			  {
-	// 				const unsigned int
-	// 				component_i = structure_fe.system_to_component_index(i).first;
-	// 				for (unsigned int j=0; j<dofs_per_cell; ++j)
-	// 				  {
-	// 					const unsigned int
-	// 					component_j = structure_fe.system_to_component_index(j).first;
-
-	// 					if (component_i<dim)
-	// 					{
-	// 						if (component_j<dim)
-	// 						{
-	// 							local_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
-	// 										  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
-	// 							  *fe_values.JxW(q_point);
-	// 						}
-	// 						else
-	// 						{
-	// 							local_matrix(i,j)+=-1./time_step*phi_n[i]*phi_v[j]*fe_values.JxW(q_point);
-	// 						}
-	// 					}
-	// 					else
-	// 					{
-	// 						if (component_j<dim)
-	// 						{
-	// 							local_matrix(i,j)+=physical_properties.rho_s/time_step*phi_v[i]*phi_n[j]*fe_values.JxW(q_point);
-	// 						}
-	// 						else
-	// 						{
-	// 							local_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
-	// 							  *fe_values.JxW(q_point);
-	// 						}
-	// 					}
-	// 				  }
-	// 			  }
-	// 		}
-	// 		for (unsigned int face_no=0;
-	// 			   face_no<GeometryInfo<dim>::faces_per_cell;
-	// 			   ++face_no)
-	// 		{
-	// 			if (cell->at_boundary(face_no))
-	// 			  {
-	// 				if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
-	// 				{
-	// 					fe_face_values.reinit (cell, face_no);
-	// 					fe_face_values.get_function_values (rhs_for_adjoint.block(1), adjoint_rhs_values);
-	// 					for (unsigned int q=0; q<n_face_q_points; ++q)
-	// 					{
-	// 					  Tensor<1,dim> g_stress;
-	// 					  for (unsigned int d=0; d<dim; ++d)
-	// 							g_stress[d] = adjoint_rhs_values[q](d);
-	// 					  for (unsigned int i=0; i<dofs_per_cell; ++i)
-	// 					  {
-	// 						  local_rhs(i) += (fe_face_values[displacements].value (i, q)*
-	// 									(g_stress) * fe_face_values.JxW(q));
-	// 					  }
-	// 					}
-	// 				}
-	// 			  }
-	// 		}
-	// 		cell->get_dof_indices (local_dof_indices);
-	// 		structure_constraints.distribute_local_to_global (local_matrix, local_rhs,
-	// 											  local_dof_indices,
-	// 											  structure_matrix, structure_rhs);
-	// 	  }
   }
 
   template <int dim>
@@ -2134,15 +2008,19 @@ namespace FSI_Project
 		  }
 	      }
 	    if (enum_==adjoint)
-	      MatrixTools::apply_boundary_values (fluid_boundary_values,
-						  system_matrix.block(0,0),
-						  adjoint_solution.block(0),
-						  system_rhs.block(0));
-	    else 
-	      MatrixTools::apply_boundary_values (fluid_boundary_values,
-						  system_matrix.block(0,0),
-						  linear_solution.block(0),
-						  system_rhs.block(0));
+	      {
+		MatrixTools::apply_boundary_values (fluid_boundary_values,
+						    system_matrix.block(0,0),
+						    adjoint_solution.block(0),
+						    system_rhs.block(0));
+	      }
+	    else
+	      { 
+		MatrixTools::apply_boundary_values (fluid_boundary_values,
+						    system_matrix.block(0,0),
+						    linear_solution.block(0),
+						    system_rhs.block(0));
+	      }
 	  }
 	else if (system==Structure)
 	  {
@@ -2159,15 +2037,19 @@ namespace FSI_Project
 		  }
 	      }
 	    if (enum_==adjoint)
-	      MatrixTools::apply_boundary_values (structure_boundary_values,
-						  system_matrix.block(1,1),
-						  adjoint_solution.block(1),
-						  system_rhs.block(1));
+	      {
+		MatrixTools::apply_boundary_values (structure_boundary_values,
+						    system_matrix.block(1,1),
+						    adjoint_solution.block(1),
+						    system_rhs.block(1));
+	      }
 	    else
-	      MatrixTools::apply_boundary_values (structure_boundary_values,
-						  system_matrix.block(1,1),
-						  linear_solution.block(1),
-						  system_rhs.block(1));
+	      {
+		MatrixTools::apply_boundary_values (structure_boundary_values,
+						    system_matrix.block(1,1),
+						    linear_solution.block(1),
+						    system_rhs.block(1));
+	      }
 	  }
 	else
 	  {
@@ -2183,15 +2065,19 @@ namespace FSI_Project
 		  }
 	      }
 	    if (enum_==adjoint)
-	      MatrixTools::apply_boundary_values (ale_boundary_values,
-						  system_matrix.block(2,2),
-						  adjoint_solution.block(2),
-						  system_rhs.block(2));
+	      {
+		MatrixTools::apply_boundary_values (ale_boundary_values,
+						    system_matrix.block(2,2),
+						    adjoint_solution.block(2),
+						    system_rhs.block(2));
+	      }	
 	    else
-	      MatrixTools::apply_boundary_values (ale_boundary_values,
-						  system_matrix.block(2,2),
-						  linear_solution.block(2),
-						  system_rhs.block(2));
+	      {
+		MatrixTools::apply_boundary_values (ale_boundary_values,
+						    system_matrix.block(2,2),
+						    linear_solution.block(2),
+						    system_rhs.block(2));
+	      }
 	  }
       }
   }
@@ -2725,11 +2611,14 @@ namespace FSI_Project
 
     transfer_interface_dofs(old_stress,old_stress,0,1);
     stress=old_stress;
+    double total_time = 0;
 
     for (timestep_number=1, time=time_step;
          time<fem_properties.T;++timestep_number)
       {
+	boost::timer t;
     	time = timestep_number*time_step;
+	std::cout << std::endl << "----------------------------------------" << std::endl;
         std::cout << "Time step " << timestep_number
                   << " at t=" << time
                   << std::endl;
@@ -2749,6 +2638,8 @@ namespace FSI_Project
 	unsigned int consecutiverelrecord = 0;
 
 	//stress=old_stress;
+
+	unsigned int total_solves = 0;
 
         while (true)
         {
@@ -2776,21 +2667,23 @@ namespace FSI_Project
 	    }
 
 	  solution_star=1;
-	  while (solution_star.l2_norm()>1e-8){
-	    solution_star=solution;
-	    assemble_fluid(state);
-	    dirichlet_boundaries((System)0,state);
-	    solve(0,state);
-	    solution_star-=solution;
-	    if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
-	      {
-		break;
-	      }
-	    else
-	      {
-		std::cout << solution_star.l2_norm() << std::endl;
-	      }
-	  }
+	  while (solution_star.l2_norm()>1e-8)
+	    {
+	      solution_star=solution;
+	      assemble_fluid(state);
+	      dirichlet_boundaries((System)0,state);
+	      solve(0,state);
+	      solution_star-=solution;
+	      if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
+		{
+		  break;
+		}
+	      else
+		{
+		  //std::cout << solution_star.l2_norm() << std::endl;
+		}
+	      ++total_solves;
+	    }
 	  solution_star = solution; 
 	  build_adjoint_rhs();
 
@@ -2811,6 +2704,7 @@ namespace FSI_Project
 		  dirichlet_boundaries((System)i,adjoint);
 		  solve(i,adjoint);
 		}
+	      ++total_solves;
 
 
 	      if (velocity_jump>velocity_jump_old)
@@ -2880,12 +2774,18 @@ namespace FSI_Project
 	    }
 	  else // fem_properties.optimization_method==CG
 	    {
-	      // x^0 = guess
 	      tmp=1e-10;
+	      // x^0 = guess
+
+	      // Generate a random vector
+	      // for  (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it)
+	      // *it = ((double)std::rand() / (double)(RAND_MAX)); //std::rand(0,10);
+	      // std::cout << *it << std::endl;
+
 	      rhs_for_linear_h=0;
 	      transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
 	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-	      rhs_for_linear_h.block(1) *= -1./time_step;   // copy, negate
+	      rhs_for_linear_h.block(1) *= -1;   // copy, negate
 
 	      // b = -u + [n^n-n^n-1]/dt	       
 	      tmp=0;
@@ -2907,6 +2807,7 @@ namespace FSI_Project
 		  dirichlet_boundaries((System)i,linear);
 		  solve(i,linear);
 		}
+	      ++total_solves;
 	      
 	      // -Ax = -w^n + phi^n/dt
 	      tmp=0;tmp2=0;
@@ -2918,7 +2819,7 @@ namespace FSI_Project
 	      // r^0 = b - Ax
 	      rhs_for_adjoint.block(0)+=tmp.block(0);
 	      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
-	      rhs_for_adjoint*=-1;   // copy, negate
+	      rhs_for_adjoint.block(1)*=-1;   // copy, negate
 	      // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
 	      rhs_for_adjoint_s=0;
 	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_adjoint_s,0,0);
@@ -2933,6 +2834,7 @@ namespace FSI_Project
 		  dirichlet_boundaries((System)i,adjoint);
 		  solve(i,adjoint);
 		}
+	      ++total_solves;
 
 	      // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
 	      tmp=0; tmp2=0;
@@ -2944,12 +2846,13 @@ namespace FSI_Project
 	      tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
 	      transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
 	      transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-	      rhs_for_linear_p.block(1)*=-1./time_step;   // copy, negate
+	      rhs_for_linear_p.block(1)*=-1;   // copy, negate
 	      double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
 	      //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
-	      //std::cout <<  p_n_norm_square << std::endl;
-	      
-	      while (p_n_norm_square > 1e-8)
+	      std::cout <<  p_n_norm_square << std::endl;
+	      rhs_for_linear_Ap_s=0;
+
+	      while (p_n_norm_square > 1e-10)
 		{
 		  // get linearized variables
 		  rhs_for_linear = rhs_for_linear_p;
@@ -2960,7 +2863,7 @@ namespace FSI_Project
 		      dirichlet_boundaries((System)i,linear);
 		      solve(i,linear);
 		    }
-		  
+		  ++total_solves;
 
 		  // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
 		  tmp=0;tmp2=0;
@@ -2979,7 +2882,7 @@ namespace FSI_Project
 		  // h^{n+1} = h^n + sigma * p^n
 		  rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
 		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-		  //rhs_for_linear_h.block(1)*=-1;   // copy, negate
+		  rhs_for_linear_h.block(1)*=-1;   // copy, negate
 
 		  // r^{n+1} = r^n - sigma * Ap
 		  // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
@@ -2996,7 +2899,8 @@ namespace FSI_Project
 		      dirichlet_boundaries((System)i,adjoint);
 		      solve(i,adjoint);
 		    }
-		  
+		  ++total_solves;
+
 		  // A*r^{n+1} = beta^{n+1} - psi^{n+1}/dt + sqrt(delta)(second part of r)
 		  tmp=0; tmp2=0;
 		  transfer_interface_dofs(adjoint_solution,tmp,1,0);
@@ -3012,20 +2916,29 @@ namespace FSI_Project
 		  rhs_for_linear_p.block(0) *= tau;
 		  rhs_for_linear_p.block(0)+=tmp.block(0);
 		  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		  rhs_for_linear_p.block(1)*=-1./time_step;   // copy, negate
+		  rhs_for_linear_p.block(1)*=-1;   // copy, negate
 		  p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
 		  //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
 		  //std::cout << p_n_norm_square << std::endl;	  
 		}
 		  
 	      // update stress
-	      stress.block(0)+=rhs_for_linear_h.block(0);
+	      //stress.block(0)+=rhs_for_linear_h.block(0);
+	      stress.block(0) += rhs_for_linear_h.block(0);
+	      tmp=0;
+	      transfer_interface_dofs(stress,tmp,0,0);
+	      transfer_interface_dofs(stress,tmp,1,1);
+	      stress=0;
+	      transfer_interface_dofs(tmp,stress,0,0);
+	      transfer_interface_dofs(tmp,stress,1,1);
+
+
 	      transfer_interface_dofs(stress,stress,0,1);
 	      //stress.block(1)*=-1;
 	    }
 
 	}
-
+	std::cout << "Total Solves: " << total_solves << std::endl;
         if (fem_properties.make_plots) output_results ();
 	if (fem_properties.richardson) 
 	  {
@@ -3034,6 +2947,10 @@ namespace FSI_Project
         old_solution = solution;
         old_stress = stress;
         if (fem_properties.print_error)compute_error();
+	std::cout << "Comp. Time: " << t.elapsed() << std::endl;
+	total_time += t.elapsed();
+	std::cout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
+	t.restart();
       }
   }
 }
