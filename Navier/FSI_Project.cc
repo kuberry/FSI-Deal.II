@@ -166,7 +166,7 @@ namespace FSI_Project
     void transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
     void transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
     void setup_system ();
-    void solve (SparseDirectUMFPACK direct_solver, const int block_num, Mode enum_);
+    void solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_);
     void output_results () const;
     void compute_error ();
 
@@ -2487,7 +2487,7 @@ namespace FSI_Project
 
 
   template <int dim>
-  void FSIProblem<dim>::solve (SparseDirectUMFPACK direct_solver, const int block_num, Mode enum_)
+  void FSIProblem<dim>::solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_)
   {
     //SparseDirectUMFPACK direct_solver;
 	BlockVector<double> *solution_vector;
@@ -2512,7 +2512,7 @@ namespace FSI_Project
 		solution_vector=&linear_solution;
 		rhs_vector=&linear_rhs;
 	      }
-	direct_solver.solve (rhs_vector->block(block_num));
+	direct_solver.solve(rhs_vector->block(block_num));
 	solution_vector->block(block_num) = rhs_vector->block(block_num);
 	//direct_solver.vmult (solution_vector->block(block_num), rhs_vector->block(block_num));
 	switch (block_num)
@@ -2807,7 +2807,6 @@ namespace FSI_Project
         while (true)
         {
 	  ++count;
-	  // REMARK: Uncommenting this means that you will have the true stress based on the reference solution
 	  if (count == 1 && fem_properties.true_control)
 	    {
 	      fluid_boundary_stress.set_time(time);
@@ -2816,33 +2815,21 @@ namespace FSI_Project
 				   stress.block(0));
 	      transfer_interface_dofs(stress,stress,0,1);
 	    }
-	  // End of section to uncomment
 
 	  // RHS and Neumann conditions are inside these functions
 	  // Solve for the state variables
-	  //if (timestep_number==1){
 	  assemble_structure(state, true);
-	  assemble_ale(state, true);//}
+	  assemble_ale(state, true);
 	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
 	  for (unsigned int i=1; i<3; ++i)
 	    {
 	      dirichlet_boundaries((System)i,state);
 	      if (timestep_number==1)
-		{
-		  state_solver[i].initialize(system_matrix.block(i,i));
-		  state_solver[i].factorize(system_matrix.block(i,i));
-		}
-	      //solve(state_solver[i],i,state);
-	      state_solver[i].solve(system_rhs.block(i));
-	      solution.block(i) = system_rhs.block(i);
-	      if (i==1)
-		{
-		structure_constraints.distribute(solution.block(i));
-		}
-	      else
-		{
-		ale_constraints.distribute(solution.block(i));
-		}		    
+	      	{
+	      	  //state_solver[i].initialize(system_matrix.block(i,i));
+	      	}
+	      state_solver[i].factorize(system_matrix.block(i,i));
+	      solve(state_solver[i],i,state);
 	    }
 
 	  solution_star=1;
@@ -2852,24 +2839,21 @@ namespace FSI_Project
 	      assemble_fluid(state, true);
 	      dirichlet_boundaries((System)0,state);
 	      if (timestep_number==1)
-		{
-		  state_solver[0].initialize(system_matrix.block(0,0));
-		  state_solver[0].factorize(system_matrix.block(0,0));
-		}
-	      state_solver[0].solve(system_rhs.block(0));
-	      solution.block(0) = system_rhs.block(0);
-	      fluid_constraints.distribute(solution.block(0));
-	      //solve(0,state);
+	      	{
+	      	  state_solver[0].initialize(system_matrix.block(0,0));
+	      	}
+	      state_solver[0].factorize(system_matrix.block(0,0));
+	      solve(state_solver[0],0,state);
 	      solution_star-=solution;
 	      ++total_solves;
 	      if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
-		{
-		  break;
-		}
+	      	{
+	      	  break;
+	      	}
 	      else
-		{
-		  std::cout << solution_star.l2_norm() << std::endl;
-		}
+	      	{
+	      	  std::cout << solution_star.l2_norm() << std::endl;
+	      	}
 	    }
 	  solution_star = solution; 
 	  build_adjoint_rhs();
@@ -3013,22 +2997,12 @@ namespace FSI_Project
 	      for (unsigned int i=0; i<2; ++i)
 		{
 		  dirichlet_boundaries((System)i,linear);
-		  linear_solver[i].initialize(linear_matrix.block(i,i));
+		  if (timestep_number==1)
+		    {
+		      //linear_solver[i].initialize(linear_matrix.block(i,i));
+		    }
 		  linear_solver[i].factorize(linear_matrix.block(i,i));
-		  linear_solver[i].solve(linear_rhs.block(i));
-		  linear_solution.block(i) = linear_rhs.block(i);
-		  if (i==0)
-		    {
-		      fluid_constraints.distribute(linear_solution.block(0));
-		    }
-		  else
-		    {
-		      structure_constraints.distribute(linear_solution.block(1));
-		    }
-		  
-		  //solve(linear_solver[i], i, linear);
-		  //solve(linear_solver[i], i, linear);
-		  //std::cout << "Got this" << std::endl;
+		  solve(linear_solver[i], i, linear);
 		}
 	      ++total_solves;
 	      
@@ -3055,31 +3029,22 @@ namespace FSI_Project
 	      for (unsigned int i=0; i<2; ++i)
 		{
 		  dirichlet_boundaries((System)i,adjoint);
-		  adjoint_solver[i].initialize(adjoint_matrix.block(i,i));
+		  if (timestep_number==1)
+		    {
+		      //adjoint_solver[i].initialize(adjoint_matrix.block(i,i));
+		    }
 		  adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
-		  adjoint_solver[i].solve(adjoint_rhs.block(i));
-		  adjoint_solution.block(i) = adjoint_rhs.block(i);
-		  if (i==0)
-		    {
-		      fluid_constraints.distribute(adjoint_solution.block(0));
-		    }
-		  else
-		    {
-		      structure_constraints.distribute(adjoint_solution.block(1));
-		    }
-
-		  //solve(adjoint_solver[i], i, adjoint);
-		  //std::cout << "Got this too." << std::endl;
+		  solve(adjoint_solver[i], i, adjoint);
 		}
 	      ++total_solves;
 	      
 	      //fluid_constraints.distribute(
 	      // apply preconditioner
 	      //std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
-	      // for (unsigned int i=0; i<solution.block(0).size(); ++i)
-	      // 	adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-	      // for (unsigned int i=0; i<solution.block(1).size(); ++i)
-	      // 	adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+	      for (unsigned int i=0; i<solution.block(0).size(); ++i)
+	      	adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+	      for (unsigned int i=0; i<solution.block(1).size(); ++i)
+	      	adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
 	      // tmp=adjoint_solution;
 	      // PreconditionJacobi<SparseMatrix<double> > preconditioner;
 	      // preconditioner.initialize(system_matrix.block(0,0), 0.6);
@@ -3118,31 +3083,8 @@ namespace FSI_Project
 		  assemble_fluid(linear, false);
 		  for (unsigned int i=0; i<2; ++i)
 		    {
-		      //std::cout << &linear_solver[i] << std::endl;
-		      //dirichlet_boundaries((System)i,linear);
-		      //std::cout << &linear_matrix.block(i,i) << std::endl;
-		      //linear_solver[i].factorize(linear_matrix.block(i,i));
-		      //linear_matrix.block(i,i).print(std::cout); //std::cout << linear_matrix.block(i,i) << std::endl;
-		      //linear_solver[i].factorize(linear_matrix.block(i,i));
-		      //std::cout << "Made it 1" << std::endl;
-		      //linear_solver[i].initialize(linear_matrix.block(i,i));
-		  //  std::cout << "Not yet Made it " << std::endl;   
-		  //     linear_solver[i].solve(linear_rhs.block(i));
-		  // std::cout << "Made it " << std::endl;
-		  //     //solve(linear_solver[i], i, linear);
-		  //     std::cout << linear_rhs.block(i) << std::endl;
-		  //     std::cout << "Made it 2" << std::endl;
 		      dirichlet_boundaries((System)i,linear);
-		      linear_solver[i].solve(linear_rhs.block(i));
-		      linear_solution.block(i) = linear_rhs.block(i);
-		      if (i==0)
-			{
-			  fluid_constraints.distribute(linear_solution.block(0));
-			}
-		      else
-			{
-			  structure_constraints.distribute(linear_solution.block(1));
-			}
+		      solve(linear_solver[i], i, linear);
 		    }
 		  ++total_solves;
 
@@ -3179,28 +3121,16 @@ namespace FSI_Project
 		  for (unsigned int i=0; i<2; ++i)
 		    {
 		      dirichlet_boundaries((System)i,adjoint);
-		      // adjoint_solver[i].initialize(adjoint_matrix.block(i,i));
-		      // solve(adjoint_solver[i], i, adjoint);
-		      //dirichlet_boundaries((System)i,linear);
-		      adjoint_solver[i].solve(adjoint_rhs.block(i));
-		      adjoint_solution.block(i) = adjoint_rhs.block(i);
-		      if (i==0)
-			{
-			  fluid_constraints.distribute(adjoint_solution.block(0));
-			}
-		      else
-			{
-			  structure_constraints.distribute(adjoint_solution.block(1));
-			}
+		      solve(adjoint_solver[i], i, adjoint);
 		    }
 		  ++total_solves;
 
 		  // apply preconditioner
 		  // adjoint_solution*=float(time_step)/(time_step-1);
-		  // for (unsigned int i=0; i<solution.block(0).size(); ++i)
-		  //   adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-		  // for (unsigned int i=0; i<solution.block(1).size(); ++i)
-		  //   adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+		  for (unsigned int i=0; i<solution.block(0).size(); ++i)
+		    adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+		  for (unsigned int i=0; i<solution.block(1).size(); ++i)
+		    adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
 		 
 
 		  // tmp=adjoint_solution;
@@ -3235,7 +3165,6 @@ namespace FSI_Project
 		}
 		  
 	      // update stress
-	      //stress.block(0)+=rhs_for_linear_h.block(0);
 	      stress.block(0) += rhs_for_linear_h.block(0);
 	      tmp=0;
 	      transfer_interface_dofs(stress,tmp,0,0);
@@ -3246,7 +3175,6 @@ namespace FSI_Project
 
 
 	      transfer_interface_dofs(stress,stress,0,1);
-	      //stress.block(1)*=-1;
 	    }
 
 	}
