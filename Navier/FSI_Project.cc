@@ -200,9 +200,9 @@ namespace FSI_Project
     BlockVector<double>       	linear_rhs;
     BlockVector<double>		stress;
     BlockVector<double>		old_stress;
-    BlockVector<double>			mesh_displacement;
-    BlockVector<double>			old_mesh_displacement;
-    BlockVector<double>			mesh_velocity;
+    BlockVector<double>		mesh_displacement;
+    BlockVector<double>		old_mesh_displacement;
+    BlockVector<double>		mesh_velocity;
 
     double time, time_step;
     unsigned int timestep_number;
@@ -219,6 +219,7 @@ namespace FSI_Project
     std::vector<unsigned int> structure_interface_cells, structure_interface_faces;
     std::map<unsigned int, unsigned int> f2s, s2f, s2a, a2s, a2f, f2a, a2f_all, f2a_all;
     std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
+    std::vector<SparseDirectUMFPACK > state_solver,  adjoint_solver,  linear_solver;
   };
 
 
@@ -338,7 +339,10 @@ namespace FSI_Project
     errors(),
     n_blocks(5),
     n_big_blocks(3),
-    dofs_per_block(5)
+    dofs_per_block(5),
+    state_solver(3),  
+    adjoint_solver(3),
+    linear_solver(3)
   {
 	  fem_properties.fluid_degree		= prm_.get_integer("fluid velocity degree");
 	  fem_properties.pressure_degree	= prm_.get_integer("fluid pressure degree");
@@ -2489,46 +2493,44 @@ namespace FSI_Project
   template <int dim>
   void FSIProblem<dim>::solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_)
   {
-    //SparseDirectUMFPACK direct_solver;
-	BlockVector<double> *solution_vector;
-	BlockVector<double> *rhs_vector;
+    BlockVector<double> *solution_vector;
+    BlockVector<double> *rhs_vector;
 
-	    if (enum_==state)
-	      {
-		// direct_solver.initialize (system_matrix.block(block_num,block_num));
-		// direct_solver.factorize (system_matrix.block(block_num,block_num));
-		solution_vector=&solution;
-		rhs_vector=&system_rhs;
-	      }
-	    else if (enum_==adjoint)
-	      {
-		// direct_solver.initialize (adjoint_matrix.block(block_num,block_num));
-		solution_vector=&adjoint_solution;
-		rhs_vector=&adjoint_rhs;
-	      }
-	    else // enum_==linear
-	      {
-		// direct_solver.initialize (linear_matrix.block(block_num,block_num));
-		solution_vector=&linear_solution;
-		rhs_vector=&linear_rhs;
-	      }
+    if (enum_==state)
+      {
+	solution_vector=&solution;
+	rhs_vector=&system_rhs;
+	direct_solver.vmult (solution_vector->block(block_num), rhs_vector->block(block_num));
+      }
+    else if (enum_==adjoint)
+      {
+	solution_vector=&adjoint_solution;
+	rhs_vector=&adjoint_rhs;
 	direct_solver.solve(rhs_vector->block(block_num));
 	solution_vector->block(block_num) = rhs_vector->block(block_num);
-	//direct_solver.vmult (solution_vector->block(block_num), rhs_vector->block(block_num));
-	switch (block_num)
-	  {
-	  case 0:
-	    fluid_constraints.distribute (solution_vector->block(block_num));
-	    break;
-	  case 1:
-	    structure_constraints.distribute (solution_vector->block(block_num));
-	    break;
-	  case 2:
-	    ale_constraints.distribute (solution_vector->block(block_num));
-	    break;
-	  default:
-	    Assert(false,ExcNotImplemented());
-	  }
+      }
+    else // enum_==linear
+      {
+	solution_vector=&linear_solution;
+	rhs_vector=&linear_rhs;
+	direct_solver.solve(rhs_vector->block(block_num));
+	solution_vector->block(block_num) = rhs_vector->block(block_num);
+      }
+
+    switch (block_num)
+      {
+      case 0:
+	fluid_constraints.distribute (solution_vector->block(block_num));
+	break;
+      case 1:
+	structure_constraints.distribute (solution_vector->block(block_num));
+	break;
+      case 2:
+	ale_constraints.distribute (solution_vector->block(block_num));
+	break;
+      default:
+	Assert(false,ExcNotImplemented());
+      }
   }
 
 
@@ -2770,9 +2772,7 @@ namespace FSI_Project
     stress=old_stress;
     double total_time = 0;
 
-    std::vector<SparseDirectUMFPACK > state_solver(3);
-    std::vector<SparseDirectUMFPACK > adjoint_solver(3);
-    std::vector<SparseDirectUMFPACK > linear_solver(3);
+
 	   
     // direct_solver.initialize (system_matrix.block(block_num,block_num));
 
@@ -2821,14 +2821,16 @@ namespace FSI_Project
 	  assemble_structure(state, true);
 	  assemble_ale(state, true);
 	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
+	  
+
 	  for (unsigned int i=1; i<3; ++i)
 	    {
 	      dirichlet_boundaries((System)i,state);
 	      if (timestep_number==1)
 	      	{
-	      	  //state_solver[i].initialize(system_matrix.block(i,i));
+	      	  state_solver[i].initialize(system_matrix.block(i,i));
 	      	}
-	      state_solver[i].factorize(system_matrix.block(i,i));
+	      // solver uses vmult which doesn't require factorization
 	      solve(state_solver[i],i,state);
 	    }
 
@@ -2873,7 +2875,8 @@ namespace FSI_Project
 	      for (unsigned int i=0; i<2; ++i)
 		{
 		  dirichlet_boundaries((System)i,adjoint);
-		  //solve(i,adjoint);
+		  adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
+		  solve(adjoint_solver[i], i, adjoint);
 		}
 	      ++total_solves;
 
@@ -2997,10 +3000,6 @@ namespace FSI_Project
 	      for (unsigned int i=0; i<2; ++i)
 		{
 		  dirichlet_boundaries((System)i,linear);
-		  if (timestep_number==1)
-		    {
-		      //linear_solver[i].initialize(linear_matrix.block(i,i));
-		    }
 		  linear_solver[i].factorize(linear_matrix.block(i,i));
 		  solve(linear_solver[i], i, linear);
 		}
@@ -3029,10 +3028,6 @@ namespace FSI_Project
 	      for (unsigned int i=0; i<2; ++i)
 		{
 		  dirichlet_boundaries((System)i,adjoint);
-		  if (timestep_number==1)
-		    {
-		      //adjoint_solver[i].initialize(adjoint_matrix.block(i,i));
-		    }
 		  adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
 		  solve(adjoint_solver[i], i, adjoint);
 		}
