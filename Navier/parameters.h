@@ -56,6 +56,7 @@ namespace Parameters
     unsigned int max_optimization_iterations;
     bool                true_control;
     std::string 	optimization_method;
+    unsigned int        adjoint_type;
 
     // Solver Parameters
     bool                  richardson;
@@ -164,6 +165,8 @@ namespace Parameters
 			    "Use the true stress as the initial control at each time step.");
 	  prm.declare_entry("optimization method","CG", Patterns::Selection("CG|Gradient"),
 			    "optimization method choices {CG,Gradient}.");
+	  prm.declare_entry("adjoint type","1", Patterns::Integer(1),
+			    "adjoint displacement (1) or velocity (2) used in objective function.");
 
 	  // Operations Parameters
 	  prm.declare_entry("richardson", "true", Patterns::Bool(),
