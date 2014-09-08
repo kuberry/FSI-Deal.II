@@ -3216,20 +3216,33 @@ namespace FSI_Project
 
 	    	  rhs_for_linear_h=0;
 	    	  transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
-	    	  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-	    	  rhs_for_linear_h.block(1) *= -1;   // copy, negate
+		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
+		  rhs_for_linear_h.block(1) *= -1;   // copy, negate
 
-	    	  // b = -u + [n^n-n^n-1]/dt	       
-	    	  tmp=0;
-	    	  rhs_for_adjoint=0;
-	    	  transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
-	    	  rhs_for_adjoint.block(0)*=1./time_step;
-	    	  transfer_interface_dofs(old_solution,tmp,1,0);
-	    	  rhs_for_adjoint.block(0).add(-1./time_step,tmp.block(0));
-	    	  tmp=0;
-	    	  transfer_interface_dofs(solution,tmp,0,0);
-	    	  rhs_for_adjoint.block(0)-=tmp.block(0);
-	     
+		  if (fem_properties.adjoint_type==1)
+		    {
+		      // b = -u + [n^n-n^n-1]/dt	       
+		      tmp=0;
+		      rhs_for_adjoint=0;
+		      transfer_interface_dofs(solution,rhs_for_adjoint,1,0,Displacement);
+		      rhs_for_adjoint.block(0)*=1./time_step;
+		      transfer_interface_dofs(old_solution,tmp,1,0,Displacement);
+		      rhs_for_adjoint.block(0).add(-1./time_step,tmp.block(0));
+		      tmp=0;
+		      transfer_interface_dofs(solution,tmp,0,0);
+		      rhs_for_adjoint.block(0)-=tmp.block(0);
+		    }
+		  else
+		    {
+		      // b = -u + v^	       
+		      tmp=0;
+		      rhs_for_adjoint=0;
+		      transfer_interface_dofs(solution,rhs_for_adjoint,1,0,Velocity);
+		      tmp=0;
+		      transfer_interface_dofs(solution,tmp,0,0);
+		      rhs_for_adjoint.block(0)-=tmp.block(0);
+		    }	     
+
 	    	  // get linearized variables
 	    	  rhs_for_linear = rhs_for_linear_h;
 	    	  assemble_structure(linear, true);
@@ -3242,16 +3255,37 @@ namespace FSI_Project
 	    	    }
 	    	  ++total_solves;
 	      
-	    	  // -Ax = -w^n + phi^n/dt
-	    	  tmp=0;tmp2=0;
-	    	  transfer_interface_dofs(linear_solution,tmp,1,0);
-	    	  tmp.block(0)*=1./time_step;
-	    	  transfer_interface_dofs(linear_solution,tmp2,0,0);
-	    	  tmp.block(0)-=tmp2.block(0);
+
+		  if (fem_properties.adjoint_type==1)
+		    {
+		      // -Ax = -w^n + phi^n/dt
+		      tmp=0;tmp2=0;
+		      transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
+		      tmp.block(0)*=1./time_step;
+		      transfer_interface_dofs(linear_solution,tmp2,0,0);
+		      tmp.block(0)-=tmp2.block(0);
+		    }
+		  else
+		    {
+		      // -Ax = -w^n + phi_dot^n
+		      tmp=0;tmp2=0;
+		      transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
+		      transfer_interface_dofs(linear_solution,tmp2,0,0);
+		      tmp.block(0)-=tmp2.block(0);
+		    }
 	      
 	    	  // r^0 = b - Ax
 	    	  rhs_for_adjoint.block(0)+=tmp.block(0);
-	    	  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+
+		  if (fem_properties.adjoint_type==1)
+		    {
+		      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1,Displacement);
+		    }
+		  else
+		    {
+		      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1,Velocity);
+		    }
+
 	    	  rhs_for_adjoint.block(1)*=-1;   // copy, negate
 	    	  // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
 	    	  rhs_for_adjoint_s=0;
@@ -3273,10 +3307,10 @@ namespace FSI_Project
 	    	  //fluid_constraints.distribute(
 	    	  // apply preconditioner
 	    	  //std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
-	    	  for (unsigned int i=0; i<solution.block(0).size(); ++i)
-	    	    adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-	    	  for (unsigned int i=0; i<solution.block(1).size(); ++i)
-	    	    adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+	    	  // for (unsigned int i=0; i<solution.block(0).size(); ++i)
+	    	  //   adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+	    	  // for (unsigned int i=0; i<solution.block(1).size(); ++i)
+	    	  //   adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
 	    	  // tmp=adjoint_solution;
 	    	  // PreconditionJacobi<SparseMatrix<double> > preconditioner;
 	    	  // preconditioner.initialize(system_matrix.block(0,0), 0.6);
@@ -3289,13 +3323,23 @@ namespace FSI_Project
 	    	  // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
 	    	  tmp=0; tmp2=0;
 	    	  rhs_for_linear_p=0;
-	    	  transfer_interface_dofs(adjoint_solution,tmp,1,0);
-	    	  tmp.block(0)*=-1/time_step;
+
+		  if (fem_properties.adjoint_type==1)
+		    {
+		      transfer_interface_dofs(adjoint_solution,tmp,1,0,Displacement);
+		      tmp.block(0)*=-1/time_step;
+		    }
+		  else
+		    {
+		      transfer_interface_dofs(adjoint_solution,tmp,1,0,Velocity);
+		      tmp.block(0)*=-1;
+		    }
+
 	    	  transfer_interface_dofs(adjoint_solution,tmp2,0,0);
 	    	  tmp.block(0)+=tmp2.block(0);
 	    	  tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
 	    	  transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
-	    	  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+	    	  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1,Displacement);
 	    	  rhs_for_linear_p.block(1)*=-1;   // copy, negate
 
 	    	  //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
@@ -3322,8 +3366,16 @@ namespace FSI_Project
 
 	    	      // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
 	    	      tmp=0;tmp2=0;
-	    	      transfer_interface_dofs(linear_solution,tmp,1,0);
-	    	      tmp.block(0)*=-1./time_step;
+		      if (fem_properties.adjoint_type==1)
+			{
+			  transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
+			  tmp.block(0)*=-1./time_step;
+			}
+		      else
+			{
+			  transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
+			  tmp.block(0)*=-1;
+			}
 	    	      transfer_interface_dofs(linear_solution,tmp2,0,0);
 	    	      tmp.block(0)+=tmp2.block(0);
 	    	      rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
@@ -3337,13 +3389,20 @@ namespace FSI_Project
 
 	    	      // h^{n+1} = h^n + sigma * p^n
 	    	      rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
-	    	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
+	    	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
 	    	      rhs_for_linear_h.block(1)*=-1;   // copy, negate
 
 	    	      // r^{n+1} = r^n - sigma * Ap
 	    	      // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
 	    	      rhs_for_adjoint.block(0).add(-sigma, tmp.block(0));
-	    	      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+		      if (fem_properties.adjoint_type==1)
+			{
+			  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1,Displacement);
+			}
+		      else
+			{
+			  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1,Velocity);
+			}
 	    	      rhs_for_adjoint.block(1)*=-1;   // copy, negate
 	    	      rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
 		  
@@ -3359,10 +3418,10 @@ namespace FSI_Project
 
 	    	      // apply preconditioner
 	    	      // adjoint_solution*=float(time_step)/(time_step-1);
-	    	      for (unsigned int i=0; i<solution.block(0).size(); ++i)
-	    		adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-	    	      for (unsigned int i=0; i<solution.block(1).size(); ++i)
-	    		adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+	    	      // for (unsigned int i=0; i<solution.block(0).size(); ++i)
+	    	      // 	adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+	    	      // for (unsigned int i=0; i<solution.block(1).size(); ++i)
+	    	      // 	adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
 		 
 
 	    	      // tmp=adjoint_solution;
@@ -3374,8 +3433,16 @@ namespace FSI_Project
 
 	    	      // A*r^{n+1} = beta^{n+1} - psi^{n+1}/dt + sqrt(delta)(second part of r)
 	    	      tmp=0; tmp2=0;
-	    	      transfer_interface_dofs(adjoint_solution,tmp,1,0);
-	    	      tmp.block(0)*=-1/time_step;
+		      if (fem_properties.adjoint_type==1)
+			{
+			  transfer_interface_dofs(adjoint_solution,tmp,1,0,Displacement);
+			  tmp.block(0)*=-1/time_step;
+			}
+		      else
+			{
+			  transfer_interface_dofs(adjoint_solution,tmp,1,0,Displacement);
+			  tmp.block(0)*=-1;
+			}
 	    	      transfer_interface_dofs(adjoint_solution,tmp2,0,0);
 	    	      tmp.block(0)+=tmp2.block(0);
 	    	      tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
@@ -3389,7 +3456,7 @@ namespace FSI_Project
 	    	      // p^{n+1} = A*r^{n+1} + tau * p^{n}
 	    	      rhs_for_linear_p.block(0) *= tau;
 	    	      rhs_for_linear_p.block(0)+=tmp.block(0);
-	    	      transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+	    	      transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1,Displacement);
 	    	      rhs_for_linear_p.block(1)*=-1;   // copy, negate
 	    	      p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
 	    	      //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
@@ -3401,13 +3468,11 @@ namespace FSI_Project
 	      stress.block(0) += rhs_for_linear_h.block(0);
 	      tmp=0;
 	      transfer_interface_dofs(stress,tmp,0,0);
-	      transfer_interface_dofs(stress,tmp,1,1);
+	      transfer_interface_dofs(stress,tmp,1,1,Displacement);
 	      stress=0;
 	      transfer_interface_dofs(tmp,stress,0,0);
-	      transfer_interface_dofs(tmp,stress,1,1);
-
-
-	      transfer_interface_dofs(stress,stress,0,1);
+	      transfer_interface_dofs(tmp,stress,1,1,Displacement);
+	      transfer_interface_dofs(stress,stress,0,1,Displacement);
 	    }
 
 	}
