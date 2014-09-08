@@ -83,6 +83,12 @@ namespace FSI_Project
 	CG,
 	Gradient
       };
+    enum StructureComponent
+      {
+	Displacement,
+	Velocity,
+	NotSet
+      };
 
     void assemble_fluid (Mode enum_, bool assemble_matrix);
     void assemble_structure(Mode enum_, bool assemble_matrix);
@@ -92,7 +98,7 @@ namespace FSI_Project
     double interface_norm(Vector<double>   &values);
     void dirichlet_boundaries(System system, Mode enum_);
     void build_dof_mapping();
-    void transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
+    void transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1=NotSet, StructureComponent structure_var_2=NotSet);
     void transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
     void setup_system ();
     void solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_);
@@ -146,7 +152,7 @@ namespace FSI_Project
     Parameters::PhysicalProperties physical_properties;
     std::vector<unsigned int> fluid_interface_cells, fluid_interface_faces;
     std::vector<unsigned int> structure_interface_cells, structure_interface_faces;
-    std::map<unsigned int, unsigned int> f2s, s2f, s2a, a2s, a2f, f2a, a2f_all, f2a_all;
+    std::map<unsigned int, unsigned int> f2n, n2f, f2v, v2f, n2a, a2n, a2v, v2a, a2f, f2a, n2v, v2n, a2f_all, f2a_all;
     std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
     std::vector<SparseDirectUMFPACK > state_solver,  adjoint_solver,  linear_solver;
   };
@@ -206,7 +212,7 @@ namespace FSI_Project
 	  fem_properties.max_optimization_iterations = prm_.get_integer("max optimization iterations");
 	  fem_properties.true_control           = prm_.get_bool("true control");
 	  fem_properties.optimization_method    = prm_.get("optimization method");
-	  fem_properties.adjoint_type           = prm_.get("adjoint type");
+	  fem_properties.adjoint_type           = prm_.get_integer("adjoint type");
 	  // Solver Parameters
 	  fem_properties.richardson		= prm_.get_bool("richardson");
 	  fem_properties.newton 		= prm_.get_bool("newton");
@@ -681,35 +687,36 @@ namespace FSI_Project
   template <int dim>
   void FSIProblem<dim>::build_adjoint_rhs()
   {
+
+    if (fem_properties.adjoint_type==1)
+      {
 	// here we build the rhs_for_adjoint vector from state variable information
 	// build rhs of fluid adjoint problem
 	// [u^n - (n^n-n^{n-1})/delta t]
-    if (fem_properties.adjoint_type==1)
-      {
 	tmp=0;
 	rhs_for_adjoint=0;
-	transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
+	transfer_interface_dofs(solution,rhs_for_adjoint,1,0,Displacement);
 	rhs_for_adjoint.block(0)*=-1./time_step;
-	transfer_interface_dofs(old_solution,tmp,1,0);
+	transfer_interface_dofs(old_solution,tmp,1,0,Displacement);
 	rhs_for_adjoint.block(0).add(1./time_step,tmp.block(0));
 	tmp=0;
 	transfer_interface_dofs(solution,tmp,0,0);
 	rhs_for_adjoint.block(0)+=tmp.block(0);
 	// build rhs of structure adjoint problem
-	transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+	transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1,Displacement);
 	rhs_for_adjoint.block(1)*=-1./time_step;
       }
     else
       {
-	rhs_for_adjoint=0;
-	transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
-	rhs_for_adjoint.block(0)*=-1;
-	tmp=0;
-	transfer_interface_dofs(solution,tmp,0,0);
-	rhs_for_adjoint.block(0)+=tmp.block(0);
-	// build rhs of structure adjoint problem
-	transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
-	rhs_for_adjoint.block(1)*=-1;
+    	rhs_for_adjoint=0;
+    	transfer_interface_dofs(solution,rhs_for_adjoint,1,0,Velocity);
+    	rhs_for_adjoint.block(0)*=-1;
+    	tmp=0;
+    	transfer_interface_dofs(solution,tmp,0,0);
+    	rhs_for_adjoint.block(0)+=tmp.block(0);
+    	// build rhs of structure adjoint problem
+    	transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1,Velocity);
+    	rhs_for_adjoint.block(1)*=-1;
       }
   }
 
@@ -869,7 +876,8 @@ namespace FSI_Project
   void FSIProblem<dim>::build_dof_mapping()
   {
 	std::vector<Info<dim> > f_a;
-	std::vector<Info<dim> > s_a;
+	std::vector<Info<dim> > n_a;
+	std::vector<Info<dim> > v_a;
 	std::vector<Info<dim> > a_a;
 	std::vector<Info<dim> > f_all;
 	std::vector<Info<dim> > a_all;
@@ -944,15 +952,22 @@ namespace FSI_Project
 			 for (unsigned int i=0;i<temp2.size();++i)
 			 {
 			         if (structure_fe.system_to_component_index(i).first<dim) // this chooses displacement entries
-				 {
-					 s_a.push_back(Info<dim>(temp[i],temp2[i],structure_fe.system_to_component_index(i).first));
-				 }
+				   {
+				     n_a.push_back(Info<dim>(temp[i],temp2[i],structure_fe.system_to_component_index(i).first));
+				   }
+				 else
+				   {
+				     v_a.push_back(Info<dim>(temp[i],temp2[i],structure_fe.system_to_component_index(i).first));
+				   }
 			 }
 		  }
 	}
-	 std::sort(s_a.begin(),s_a.end(),Info<dim>::by_dof);
-	 s_a.erase( unique( s_a.begin(), s_a.end() ), s_a.end() );
-	 std::sort(s_a.begin(),s_a.end(),Info<dim>::by_point);
+	 std::sort(n_a.begin(),n_a.end(),Info<dim>::by_dof);
+	 n_a.erase( unique( n_a.begin(), n_a.end() ), n_a.end() );
+	 std::sort(n_a.begin(),n_a.end(),Info<dim>::by_point);
+	 std::sort(v_a.begin(),v_a.end(),Info<dim>::by_dof);
+	 v_a.erase( unique( v_a.begin(), v_a.end() ), v_a.end() );
+	 std::sort(v_a.begin(),v_a.end(),Info<dim>::by_point);
 	}
 	{
 	typename DoFHandler<dim>::active_cell_iterator
@@ -1007,12 +1022,18 @@ namespace FSI_Project
 	}
 	for (unsigned int i=0; i<f_a.size(); ++i)
 	{
-		f2s.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,s_a[i].dof));
-		s2f.insert(std::pair<unsigned int,unsigned int>(s_a[i].dof,f_a[i].dof));
-		s2a.insert(std::pair<unsigned int,unsigned int>(s_a[i].dof,a_a[i].dof));
-		a2s.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,s_a[i].dof));
+		f2n.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,n_a[i].dof));
+		n2f.insert(std::pair<unsigned int,unsigned int>(n_a[i].dof,f_a[i].dof));
+		f2v.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,v_a[i].dof));
+		v2f.insert(std::pair<unsigned int,unsigned int>(v_a[i].dof,f_a[i].dof));
+		n2a.insert(std::pair<unsigned int,unsigned int>(n_a[i].dof,a_a[i].dof));
+		a2n.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,n_a[i].dof));
+		v2a.insert(std::pair<unsigned int,unsigned int>(v_a[i].dof,a_a[i].dof));
+		a2v.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,v_a[i].dof));
 		a2f.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,f_a[i].dof));
 		f2a.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,a_a[i].dof));
+		v2n.insert(std::pair<unsigned int,unsigned int>(v_a[i].dof,n_a[i].dof));
+		n2v.insert(std::pair<unsigned int,unsigned int>(n_a[i].dof,v_a[i].dof));
 	}
 	for (unsigned int i=0; i<f_all.size(); ++i)
 	{
@@ -1023,7 +1044,7 @@ namespace FSI_Project
 
 
   template <int dim>
-   void FSIProblem<dim>::transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to)
+  void FSIProblem<dim>::transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to)
    {
 	  std::map<unsigned int, unsigned int> mapping;
 	  if (from==2 && to==0)
@@ -1045,57 +1066,172 @@ namespace FSI_Project
    }
 
   template <int dim>
-  void FSIProblem<dim>::transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to)
+  void FSIProblem<dim>::transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2)
   {
-	  std::map<unsigned int, unsigned int> mapping;
-	  if (from==1) // structure origin
+    std::map<unsigned int, unsigned int> mapping;
+    if (from==1) // structure origin
+      {
+	if (structure_var_1==Displacement || structure_var_1==NotSet)
 	  {
-		  if (to<=1)
+	    if (to==0)
+	      {
+		mapping = n2f;
+	      }
+	    else if (to==1)
+	      {
+		if (structure_var_2==Displacement)
 		  {
-			  mapping = s2f;
+		    mapping = n2a; //  not the correct mapping, just a place holder 
 		  }
-		  else
+		else if (structure_var_2==Velocity)
 		  {
-			  mapping = s2a;
+		    mapping = n2v;
 		  }
+		else
+		  {
+		    mapping = n2a; // this is a place holder, but makes the assumption that they want to transfer displacements
+		    //AssertThrow(false,ExcNotImplemented());// 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		  }
+	      }
+	    else // to==2
+	      {
+		mapping = n2a;
+	      }
 	  }
-	  else if (from==2)
+	else if (structure_var_1==Velocity)
 	  {
-		  if (to>=1)
+	    if (to==0)
+	      {
+		mapping = v2f;
+	      }
+	    else if (to==1)
+	      {
+		if (structure_var_2==Displacement)
 		  {
-			  mapping = a2s;
+		    mapping = v2n;  
 		  }
-		  else
+		else if (structure_var_2==Velocity)
 		  {
-			  mapping = a2f;
+		    mapping = v2a; //  not the correct mapping, just a place holder
 		  }
+		else
+		  {
+		    mapping = v2a; // placeholder and assume that they want velocity -> velocity
+		    //AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		  }
+	      }
+	    else // to==2
+	      {
+		mapping = v2a;
+	      }
 	  }
-	  else // fluid or ALE origin
-		  if (to<=1)
-		  {
-			  mapping = f2s;
-		  }
-		  else
-		  {
-			  mapping = f2a;
-		  }
-
-	  if (from!=to)
+	// NotSet behaves like choosing Displacement
+	// else // structure_var_1==NotSet
+	//   {
+	//     AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer from.');
+	//   }
+      }
+    else if (from==2)
+      {
+	if (to==0)
 	  {
-		  for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
-		  {
-			  solution_2.block(to)[it->second]=solution_1.block(from)[it->first];
-		  }
+	    mapping = a2f;
 	  }
-	  else
+	else if (to==1)
 	  {
-		  for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	    if (!(structure_var_1==Displacement && structure_var_2==Velocity) && !(structure_var_1==Velocity && structure_var_2==Displacement))
+	      { // either both are the same and are displacement or velocity, or one is NotSet
+		// we must find which one is not the notset and use that
+		if (structure_var_1==Displacement || structure_var_2==Displacement)
 		  {
-			  solution_2.block(to)[it->first]=solution_1.block(from)[it->first];
+		    mapping = a2n;
 		  }
+		else if (structure_var_1==Velocity || structure_var_2==Velocity)
+		  {
+		    mapping = a2v;
+		  }
+		else // both are NotSet
+		  {
+		    mapping = a2n; // assume they want to send to displacement
+		    //AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		  }
+	      }
+	    else
+	      {
+		AssertThrow(false,ExcNotImplemented()); //  'transfer_interface_dofs has been given conflicting information about which component of the structure you wish to transfer to.');
+	      }
 	  }
+	else // to == 2
+	  {
+	    mapping = a2f; // placeholder since this will get mapped to itself
+	  }
+      }
+    else // fluid origin
+      {
+	if (to==0)
+	  {
+	    mapping = f2n; // placeholder since this will get mapped to itself
+	  }
+	else if (to==1)
+	  {
+	    if (!(structure_var_1==Displacement && structure_var_2==Velocity) && !(structure_var_1==Velocity && structure_var_2==Displacement))
+	      { // either both are the same and are displacement or velocity, or one is NotSet
+		// we must find which one is not the notset and use that
+		if (structure_var_1==Displacement || structure_var_2==Displacement)
+		  {
+		    mapping = f2n;
+		  }
+		else if (structure_var_1==Velocity || structure_var_2==Velocity)
+		  {
+		    mapping = f2v;
+		  }
+		else // both are NotSet
+		  {
+		    mapping = f2n; // Assume they want displacements
+		    //AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		  }
+	      }
+	    else
+	      {
+		AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs has been given conflicting information about which component of the structure you wish to transfer to.');
+	      }
+	  }
+	else // to==2
+	  {
+	    mapping = f2a;
+	  }
+      }
+    if (from!=to)
+      {
+	for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	  {
+	    solution_2.block(to)[it->second]=solution_1.block(from)[it->first];
+	  }
+      }
+    else
+      {
+	// if (structure_var_1!=structure_var_2)
+	//   {
+	//     // ERROR COULD BE HERE! HAVE NOT CHECKED THAT THERE ARE NOT NOTSET's available
+	//     solution_2.block(to)[it->second]=solution_1.block(from)[it->first];
+	//   }
+	// else if ( COULD BE both notset and from to are not equal 1      OR if is 1, at least one not set)
+	if ((from==0 || from==2) || (from==1 && structure_var_1==structure_var_2))
+	  { 
+	    for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	      {
+		solution_2.block(to)[it->first]=solution_1.block(from)[it->first];
+	      }
+	  }
+	else
+	  {
+	    for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	      {
+		solution_2.block(to)[it->second]=solution_1.block(from)[it->first];
+	      }
+	  }
+      }
   }
-
 
   template <int dim>
   void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
@@ -1770,13 +1906,40 @@ namespace FSI_Project
 			    for (unsigned int q=0; q<n_face_q_points; ++q)
 			      {
 				Tensor<1,dim> r;
-				for (unsigned int d=0; d<dim; ++d)
-				  r[d] = adjoint_rhs_values[q](d);
-				for (unsigned int i=0; i<dofs_per_cell; ++i)
+				if (fem_properties.adjoint_type==1)
 				  {
-				    local_rhs(i) += structure_theta*(fe_face_values[displacements].value (i, q)*
-								     r * fe_face_values.JxW(q));
+				    for (unsigned int d=0; d<dim; ++d)
+				      r[d] = adjoint_rhs_values[q](d);
+				    for (unsigned int i=0; i<dofs_per_cell; ++i)
+				      {
+					local_rhs(i) += structure_theta*(fe_face_values[displacements].value (i, q)*
+									 r * fe_face_values.JxW(q));
+				      }
 				  }
+				else
+				  {
+				    if (fem_properties.optimization_method.compare("Gradient")==0)
+				      {
+					for (unsigned int d=0; d<dim; ++d)
+					  r[d] = adjoint_rhs_values[q](d+dim);
+					for (unsigned int i=0; i<dofs_per_cell; ++i)
+					  {
+					    local_rhs(i) += structure_theta*(fe_face_values[velocities].value (i, q)*
+									     r * fe_face_values.JxW(q));
+					  }
+				      }
+				    else
+				      {
+					for (unsigned int d=0; d<dim; ++d)
+					  r[d] = adjoint_rhs_values[q](d+dim);
+					for (unsigned int i=0; i<dofs_per_cell; ++i)
+					  {
+					    local_rhs(i) += structure_theta*(fe_face_values[velocities].value (i, q)*
+									     r * fe_face_values.JxW(q));
+					  }
+				      }
+				  }
+
 			      }
 			  }
 			else // enum_==linear
@@ -1949,9 +2112,9 @@ namespace FSI_Project
 	    std::map<types::global_dof_index,double> ale_interface_boundary_values;
 	    for (unsigned int i=0; i<dofs_per_big_block[2]; ++i)
 	      {
-		if (a2s.count(i))
+		if (a2n.count(i))
 		  {
-		    ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2s[i]]));
+		    ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2n[i]]));
 		  }
 	      }
 	    for (unsigned int i=0; i<4; ++i)
@@ -2069,7 +2232,7 @@ namespace FSI_Project
   template <int dim>
   void FSIProblem<dim>::setup_system ()
   {
-	Assert(dim==2,ExcNotImplemented());
+	AssertThrow(dim==2,ExcNotImplemented());
 	Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
 	Point<2> structure_bottom_left(0,fem_properties.fluid_height),
 	  structure_top_right(fem_properties.structure_width,fem_properties.fluid_height+fem_properties.structure_height);
@@ -2084,8 +2247,8 @@ namespace FSI_Project
 	GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_scales,structure_bottom_left,structure_top_right,false);
 
 	// Structure sits on top of fluid
-	Assert(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
-	Assert(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
+	AssertThrow(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
+	AssertThrow(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
 
 
 	for (unsigned int i=0; i<4; ++i)
@@ -2219,7 +2382,7 @@ namespace FSI_Project
 	DoFRenumbering::component_wise (ale_dof_handler, ale_block_component);
 
     {
-    	Assert(n_blocks==5,ExcNotImplemented());
+    	AssertThrow(n_blocks==5,ExcNotImplemented());
 
     	std::vector<types::global_dof_index> fluid_dofs_per_block (2);
     	DoFTools::count_dofs_per_block (fluid_dof_handler, fluid_dofs_per_block, fluid_block_component);
@@ -2375,7 +2538,7 @@ namespace FSI_Project
 	ale_constraints.distribute (solution_vector->block(block_num));
 	break;
       default:
-	Assert(false,ExcNotImplemented());
+	AssertThrow(false,ExcNotImplemented());
       }
   }
 
@@ -2422,7 +2585,7 @@ namespace FSI_Project
 	        break;
 
 	      default:
-	        Assert (false, ExcNotImplemented());
+	        AssertThrow (false, ExcNotImplemented());
 	      }
 	    DataOut<dim> fluid_data_out, structure_data_out;
 	    fluid_data_out.add_data_vector (fluid_dof_handler,solution.block(0), solution_names[0]);
@@ -2681,6 +2844,8 @@ namespace FSI_Project
 	    }
 
 	  solution_star=1;
+	  // FUTURE!!:: CHECK that the dofs on the edge make sense (is some points accidently being stored as interface)
+
 	  while (solution_star.l2_norm()>1e-8)
 	    {
 	      solution_star=solution;
@@ -2769,10 +2934,12 @@ namespace FSI_Project
 	      // Update the stress using the adjoint variables
 	      stress.block(0)*=(1-alpha);
 	      tmp=0;
-            
-	    
-	      transfer_interface_dofs(adjoint_solution,tmp,1,0);
-	      tmp.block(0)*=fem_properties.structure_theta;
+
+	      if (fem_properties.adjoint_type==1)
+		{
+		  tmp.block(0)*=1./time_step;
+		}
+
 	      tmp.block(0).add(-fem_properties.fluid_theta,adjoint_solution.block(0));
 
 	      //std::cout << "L2 " << tmp.block(0).l2_norm() << std::endl;
@@ -2789,26 +2956,119 @@ namespace FSI_Project
 	      stress=0;
 	      transfer_interface_dofs(tmp,stress,0,0);
 
-	      transfer_interface_dofs(stress,stress,0,1);
+	      transfer_interface_dofs(stress,stress,0,1,Displacement);
 	      //if (count%50==0) std::cout << "alpha: " << alpha << std::endl;
 	    }
 	  else // fem_properties.optimization_method==CG
 	    {
-	      if (fem_properies.adjoint_type==1)
-		{
-		  tmp=fem_properties.cg_tolerance;
-		  //tmp=rhs_for_adjoint;
-		  //tmp*=-1;
-		  // x^0 = guess
-		  // get adjoint variables 
-		  // assemble_structure(adjoint);
-		  // assemble_fluid(adjoint);
+	      // if (fem_properties.adjoint_type==1)
+	      // 	{
+		  // tmp=fem_properties.cg_tolerance;
+		  // //tmp=rhs_for_adjoint;
+		  // //tmp*=-1;
+		  // // x^0 = guess
+		  // // get adjoint variables 
+		  // // assemble_structure(adjoint);
+		  // // assemble_fluid(adjoint);
+		  // // for (unsigned int i=0; i<2; ++i)
+		  // // 	{
+		  // // 	  dirichlet_boundaries((System)i,adjoint);
+		  // // 	  solve(i,adjoint);
+		  // // 	}
+		  // // ++total_solves;
+		  // // tmp=0; tmp2=0;
+		  // // rhs_for_linear_p=0;
+		  // // transfer_interface_dofs(adjoint_solution,tmp,1,0);
+		  // // tmp.block(0)*=-1/time_step;
+		  // // transfer_interface_dofs(adjoint_solution,tmp2,0,0);
+		  // // tmp.block(0)+=tmp2.block(0);
+		  // // tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
+		  // // transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
+		  // // transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+		  // // rhs_for_linear_p.block(1)*=-1;   // copy, negate
+		  // // rhs_for_linear_p*=-1;
+		  // // Generate a random vector
+		  // //for  (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it)
+		  // // *it = ((double)std::rand() / (double)(RAND_MAX)) * fem_properties.cg_tolerance; //std::rand(0,10);
+		  // //std::cout << *it << std::endl;
+
+		  // rhs_for_linear_h=0;
+		  // transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
+		  // transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
+		  // rhs_for_linear_h.block(1) *= -1;   // copy, negate
+
+		  // // b = -u + v^n	       
+		  // rhs_for_adjoint=0;
+		  // transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
+		  // tmp=0;
+		  // transfer_interface_dofs(solution,tmp,0,0);
+		  // rhs_for_adjoint.block(0)-=tmp.block(0);
+	     
+		  // // MADE IT TO HERE
+		  // // Some Notes:
+		  // // (g,\xi) exists on displacement vector
+		  // // (h,\xi) exists on displacement vector
+		  // // (r,\xi) exists on velocity vector for Gradient method (not sure for CG method, prob need to write it out and it is probably on velocity)
+		  // // need to make function to choose which component is copied
+
+		  // // get linearized variables
+		  // rhs_for_linear = rhs_for_linear_h;
+		  // assemble_structure(linear, true);
+		  // assemble_fluid(linear, true);
 		  // for (unsigned int i=0; i<2; ++i)
-		  // 	{
-		  // 	  dirichlet_boundaries((System)i,adjoint);
-		  // 	  solve(i,adjoint);
-		  // 	}
+		  //   {
+		  //     dirichlet_boundaries((System)i,linear);
+		  //     linear_solver[i].factorize(linear_matrix.block(i,i));
+		  //     solve(linear_solver[i], i, linear);
+		  //   }
 		  // ++total_solves;
+	      
+		  // // -Ax = -w^n + phi^n
+		  // tmp=0;tmp2=0;
+		  // transfer_interface_dofs(linear_solution,tmp,1,0);
+		  // transfer_interface_dofs(linear_solution,tmp2,0,0);
+		  // tmp.block(0)-=tmp2.block(0);
+	      
+		  // // fixed to here
+
+		  // // r^0 = b - Ax
+		  // rhs_for_adjoint.block(0)+=tmp.block(0);
+		  // transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+		  // rhs_for_adjoint.block(1)*=-1;   // copy, negate
+		  // // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
+		  // rhs_for_adjoint_s=0;
+		  // transfer_interface_dofs(rhs_for_linear_h,rhs_for_adjoint_s,0,0);
+		  // rhs_for_adjoint_s.block(0)+=stress.block(0);
+		  // rhs_for_adjoint_s.block(0)*=-sqrt(fem_properties.penalty_epsilon);
+
+		  // // get adjoint variables 
+		  // assemble_structure(adjoint, true);
+		  // assemble_fluid(adjoint, true);
+		  // for (unsigned int i=0; i<2; ++i)
+		  //   {
+		  //     dirichlet_boundaries((System)i,adjoint);
+		  //     adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
+		  //     solve(adjoint_solver[i], i, adjoint);
+		  //   }
+		  // ++total_solves;
+	      
+		  // //fluid_constraints.distribute(
+		  // // apply preconditioner
+		  // //std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
+		  // for (unsigned int i=0; i<solution.block(0).size(); ++i)
+		  //   adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+		  // for (unsigned int i=0; i<solution.block(1).size(); ++i)
+		  //   adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+		  // // tmp=adjoint_solution;
+		  // // PreconditionJacobi<SparseMatrix<double> > preconditioner;
+		  // // preconditioner.initialize(system_matrix.block(0,0), 0.6);
+		  // // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
+		  // // preconditioner.initialize(system_matrix.block(1,1), 0.6);
+		  // // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
+	      
+		  // //adjoint_solution*=float(time_step)/(time_step-1);
+
+		  // // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
 		  // tmp=0; tmp2=0;
 		  // rhs_for_linear_p=0;
 		  // transfer_interface_dofs(adjoint_solution,tmp,1,0);
@@ -2819,410 +3079,318 @@ namespace FSI_Project
 		  // transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
 		  // transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
 		  // rhs_for_linear_p.block(1)*=-1;   // copy, negate
-		  // rhs_for_linear_p*=-1;
-		  // Generate a random vector
-		  //for  (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it)
-		  // *it = ((double)std::rand() / (double)(RAND_MAX)) * fem_properties.cg_tolerance; //std::rand(0,10);
-		  //std::cout << *it << std::endl;
 
-		  rhs_for_linear_h=0;
-		  transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
-		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-		  rhs_for_linear_h.block(1) *= -1;   // copy, negate
-
-		  // b = -u + v^n	       
-		  rhs_for_adjoint=0;
-		  transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
-		  tmp=0;
-		  transfer_interface_dofs(solution,tmp,0,0);
-		  rhs_for_adjoint.block(0)-=tmp.block(0);
-	     
-		  // MADE IT TO HERE
-		  // Some Notes:
-		  // (g,\xi) exists on displacement vector
-		  // (h,\xi) exists on displacement vector
-		  // (r,\xi) exists on velocity vector for Gradient method (not sure for CG method, prob need to write it out and it is probably on velocity)
-		  // need to make function to choose which component is copied
-
-		  // get linearized variables
-		  rhs_for_linear = rhs_for_linear_h;
-		  assemble_structure(linear, true);
-		  assemble_fluid(linear, true);
-		  for (unsigned int i=0; i<2; ++i)
-		    {
-		      dirichlet_boundaries((System)i,linear);
-		      linear_solver[i].factorize(linear_matrix.block(i,i));
-		      solve(linear_solver[i], i, linear);
-		    }
-		  ++total_solves;
-	      
-		  // -Ax = -w^n + phi^n
-		  tmp=0;tmp2=0;
-		  transfer_interface_dofs(linear_solution,tmp,1,0);
-		  transfer_interface_dofs(linear_solution,tmp2,0,0);
-		  tmp.block(0)-=tmp2.block(0);
-	      
-		  // fixed to here
-
-		  // r^0 = b - Ax
-		  rhs_for_adjoint.block(0)+=tmp.block(0);
-		  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
-		  rhs_for_adjoint.block(1)*=-1;   // copy, negate
-		  // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
-		  rhs_for_adjoint_s=0;
-		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_adjoint_s,0,0);
-		  rhs_for_adjoint_s.block(0)+=stress.block(0);
-		  rhs_for_adjoint_s.block(0)*=-sqrt(fem_properties.penalty_epsilon);
-
-		  // get adjoint variables 
-		  assemble_structure(adjoint, true);
-		  assemble_fluid(adjoint, true);
-		  for (unsigned int i=0; i<2; ++i)
-		    {
-		      dirichlet_boundaries((System)i,adjoint);
-		      adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
-		      solve(adjoint_solver[i], i, adjoint);
-		    }
-		  ++total_solves;
-	      
-		  //fluid_constraints.distribute(
-		  // apply preconditioner
-		  //std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
-		  for (unsigned int i=0; i<solution.block(0).size(); ++i)
-		    adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-		  for (unsigned int i=0; i<solution.block(1).size(); ++i)
-		    adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
-		  // tmp=adjoint_solution;
-		  // PreconditionJacobi<SparseMatrix<double> > preconditioner;
-		  // preconditioner.initialize(system_matrix.block(0,0), 0.6);
-		  // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
-		  // preconditioner.initialize(system_matrix.block(1,1), 0.6);
-		  // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
-	      
-		  //adjoint_solution*=float(time_step)/(time_step-1);
-
-		  // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
-		  tmp=0; tmp2=0;
-		  rhs_for_linear_p=0;
-		  transfer_interface_dofs(adjoint_solution,tmp,1,0);
-		  tmp.block(0)*=-1/time_step;
-		  transfer_interface_dofs(adjoint_solution,tmp2,0,0);
-		  tmp.block(0)+=tmp2.block(0);
-		  tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
-		  transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
-		  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		  rhs_for_linear_p.block(1)*=-1;   // copy, negate
-
-		  //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
-		  premultiplier.block(0)=rhs_for_adjoint.block(0); // premult
-		  double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
-		  //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
-		  //std::cout <<  p_n_norm_square << std::endl;
-		  rhs_for_linear_Ap_s=0;
+		  // //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
+		  // premultiplier.block(0)=rhs_for_adjoint.block(0); // premult
+		  // double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+		  // //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
+		  // //std::cout <<  p_n_norm_square << std::endl;
+		  // rhs_for_linear_Ap_s=0;
 
 
-		  while (std::abs(p_n_norm_square) > fem_properties.cg_tolerance)
-		    {
-		      //std::cout << "more text" << std::endl;
-		      // get linearized variables
-		      rhs_for_linear = rhs_for_linear_p;
-		      assemble_structure(linear, false);
-		      assemble_fluid(linear, false);
-		      for (unsigned int i=0; i<2; ++i)
-			{
-			  dirichlet_boundaries((System)i,linear);
-			  solve(linear_solver[i], i, linear);
-			}
-		      ++total_solves;
+		  // while (std::abs(p_n_norm_square) > fem_properties.cg_tolerance)
+		  //   {
+		  //     //std::cout << "more text" << std::endl;
+		  //     // get linearized variables
+		  //     rhs_for_linear = rhs_for_linear_p;
+		  //     assemble_structure(linear, false);
+		  //     assemble_fluid(linear, false);
+		  //     for (unsigned int i=0; i<2; ++i)
+		  // 	{
+		  // 	  dirichlet_boundaries((System)i,linear);
+		  // 	  solve(linear_solver[i], i, linear);
+		  // 	}
+		  //     ++total_solves;
 
-		      // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
-		      tmp=0;tmp2=0;
-		      transfer_interface_dofs(linear_solution,tmp,1,0);
-		      tmp.block(0)*=-1./time_step;
-		      transfer_interface_dofs(linear_solution,tmp2,0,0);
-		      tmp.block(0)+=tmp2.block(0);
-		      rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
-		      rhs_for_linear_Ap_s *= sqrt(fem_properties.penalty_epsilon);
-		      premultiplier.block(0)=rhs_for_linear_p.block(0);
-		      double ap_norm_square = interface_norm(tmp.block(0));
-		      //double ap_norm_square = tmp.block(0).l2_norm();
-		      ap_norm_square += interface_norm(rhs_for_linear_p.block(0));
-		      //ap_norm_square += rhs_for_linear_p.block(0).l2_norm();
-		      double sigma = p_n_norm_square/ap_norm_square;
+		  //     // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
+		  //     tmp=0;tmp2=0;
+		  //     transfer_interface_dofs(linear_solution,tmp,1,0);
+		  //     tmp.block(0)*=-1./time_step;
+		  //     transfer_interface_dofs(linear_solution,tmp2,0,0);
+		  //     tmp.block(0)+=tmp2.block(0);
+		  //     rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
+		  //     rhs_for_linear_Ap_s *= sqrt(fem_properties.penalty_epsilon);
+		  //     premultiplier.block(0)=rhs_for_linear_p.block(0);
+		  //     double ap_norm_square = interface_norm(tmp.block(0));
+		  //     //double ap_norm_square = tmp.block(0).l2_norm();
+		  //     ap_norm_square += interface_norm(rhs_for_linear_p.block(0));
+		  //     //ap_norm_square += rhs_for_linear_p.block(0).l2_norm();
+		  //     double sigma = p_n_norm_square/ap_norm_square;
 
-		      // h^{n+1} = h^n + sigma * p^n
-		      rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
-		      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-		      rhs_for_linear_h.block(1)*=-1;   // copy, negate
+		  //     // h^{n+1} = h^n + sigma * p^n
+		  //     rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
+		  //     transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
+		  //     rhs_for_linear_h.block(1)*=-1;   // copy, negate
 
-		      // r^{n+1} = r^n - sigma * Ap
-		      // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
-		      rhs_for_adjoint.block(0).add(-sigma, tmp.block(0));
-		      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
-		      rhs_for_adjoint.block(1)*=-1;   // copy, negate
-		      rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
+		  //     // r^{n+1} = r^n - sigma * Ap
+		  //     // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
+		  //     rhs_for_adjoint.block(0).add(-sigma, tmp.block(0));
+		  //     transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+		  //     rhs_for_adjoint.block(1)*=-1;   // copy, negate
+		  //     rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
 		  
-		      // get adjoint variables (b^{n+1},....)
-		      assemble_structure(adjoint, false);
-		      assemble_fluid(adjoint, false);
-		      for (unsigned int i=0; i<2; ++i)
-			{
-			  dirichlet_boundaries((System)i,adjoint);
-			  solve(adjoint_solver[i], i, adjoint);
-			}
-		      ++total_solves;
-
-		      // apply preconditioner
-		      // adjoint_solution*=float(time_step)/(time_step-1);
-		      for (unsigned int i=0; i<solution.block(0).size(); ++i)
-			adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-		      for (unsigned int i=0; i<solution.block(1).size(); ++i)
-			adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
-		 
-
-		      // tmp=adjoint_solution;
-		      // PreconditionJacobi<SparseMatrix<double> > preconditioner;
-		      // preconditioner.initialize(system_matrix.block(0,0), 0.6);
-		      // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
-		      // preconditioner.initialize(system_matrix.block(1,1), 0.6);
-		      // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
-
-		      // A*r^{n+1} = beta^{n+1} - psi^{n+1}/dt + sqrt(delta)(second part of r)
-		      tmp=0; tmp2=0;
-		      transfer_interface_dofs(adjoint_solution,tmp,1,0);
-		      tmp.block(0)*=-1/time_step;
-		      transfer_interface_dofs(adjoint_solution,tmp2,0,0);
-		      tmp.block(0)+=tmp2.block(0);
-		      tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
-
-		      //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
-		      premultiplier.block(0)=rhs_for_adjoint.block(0);
-		      double Astar_r_np1_norm_square = interface_norm(tmp.block(0));
-		      //double Astar_r_np1_norm_square = tmp.block(0).l2_norm();
-		      double tau = Astar_r_np1_norm_square / p_n_norm_square;
-
-		      // p^{n+1} = A*r^{n+1} + tau * p^{n}
-		      rhs_for_linear_p.block(0) *= tau;
-		      rhs_for_linear_p.block(0)+=tmp.block(0);
-		      transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		      rhs_for_linear_p.block(1)*=-1;   // copy, negate
-		      p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
-		      //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
-		      //std::cout << p_n_norm_square << std::endl;	 
-		    }
-		  else
-		    {
-		      		  tmp=fem_properties.cg_tolerance;
-		  //tmp=rhs_for_adjoint;
-		  //tmp*=-1;
-		  // x^0 = guess
-		  // get adjoint variables 
-		  // assemble_structure(adjoint);
-		  // assemble_fluid(adjoint);
-		  // for (unsigned int i=0; i<2; ++i)
+		  //     // get adjoint variables (b^{n+1},....)
+		  //     assemble_structure(adjoint, false);
+		  //     assemble_fluid(adjoint, false);
+		  //     for (unsigned int i=0; i<2; ++i)
 		  // 	{
 		  // 	  dirichlet_boundaries((System)i,adjoint);
-		  // 	  solve(i,adjoint);
+		  // 	  solve(adjoint_solver[i], i, adjoint);
 		  // 	}
-		  // ++total_solves;
-		  // tmp=0; tmp2=0;
-		  // rhs_for_linear_p=0;
-		  // transfer_interface_dofs(adjoint_solution,tmp,1,0);
-		  // tmp.block(0)*=-1/time_step;
-		  // transfer_interface_dofs(adjoint_solution,tmp2,0,0);
-		  // tmp.block(0)+=tmp2.block(0);
-		  // tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
-		  // transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
-		  // transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		  // rhs_for_linear_p.block(1)*=-1;   // copy, negate
-		  // rhs_for_linear_p*=-1;
-		  // Generate a random vector
-		  //for  (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it)
-		  // *it = ((double)std::rand() / (double)(RAND_MAX)) * fem_properties.cg_tolerance; //std::rand(0,10);
-		  //std::cout << *it << std::endl;
+		  //     ++total_solves;
 
-		  rhs_for_linear_h=0;
-		  transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
-		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-		  rhs_for_linear_h.block(1) *= -1;   // copy, negate
-
-		  // b = -u + [n^n-n^n-1]/dt	       
-		  tmp=0;
-		  rhs_for_adjoint=0;
-		  transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
-		  rhs_for_adjoint.block(0)*=1./time_step;
-		  transfer_interface_dofs(old_solution,tmp,1,0);
-		  rhs_for_adjoint.block(0).add(-1./time_step,tmp.block(0));
-		  tmp=0;
-		  transfer_interface_dofs(solution,tmp,0,0);
-		  rhs_for_adjoint.block(0)-=tmp.block(0);
-	     
-		  // get linearized variables
-		  rhs_for_linear = rhs_for_linear_h;
-		  assemble_structure(linear, true);
-		  assemble_fluid(linear, true);
-		  for (unsigned int i=0; i<2; ++i)
-		    {
-		      dirichlet_boundaries((System)i,linear);
-		      linear_solver[i].factorize(linear_matrix.block(i,i));
-		      solve(linear_solver[i], i, linear);
-		    }
-		  ++total_solves;
-	      
-		  // -Ax = -w^n + phi^n/dt
-		  tmp=0;tmp2=0;
-		  transfer_interface_dofs(linear_solution,tmp,1,0);
-		  tmp.block(0)*=1./time_step;
-		  transfer_interface_dofs(linear_solution,tmp2,0,0);
-		  tmp.block(0)-=tmp2.block(0);
-	      
-		  // r^0 = b - Ax
-		  rhs_for_adjoint.block(0)+=tmp.block(0);
-		  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
-		  rhs_for_adjoint.block(1)*=-1;   // copy, negate
-		  // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
-		  rhs_for_adjoint_s=0;
-		  transfer_interface_dofs(rhs_for_linear_h,rhs_for_adjoint_s,0,0);
-		  rhs_for_adjoint_s.block(0)+=stress.block(0);
-		  rhs_for_adjoint_s.block(0)*=-sqrt(fem_properties.penalty_epsilon);
-
-		  // get adjoint variables 
-		  assemble_structure(adjoint, true);
-		  assemble_fluid(adjoint, true);
-		  for (unsigned int i=0; i<2; ++i)
-		    {
-		      dirichlet_boundaries((System)i,adjoint);
-		      adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
-		      solve(adjoint_solver[i], i, adjoint);
-		    }
-		  ++total_solves;
-	      
-		  //fluid_constraints.distribute(
-		  // apply preconditioner
-		  //std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
-		  for (unsigned int i=0; i<solution.block(0).size(); ++i)
-		    adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-		  for (unsigned int i=0; i<solution.block(1).size(); ++i)
-		    adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
-		  // tmp=adjoint_solution;
-		  // PreconditionJacobi<SparseMatrix<double> > preconditioner;
-		  // preconditioner.initialize(system_matrix.block(0,0), 0.6);
-		  // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
-		  // preconditioner.initialize(system_matrix.block(1,1), 0.6);
-		  // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
-	      
-		  //adjoint_solution*=float(time_step)/(time_step-1);
-
-		  // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
-		  tmp=0; tmp2=0;
-		  rhs_for_linear_p=0;
-		  transfer_interface_dofs(adjoint_solution,tmp,1,0);
-		  tmp.block(0)*=-1/time_step;
-		  transfer_interface_dofs(adjoint_solution,tmp2,0,0);
-		  tmp.block(0)+=tmp2.block(0);
-		  tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
-		  transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
-		  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		  rhs_for_linear_p.block(1)*=-1;   // copy, negate
-
-		  //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
-		  premultiplier.block(0)=rhs_for_adjoint.block(0); // premult
-		  double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
-		  //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
-		  //std::cout <<  p_n_norm_square << std::endl;
-		  rhs_for_linear_Ap_s=0;
-
-
-		  while (std::abs(p_n_norm_square) > fem_properties.cg_tolerance)
-		    {
-		      //std::cout << "more text" << std::endl;
-		      // get linearized variables
-		      rhs_for_linear = rhs_for_linear_p;
-		      assemble_structure(linear, false);
-		      assemble_fluid(linear, false);
-		      for (unsigned int i=0; i<2; ++i)
-			{
-			  dirichlet_boundaries((System)i,linear);
-			  solve(linear_solver[i], i, linear);
-			}
-		      ++total_solves;
-
-		      // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
-		      tmp=0;tmp2=0;
-		      transfer_interface_dofs(linear_solution,tmp,1,0);
-		      tmp.block(0)*=-1./time_step;
-		      transfer_interface_dofs(linear_solution,tmp2,0,0);
-		      tmp.block(0)+=tmp2.block(0);
-		      rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
-		      rhs_for_linear_Ap_s *= sqrt(fem_properties.penalty_epsilon);
-		      premultiplier.block(0)=rhs_for_linear_p.block(0);
-		      double ap_norm_square = interface_norm(tmp.block(0));
-		      //double ap_norm_square = tmp.block(0).l2_norm();
-		      ap_norm_square += interface_norm(rhs_for_linear_p.block(0));
-		      //ap_norm_square += rhs_for_linear_p.block(0).l2_norm();
-		      double sigma = p_n_norm_square/ap_norm_square;
-
-		      // h^{n+1} = h^n + sigma * p^n
-		      rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
-		      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
-		      rhs_for_linear_h.block(1)*=-1;   // copy, negate
-
-		      // r^{n+1} = r^n - sigma * Ap
-		      // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
-		      rhs_for_adjoint.block(0).add(-sigma, tmp.block(0));
-		      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
-		      rhs_for_adjoint.block(1)*=-1;   // copy, negate
-		      rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
-		  
-		      // get adjoint variables (b^{n+1},....)
-		      assemble_structure(adjoint, false);
-		      assemble_fluid(adjoint, false);
-		      for (unsigned int i=0; i<2; ++i)
-			{
-			  dirichlet_boundaries((System)i,adjoint);
-			  solve(adjoint_solver[i], i, adjoint);
-			}
-		      ++total_solves;
-
-		      // apply preconditioner
-		      // adjoint_solution*=float(time_step)/(time_step-1);
-		      for (unsigned int i=0; i<solution.block(0).size(); ++i)
-			adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
-		      for (unsigned int i=0; i<solution.block(1).size(); ++i)
-			adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+		  //     // apply preconditioner
+		  //     // adjoint_solution*=float(time_step)/(time_step-1);
+		  //     for (unsigned int i=0; i<solution.block(0).size(); ++i)
+		  // 	adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+		  //     for (unsigned int i=0; i<solution.block(1).size(); ++i)
+		  // 	adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
 		 
 
-		      // tmp=adjoint_solution;
-		      // PreconditionJacobi<SparseMatrix<double> > preconditioner;
-		      // preconditioner.initialize(system_matrix.block(0,0), 0.6);
-		      // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
-		      // preconditioner.initialize(system_matrix.block(1,1), 0.6);
-		      // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
+		  //     // tmp=adjoint_solution;
+		  //     // PreconditionJacobi<SparseMatrix<double> > preconditioner;
+		  //     // preconditioner.initialize(system_matrix.block(0,0), 0.6);
+		  //     // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
+		  //     // preconditioner.initialize(system_matrix.block(1,1), 0.6);
+		  //     // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
 
-		      // A*r^{n+1} = beta^{n+1} - psi^{n+1}/dt + sqrt(delta)(second part of r)
-		      tmp=0; tmp2=0;
-		      transfer_interface_dofs(adjoint_solution,tmp,1,0);
-		      tmp.block(0)*=-1/time_step;
-		      transfer_interface_dofs(adjoint_solution,tmp2,0,0);
-		      tmp.block(0)+=tmp2.block(0);
-		      tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
+		  //     // A*r^{n+1} = beta^{n+1} - psi^{n+1}/dt + sqrt(delta)(second part of r)
+		  //     tmp=0; tmp2=0;
+		  //     transfer_interface_dofs(adjoint_solution,tmp,1,0);
+		  //     tmp.block(0)*=-1/time_step;
+		  //     transfer_interface_dofs(adjoint_solution,tmp2,0,0);
+		  //     tmp.block(0)+=tmp2.block(0);
+		  //     tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
 
-		      //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
-		      premultiplier.block(0)=rhs_for_adjoint.block(0);
-		      double Astar_r_np1_norm_square = interface_norm(tmp.block(0));
-		      //double Astar_r_np1_norm_square = tmp.block(0).l2_norm();
-		      double tau = Astar_r_np1_norm_square / p_n_norm_square;
+		  //     //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
+		  //     premultiplier.block(0)=rhs_for_adjoint.block(0);
+		  //     double Astar_r_np1_norm_square = interface_norm(tmp.block(0));
+		  //     //double Astar_r_np1_norm_square = tmp.block(0).l2_norm();
+		  //     double tau = Astar_r_np1_norm_square / p_n_norm_square;
 
-		      // p^{n+1} = A*r^{n+1} + tau * p^{n}
-		      rhs_for_linear_p.block(0) *= tau;
-		      rhs_for_linear_p.block(0)+=tmp.block(0);
-		      transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
-		      rhs_for_linear_p.block(1)*=-1;   // copy, negate
-		      p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
-		      //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
-		      //std::cout << p_n_norm_square << std::endl;
-		    }
-		}
+		  //     // p^{n+1} = A*r^{n+1} + tau * p^{n}
+		  //     rhs_for_linear_p.block(0) *= tau;
+		  //     rhs_for_linear_p.block(0)+=tmp.block(0);
+		  //     transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+		  //     rhs_for_linear_p.block(1)*=-1;   // copy, negate
+		  //     p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+		  //     //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
+		  //     //std::cout << p_n_norm_square << std::endl;	 
+		  //   }
+	    // 	}
+	    //   else
+	    // 	{
+	    	  tmp=fem_properties.cg_tolerance;
+	    	  //tmp=rhs_for_adjoint;
+	    	  //tmp*=-1;
+	    	  // x^0 = guess
+	    	  // get adjoint variables 
+	    	  // assemble_structure(adjoint);
+	    	  // assemble_fluid(adjoint);
+	    	  // for (unsigned int i=0; i<2; ++i)
+	    	  // 	{
+	    	  // 	  dirichlet_boundaries((System)i,adjoint);
+	    	  // 	  solve(i,adjoint);
+	    	  // 	}
+	    	  // ++total_solves;
+	    	  // tmp=0; tmp2=0;
+	    	  // rhs_for_linear_p=0;
+	    	  // transfer_interface_dofs(adjoint_solution,tmp,1,0);
+	    	  // tmp.block(0)*=-1/time_step;
+	    	  // transfer_interface_dofs(adjoint_solution,tmp2,0,0);
+	    	  // tmp.block(0)+=tmp2.block(0);
+	    	  // tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
+	    	  // transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
+	    	  // transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+	    	  // rhs_for_linear_p.block(1)*=-1;   // copy, negate
+	    	  // rhs_for_linear_p*=-1;
+	    	  // Generate a random vector
+	    	  //for  (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it)
+	    	  // *it = ((double)std::rand() / (double)(RAND_MAX)) * fem_properties.cg_tolerance; //std::rand(0,10);
+	    	  //std::cout << *it << std::endl;
+
+	    	  rhs_for_linear_h=0;
+	    	  transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
+	    	  transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
+	    	  rhs_for_linear_h.block(1) *= -1;   // copy, negate
+
+	    	  // b = -u + [n^n-n^n-1]/dt	       
+	    	  tmp=0;
+	    	  rhs_for_adjoint=0;
+	    	  transfer_interface_dofs(solution,rhs_for_adjoint,1,0);
+	    	  rhs_for_adjoint.block(0)*=1./time_step;
+	    	  transfer_interface_dofs(old_solution,tmp,1,0);
+	    	  rhs_for_adjoint.block(0).add(-1./time_step,tmp.block(0));
+	    	  tmp=0;
+	    	  transfer_interface_dofs(solution,tmp,0,0);
+	    	  rhs_for_adjoint.block(0)-=tmp.block(0);
+	     
+	    	  // get linearized variables
+	    	  rhs_for_linear = rhs_for_linear_h;
+	    	  assemble_structure(linear, true);
+	    	  assemble_fluid(linear, true);
+	    	  for (unsigned int i=0; i<2; ++i)
+	    	    {
+	    	      dirichlet_boundaries((System)i,linear);
+	    	      linear_solver[i].factorize(linear_matrix.block(i,i));
+	    	      solve(linear_solver[i], i, linear);
+	    	    }
+	    	  ++total_solves;
+	      
+	    	  // -Ax = -w^n + phi^n/dt
+	    	  tmp=0;tmp2=0;
+	    	  transfer_interface_dofs(linear_solution,tmp,1,0);
+	    	  tmp.block(0)*=1./time_step;
+	    	  transfer_interface_dofs(linear_solution,tmp2,0,0);
+	    	  tmp.block(0)-=tmp2.block(0);
+	      
+	    	  // r^0 = b - Ax
+	    	  rhs_for_adjoint.block(0)+=tmp.block(0);
+	    	  transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+	    	  rhs_for_adjoint.block(1)*=-1;   // copy, negate
+	    	  // r_s^0 = - sqrt(delta)g^n - sqrt(delta)h^n
+	    	  rhs_for_adjoint_s=0;
+	    	  transfer_interface_dofs(rhs_for_linear_h,rhs_for_adjoint_s,0,0);
+	    	  rhs_for_adjoint_s.block(0)+=stress.block(0);
+	    	  rhs_for_adjoint_s.block(0)*=-sqrt(fem_properties.penalty_epsilon);
+
+	    	  // get adjoint variables 
+	    	  assemble_structure(adjoint, true);
+	    	  assemble_fluid(adjoint, true);
+	    	  for (unsigned int i=0; i<2; ++i)
+	    	    {
+	    	      dirichlet_boundaries((System)i,adjoint);
+	    	      adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
+	    	      solve(adjoint_solver[i], i, adjoint);
+	    	    }
+	    	  ++total_solves;
+	      
+	    	  //fluid_constraints.distribute(
+	    	  // apply preconditioner
+	    	  //std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
+	    	  for (unsigned int i=0; i<solution.block(0).size(); ++i)
+	    	    adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+	    	  for (unsigned int i=0; i<solution.block(1).size(); ++i)
+	    	    adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+	    	  // tmp=adjoint_solution;
+	    	  // PreconditionJacobi<SparseMatrix<double> > preconditioner;
+	    	  // preconditioner.initialize(system_matrix.block(0,0), 0.6);
+	    	  // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
+	    	  // preconditioner.initialize(system_matrix.block(1,1), 0.6);
+	    	  // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
+	      
+	    	  //adjoint_solution*=float(time_step)/(time_step-1);
+
+	    	  // p^0 = beta^n - psi^n/dt + sqrt(delta)(-sqrt(delta) g^n -sqrt(delta) h^n)
+	    	  tmp=0; tmp2=0;
+	    	  rhs_for_linear_p=0;
+	    	  transfer_interface_dofs(adjoint_solution,tmp,1,0);
+	    	  tmp.block(0)*=-1/time_step;
+	    	  transfer_interface_dofs(adjoint_solution,tmp2,0,0);
+	    	  tmp.block(0)+=tmp2.block(0);
+	    	  tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0));
+	    	  transfer_interface_dofs(tmp,rhs_for_linear_p,0,0);
+	    	  transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+	    	  rhs_for_linear_p.block(1)*=-1;   // copy, negate
+
+	    	  //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
+	    	  premultiplier.block(0)=rhs_for_adjoint.block(0); // premult
+	    	  double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+	    	  //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
+	    	  //std::cout <<  p_n_norm_square << std::endl;
+	    	  rhs_for_linear_Ap_s=0;
+
+
+	    	  while (std::abs(p_n_norm_square) > fem_properties.cg_tolerance)
+	    	    {
+	    	      //std::cout << "more text" << std::endl;
+	    	      // get linearized variables
+	    	      rhs_for_linear = rhs_for_linear_p;
+	    	      assemble_structure(linear, false);
+	    	      assemble_fluid(linear, false);
+	    	      for (unsigned int i=0; i<2; ++i)
+	    		{
+	    		  dirichlet_boundaries((System)i,linear);
+	    		  solve(linear_solver[i], i, linear);
+	    		}
+	    	      ++total_solves;
+
+	    	      // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
+	    	      tmp=0;tmp2=0;
+	    	      transfer_interface_dofs(linear_solution,tmp,1,0);
+	    	      tmp.block(0)*=-1./time_step;
+	    	      transfer_interface_dofs(linear_solution,tmp2,0,0);
+	    	      tmp.block(0)+=tmp2.block(0);
+	    	      rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
+	    	      rhs_for_linear_Ap_s *= sqrt(fem_properties.penalty_epsilon);
+	    	      premultiplier.block(0)=rhs_for_linear_p.block(0);
+	    	      double ap_norm_square = interface_norm(tmp.block(0));
+	    	      //double ap_norm_square = tmp.block(0).l2_norm();
+	    	      ap_norm_square += interface_norm(rhs_for_linear_p.block(0));
+	    	      //ap_norm_square += rhs_for_linear_p.block(0).l2_norm();
+	    	      double sigma = p_n_norm_square/ap_norm_square;
+
+	    	      // h^{n+1} = h^n + sigma * p^n
+	    	      rhs_for_linear_h.block(0).add(sigma,rhs_for_linear_p.block(0));
+	    	      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1);
+	    	      rhs_for_linear_h.block(1)*=-1;   // copy, negate
+
+	    	      // r^{n+1} = r^n - sigma * Ap
+	    	      // Ap still stored in tmp, could make new vector rhs_for_linear_Ap
+	    	      rhs_for_adjoint.block(0).add(-sigma, tmp.block(0));
+	    	      transfer_interface_dofs(rhs_for_adjoint,rhs_for_adjoint,0,1);
+	    	      rhs_for_adjoint.block(1)*=-1;   // copy, negate
+	    	      rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
+		  
+	    	      // get adjoint variables (b^{n+1},....)
+	    	      assemble_structure(adjoint, false);
+	    	      assemble_fluid(adjoint, false);
+	    	      for (unsigned int i=0; i<2; ++i)
+	    		{
+	    		  dirichlet_boundaries((System)i,adjoint);
+	    		  solve(adjoint_solver[i], i, adjoint);
+	    		}
+	    	      ++total_solves;
+
+	    	      // apply preconditioner
+	    	      // adjoint_solution*=float(time_step)/(time_step-1);
+	    	      for (unsigned int i=0; i<solution.block(0).size(); ++i)
+	    		adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
+	    	      for (unsigned int i=0; i<solution.block(1).size(); ++i)
+	    		adjoint_solution.block(1)[i] *= time_step*system_matrix.block(1,1).diag_element(i);
+		 
+
+	    	      // tmp=adjoint_solution;
+	    	      // PreconditionJacobi<SparseMatrix<double> > preconditioner;
+	    	      // preconditioner.initialize(system_matrix.block(0,0), 0.6);
+	    	      // preconditioner.step(adjoint_solution.block(0),tmp.block(0));
+	    	      // preconditioner.initialize(system_matrix.block(1,1), 0.6);
+	    	      // preconditioner.step(adjoint_solution.block(1),tmp.block(1));
+
+	    	      // A*r^{n+1} = beta^{n+1} - psi^{n+1}/dt + sqrt(delta)(second part of r)
+	    	      tmp=0; tmp2=0;
+	    	      transfer_interface_dofs(adjoint_solution,tmp,1,0);
+	    	      tmp.block(0)*=-1/time_step;
+	    	      transfer_interface_dofs(adjoint_solution,tmp2,0,0);
+	    	      tmp.block(0)+=tmp2.block(0);
+	    	      tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
+
+	    	      //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
+	    	      premultiplier.block(0)=rhs_for_adjoint.block(0);
+	    	      double Astar_r_np1_norm_square = interface_norm(tmp.block(0));
+	    	      //double Astar_r_np1_norm_square = tmp.block(0).l2_norm();
+	    	      double tau = Astar_r_np1_norm_square / p_n_norm_square;
+
+	    	      // p^{n+1} = A*r^{n+1} + tau * p^{n}
+	    	      rhs_for_linear_p.block(0) *= tau;
+	    	      rhs_for_linear_p.block(0)+=tmp.block(0);
+	    	      transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1);
+	    	      rhs_for_linear_p.block(1)*=-1;   // copy, negate
+	    	      p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+	    	      //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
+	    	      //std::cout << p_n_norm_square << std::endl;
+	    	    }
+		  //}
 		  
 	      // update stress
 	      stress.block(0) += rhs_for_linear_h.block(0);
