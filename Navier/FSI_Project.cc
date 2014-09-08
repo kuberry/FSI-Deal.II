@@ -2937,7 +2937,12 @@ namespace FSI_Project
 
 	      if (fem_properties.adjoint_type==1)
 		{
+		  transfer_interface_dofs(adjoint_solution,tmp,1,0,Displacement);
 		  tmp.block(0)*=1./time_step;
+		}
+	      else
+		{
+		  transfer_interface_dofs(adjoint_solution,tmp,1,0,Velocity);
 		}
 
 	      tmp.block(0).add(-fem_properties.fluid_theta,adjoint_solution.block(0));
