@@ -1322,6 +1322,9 @@ namespace FSI_Project
     FluidStressValues<dim> fluid_stress_values(physical_properties);
     std::vector<Tensor<1,dim> > stress_values (dim+1);
     std::vector<Vector<double> > g_stress_values(n_face_q_points, Vector<double>(dim+1));
+    std::vector<Vector<double> > old_solution_side_values(n_face_q_points, Vector<double>(dim+1));
+    std::vector<Vector<double> > old_old_solution_side_values(n_face_q_points, Vector<double>(dim+1));
+    std::vector<Vector<double> > u_star_side_values(n_face_q_points, Vector<double>(dim+1));
 
     std::vector<Tensor<1,dim> > 		  phi_u (dofs_per_cell);
     std::vector<SymmetricTensor<2,dim> >      symgrad_phi_u (dofs_per_cell);
@@ -1388,45 +1391,131 @@ namespace FSI_Project
 		    double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
 		    if (physical_properties.navier_stokes)
 		      {
-			if (enum_==state)
+			if (physical_properties.stability_terms)
 			  {
-			    if (fem_properties.newton)
+			    if (enum_==state)
 			      {
-				local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				if (fem_properties.newton)
+				  {
+				    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				      ( 
+				       phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				       - phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_star
+				       + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				       - u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
+					) * fe_values.JxW(q);
+				  }
+				else if (fem_properties.richardson)
+				  {
+				    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				      (
+				       (4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				       - (4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
+				       ) * fe_values.JxW(q);
+				  }
+				else
+				  {
+				    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				      (
+				       phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				       - phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_star
+				       ) * fe_values.JxW(q);
+				  }
+				local_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				  (
+				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
+				   -phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_old
+				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				   -u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
+				   ) * fe_values.JxW(q);
+			      }
+			    else if (enum_==adjoint) 
+			      {
+				local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				  ( 
+				   phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[j]
+				   - phi_u[i]*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*u_star
+				   + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
+				   - u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				    ) * fe_values.JxW(q);
+				local_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				  (
+				   phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[j]
+				   -phi_u[i]*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*u_old
+				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
+				   -u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				   ) * fe_values.JxW(q);
+			      }
+			    else // enum_==linear
+			      {
+				local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
 				  ( 
 				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				   - phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_star
 				   + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				   - u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
 				    ) * fe_values.JxW(q);
-			      }
-			    else if (fem_properties.richardson)
-			      {
-				local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				local_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
 				  (
-				   (4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
+				   -phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_old
+				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				   -u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
 				   ) * fe_values.JxW(q);
 			      }
-			    else
+			  }
+			else
+			  {
+			    if (enum_==state)
 			      {
-				local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				if (fem_properties.newton)
+				  {
+				    local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      ( 
+				       phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				       + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+					) * fe_values.JxW(q);
+				  }
+				else if (fem_properties.richardson)
+				  {
+				    local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      (
+				       (4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				       ) * fe_values.JxW(q);
+				  }
+				else
+				  {
+				    local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      (
+				       phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				       ) * fe_values.JxW(q);
+				  }
+				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
 				  (
-				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
+				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
 				   ) * fe_values.JxW(q);
 			      }
-			    local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
-			      (
-			       phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
-			       +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
-			       ) * fe_values.JxW(q);
-			  }
-			else if (enum_==adjoint) 
-			  {
-			    local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
-						  + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
-			  }
-			else // enum_==linear
-			  {
-			    local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
-						  + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
+			    else if (enum_==adjoint) 
+			      {
+				local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
+									   + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
+				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				  (
+				   phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[j]
+				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
+				   ) * fe_values.JxW(q);
+			      }
+			    else // enum_==linear
+			      {
+				local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+									   + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
+				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				  (
+				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
+				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				   ) * fe_values.JxW(q);
+			      }
 			  }
 		      }
 		    local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
@@ -1455,11 +1544,30 @@ namespace FSI_Project
 		  const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
 		  if (physical_properties.navier_stokes)
 		    {
-		      if (fem_properties.newton) 
+		      if (physical_properties.stability_terms)
 			{
-			  local_rhs(i) += pow(1-fluid_theta,2) * physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_i_s * fe_values.JxW(q);
+			  if (fem_properties.newton) 
+			    {
+			      local_rhs(i) += 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+				* (
+				   u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_i_s
+				   - u_star*(transpose(detTimesFinv)*transpose(grad_phi_i_s))*u_star
+				   ) * fe_values.JxW(q);
+			    }
+			  local_rhs(i) -= 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+			    * (
+			       u_old*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_i_s 
+			       - u_old*(transpose(detTimesFinv)*transpose(grad_phi_i_s))*u_old 
+			       ) * fe_values.JxW(q);
 			}
-		      local_rhs(i) += pow(1-fluid_theta,2) * physical_properties.rho_f * (u_old*(transpose(detTimesFinv)*transpose(grad_u_old[q])))*phi_i_s * fe_values.JxW(q);
+		      else
+			{
+			  if (fem_properties.newton) 
+			    {
+			      local_rhs(i) += 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_i_s * fe_values.JxW(q);
+			    }
+			  local_rhs(i) -= pow(1-fluid_theta,2) * physical_properties.rho_f * (u_old*(transpose(detTimesFinv)*transpose(grad_u_old[q])))*phi_i_s * fe_values.JxW(q);
+			}
 		    }
 
 		    
@@ -1515,27 +1623,116 @@ namespace FSI_Project
 			if (enum_==state)
 			  {
 			    fe_face_values.reinit (cell, face_no);
-
+			    fe_face_values.get_function_values (*stress_vector, g_stress_values);
+			    if (physical_properties.navier_stokes && physical_properties.stability_terms)
+			      {
+				fe_face_values.get_function_values (old_old_solution.block(0), old_old_solution_side_values);
+				fe_face_values.get_function_values (old_solution.block(0), old_solution_side_values);
+				fe_face_values.get_function_values (solution_star.block(0), u_star_side_values);
+			      }
 			    for (unsigned int q=0; q<n_face_q_points; ++q)
-			      for (unsigned int i=0; i<dofs_per_cell; ++i)
-				{
-				  fluid_stress_values.vector_gradient(fe_face_values.quadrature_point(q),
-								      stress_values);
-				  Tensor<2,dim> new_stresses;
-				  new_stresses[0][0]=stress_values[0][0];
-				  new_stresses[1][0]=stress_values[1][0];
-				  new_stresses[1][1]=stress_values[1][1];
-				  new_stresses[0][1]=stress_values[0][1];
-				  local_rhs(i) += multiplier*(fe_face_values[velocities].value (i, q)*
-							      new_stresses*fe_face_values.normal_vector(q) *
-							      fe_face_values.JxW(q));
-				  if (physical_properties.stability_terms)
-				    {
-				      local_rhs(i) += multiplier*(fe_face_values[velocities].value (i, q)*
-								  new_stresses*fe_face_values.normal_vector(q) *
-								  fe_face_values.JxW(q));
-				    }
-				}
+			      {
+				fluid_stress_values.vector_gradient(fe_face_values.quadrature_point(q),
+								    stress_values);
+				Tensor<1,dim> u_old_old_side, u_old_side, u_star_side;
+				for (unsigned int d=0; d<dim; ++d)
+				  {
+				    u_old_old_side[d] = old_old_solution_side_values[q](d);
+				    u_old_side[d] = old_solution_side_values[q](d);
+				    u_star_side[d] = u_star_side_values[q](d);
+				  }
+				for (unsigned int i=0; i<dofs_per_cell; ++i)
+				  {
+				    if (physical_properties.navier_stokes && physical_properties.stability_terms)
+				      {
+					for (unsigned int j=0; j<dofs_per_cell; ++j)
+					  {
+					    if (enum_==state)
+					      {
+						if (fem_properties.newton)
+						  {
+						    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+						      *( 
+							(fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
+							+(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+							 ) * fe_face_values.JxW(q);
+						  }
+						else if (fem_properties.richardson)
+						  {
+						    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f
+						      *(
+							((4./3*u_old_old_side-1./3*u_old_side)*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+							) * fe_face_values.JxW(q);
+						  }
+						else
+						  {
+						    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+						      *( 
+							(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+							 ) * fe_face_values.JxW(q);
+
+						  }
+						local_matrix(i,j) += 0.5 * fluid_theta*(1-fluid_theta)*physical_properties.rho_f 
+						  *( 
+						    (fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (i, q))
+						    +(u_old_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+						     ) * fe_face_values.JxW(q);
+					      }
+					    else if (enum_==adjoint) 
+					      {
+						local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+						  *( 
+						    (fe_face_values[velocities].value (i, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (j, q))
+						    +(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (i, q)*fe_face_values[velocities].value (j, q))
+						     ) * fe_face_values.JxW(q);
+						local_matrix(i,j) += 0.5 * fluid_theta*(1-fluid_theta)*physical_properties.rho_f 
+						  *( 
+						    (fe_face_values[velocities].value (i, q)*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (j, q))
+						    +(u_old_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (i, q)*fe_face_values[velocities].value (j, q))
+						     ) * fe_face_values.JxW(q);
+					      }
+					    else // enum_==linear
+					      {
+						local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+						  *( 
+						    (fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
+						    +(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+						     ) * fe_face_values.JxW(q);
+						local_matrix(i,j) += 0.5 * fluid_theta*(1-fluid_theta)*physical_properties.rho_f 
+						  *( 
+						    (fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (i, q))
+						    +(u_old_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+						     ) * fe_face_values.JxW(q);
+					      }
+					  }
+				      }
+
+				    Tensor<2,dim> new_stresses;
+				    new_stresses[0][0]=stress_values[0][0];
+				    new_stresses[1][0]=stress_values[1][0];
+				    new_stresses[1][1]=stress_values[1][1];
+				    new_stresses[0][1]=stress_values[0][1];
+				    local_rhs(i) += multiplier*(fe_face_values[velocities].value (i, q)*
+								new_stresses*fe_face_values.normal_vector(q) *
+								fe_face_values.JxW(q));
+
+				    if (physical_properties.navier_stokes && physical_properties.stability_terms)
+				      {
+					if (fem_properties.newton) 
+					  {
+					    local_rhs(i) += 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+					      *(
+						(u_star_side*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
+						) * fe_face_values.JxW(q);
+					  }
+					local_rhs(i) -= 0.5 * pow(1-fluid_theta,2)*physical_properties.rho_f 
+					      *( 
+						(u_old_side*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (i, q))
+						 ) * fe_face_values.JxW(q);
+
+				      }
+				  }
+			      }
 			  }
 		      }
 		    else if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
