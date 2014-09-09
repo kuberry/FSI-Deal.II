@@ -1421,12 +1421,10 @@ namespace FSI_Project
 				       - phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_star
 				       ) * fe_values.JxW(q);
 				  }
-				local_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
 				  (
 				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
-				   -phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_old
 				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
-				   -u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
 				   ) * fe_values.JxW(q);
 			      }
 			    else if (enum_==adjoint) 
@@ -1438,12 +1436,10 @@ namespace FSI_Project
 				   + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
 				   - u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
 				    ) * fe_values.JxW(q);
-				local_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
 				  (
 				   phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[j]
-				   -phi_u[i]*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*u_old
 				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
-				   -u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
 				   ) * fe_values.JxW(q);
 			      }
 			    else // enum_==linear
@@ -1455,67 +1451,65 @@ namespace FSI_Project
 				   + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
 				   - u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
 				    ) * fe_values.JxW(q);
-				local_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
 				  (
 				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
-				   -phi_u[j]*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*u_old
 				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
-				   -u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
 				   ) * fe_values.JxW(q);
 			      }
 			  }
 			else
 			  {
-			    if (enum_==state)
-			      {
-				if (fem_properties.newton)
-				  {
-				    local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
-				      ( 
-				       phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
-				       + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
-					) * fe_values.JxW(q);
-				  }
-				else if (fem_properties.richardson)
-				  {
-				    local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
-				      (
-				       (4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+			   if (enum_==state)
+			     {
+			       if (fem_properties.newton)
+				 {
+				   local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				     ( 
+				      phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				      + u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
 				       ) * fe_values.JxW(q);
-				  }
-				else
-				  {
-				    local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
-				      (
-				       phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
-				       ) * fe_values.JxW(q);
-				  }
-				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
-				  (
-				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
-				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
-				   ) * fe_values.JxW(q);
-			      }
-			    else if (enum_==adjoint) 
-			      {
-				local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
-									   + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
-				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
-				  (
-				   phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[j]
-				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
-				   ) * fe_values.JxW(q);
-			      }
-			    else // enum_==linear
-			      {
-				local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
-									   + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
-				local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
-				  (
-				   phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
-				   +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
-				   ) * fe_values.JxW(q);
-			      }
+				 }
+			       else if (fem_properties.richardson)
+				 {
+				   local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				     (
+				      (4./3*u_old_old-1./3*u_old)*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				      ) * fe_values.JxW(q);
+				 }
+			       else
+				 {
+				   local_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				     (
+				      phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_u[i]
+				      ) * fe_values.JxW(q);
+				 }
+			       local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				 (
+				  phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
+				  +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				  ) * fe_values.JxW(q);
+			     }
+			   else if (enum_==adjoint) 
+			     {
+			       local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
+									  + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j])* fe_values.JxW(q);
+			       local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				 (
+				  phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[j]
+				  +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[i]))*phi_u[j]
+				  ) * fe_values.JxW(q);
+			     }
+			   else // enum_==linear
+			     {
+			       local_matrix(i,j) += pow(fluid_theta,2) * (physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+									  + physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i])* fe_values.JxW(q);
+			       local_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				 (
+				  phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_u[i]
+				  +u_old*(transpose(detTimesFinv)*transpose(grad_phi_u[j]))*phi_u[i]
+				  ) * fe_values.JxW(q);
+			     }
 			  }
 		      }
 		    local_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
@@ -1544,30 +1538,25 @@ namespace FSI_Project
 		  const double div_phi_i_s =  fe_values[velocities].divergence (i, q);
 		  if (physical_properties.navier_stokes)
 		    {
-		      if (physical_properties.stability_terms)
+		      if (fem_properties.newton) 
 			{
-			  if (fem_properties.newton) 
+			  if (physical_properties.stability_terms)
 			    {
-			      local_rhs(i) += 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+			      local_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
 				* (
 				   u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_i_s
 				   - u_star*(transpose(detTimesFinv)*transpose(grad_phi_i_s))*u_star
 				   ) * fe_values.JxW(q);
 			    }
-			  local_rhs(i) -= 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
-			    * (
-			       u_old*(transpose(detTimesFinv)*transpose(grad_u_old[q]))*phi_i_s 
-			       - u_old*(transpose(detTimesFinv)*transpose(grad_phi_i_s))*u_old 
-			       ) * fe_values.JxW(q);
-			}
-		      else
-			{
-			  if (fem_properties.newton) 
+			  else
 			    {
-			      local_rhs(i) += 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f * (u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_i_s * fe_values.JxW(q);
+			      local_rhs(i) += pow(fluid_theta,2) * physical_properties.rho_f 
+				* (
+				   u_star*(transpose(detTimesFinv)*transpose(grad_u_star[q]))*phi_i_s
+				   ) * fe_values.JxW(q);
 			    }
-			  local_rhs(i) -= pow(1-fluid_theta,2) * physical_properties.rho_f * (u_old*(transpose(detTimesFinv)*transpose(grad_u_old[q])))*phi_i_s * fe_values.JxW(q);
 			}
+		      local_rhs(i) -= pow(1-fluid_theta,2) * physical_properties.rho_f * (u_old*(transpose(detTimesFinv)*transpose(grad_u_old[q])))*phi_i_s * fe_values.JxW(q);
 		    }
 
 		    
@@ -1645,66 +1634,51 @@ namespace FSI_Project
 				  {
 				    if (physical_properties.navier_stokes && physical_properties.stability_terms)
 				      {
-					for (unsigned int j=0; j<dofs_per_cell; ++j)
-					  {
-					    if (enum_==state)
-					      {
-						if (fem_properties.newton)
-						  {
-						    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
-						      *( 
-							(fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
-							+(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
-							 ) * fe_face_values.JxW(q);
-						  }
-						else if (fem_properties.richardson)
-						  {
-						    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f
-						      *(
-							((4./3*u_old_old_side-1./3*u_old_side)*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
-							) * fe_face_values.JxW(q);
-						  }
-						else
-						  {
-						    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
-						      *( 
-							(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
-							 ) * fe_face_values.JxW(q);
+				    	for (unsigned int j=0; j<dofs_per_cell; ++j)
+				    	  {
+				    	    if (enum_==state)
+				    	      {
+				    		if (fem_properties.newton)
+				    		  {
+				    		    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				    		      *( 
+				    			(fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
+				    			+(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+				    			 ) * fe_face_values.JxW(q);
+				    		  }
+				    		else if (fem_properties.richardson)
+				    		  {
+				    		    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f
+				    		      *(
+				    			((4./3*u_old_old_side-1./3*u_old_side)*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+				    			) * fe_face_values.JxW(q);
+				    		  }
+				    		else
+				    		  {
+				    		    local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				    		      *( 
+				    			(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+				    			 ) * fe_face_values.JxW(q);
 
-						  }
-						local_matrix(i,j) += 0.5 * fluid_theta*(1-fluid_theta)*physical_properties.rho_f 
-						  *( 
-						    (fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (i, q))
-						    +(u_old_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
-						     ) * fe_face_values.JxW(q);
-					      }
-					    else if (enum_==adjoint) 
-					      {
-						local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
-						  *( 
-						    (fe_face_values[velocities].value (i, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (j, q))
-						    +(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (i, q)*fe_face_values[velocities].value (j, q))
-						     ) * fe_face_values.JxW(q);
-						local_matrix(i,j) += 0.5 * fluid_theta*(1-fluid_theta)*physical_properties.rho_f 
-						  *( 
-						    (fe_face_values[velocities].value (i, q)*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (j, q))
-						    +(u_old_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (i, q)*fe_face_values[velocities].value (j, q))
-						     ) * fe_face_values.JxW(q);
-					      }
-					    else // enum_==linear
-					      {
-						local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
-						  *( 
-						    (fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
-						    +(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
-						     ) * fe_face_values.JxW(q);
-						local_matrix(i,j) += 0.5 * fluid_theta*(1-fluid_theta)*physical_properties.rho_f 
-						  *( 
-						    (fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (i, q))
-						    +(u_old_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
-						     ) * fe_face_values.JxW(q);
-					      }
-					  }
+				    		  }
+				    	      }
+				    	    else if (enum_==adjoint) 
+				    	      {
+				    		local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				    		  *( 
+				    		    (fe_face_values[velocities].value (i, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (j, q))
+				    		    +(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (i, q)*fe_face_values[velocities].value (j, q))
+				    		     ) * fe_face_values.JxW(q);
+				    	      }
+				    	    else // enum_==linear
+				    	      {
+				    		local_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				    		  *( 
+				    		    (fe_face_values[velocities].value (j, q)*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
+				    		    +(u_star_side*fe_face_values.normal_vector(q))*(fe_face_values[velocities].value (j, q)*fe_face_values[velocities].value (i, q))
+				    		     ) * fe_face_values.JxW(q);
+				    	      }
+				    	  }
 				      }
 
 				    Tensor<2,dim> new_stresses;
@@ -1720,16 +1694,11 @@ namespace FSI_Project
 				      {
 					if (fem_properties.newton) 
 					  {
-					    local_rhs(i) += 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+					    local_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
 					      *(
 						(u_star_side*fe_face_values.normal_vector(q))*(u_star_side*fe_face_values[velocities].value (i, q))
 						) * fe_face_values.JxW(q);
 					  }
-					local_rhs(i) -= 0.5 * pow(1-fluid_theta,2)*physical_properties.rho_f 
-					      *( 
-						(u_old_side*fe_face_values.normal_vector(q))*(u_old_side*fe_face_values[velocities].value (i, q))
-						 ) * fe_face_values.JxW(q);
-
 				      }
 				  }
 			      }
