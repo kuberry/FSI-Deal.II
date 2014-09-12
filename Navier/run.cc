@@ -1,10 +1,19 @@
 #include "FSI_Project.h"
+#include <deal.II/base/timer.h>
 
 template <int dim>
 void FSIProblem<dim>::run ()
 {
+  TimerOutput timer (std::cout, TimerOutput::summary,
+		     TimerOutput::wall_times);
+  timer.enter_subsection ("Everything");
+
+  timer.enter_subsection ("Setup dof system");
+
   setup_system();
   build_dof_mapping();
+
+  timer.leave_subsection();
 
   StructureBoundaryValues<dim> structure_boundary_values(physical_properties);
   FluidBoundaryValues<dim> fluid_boundary_values(physical_properties);
@@ -86,20 +95,24 @@ void FSIProblem<dim>::run ()
 
 	  // RHS and Neumann conditions are inside these functions
 	  // Solve for the state variables
+	  timer.enter_subsection ("Assemble");
 	  assemble_structure(state, true);
 	  assemble_ale(state, true);
+	  timer.leave_subsection();
 	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
 	  
 
 	  for (unsigned int i=1; i<3; ++i)
 	    {
 	      dirichlet_boundaries((System)i,state);
+	      timer.enter_subsection ("State Solve"); 
 	      if (timestep_number==1)
 	      	{
 	      	  state_solver[i].initialize(system_matrix.block(i,i));
 	      	}
 	      // solver uses vmult which doesn't require factorization
 	      solve(state_solver[i],i,state);
+	      timer.leave_subsection ();
 	    }
 
 	  solution_star=1;
@@ -107,14 +120,18 @@ void FSIProblem<dim>::run ()
 	  while (solution_star.l2_norm()>1e-8)
 	    {
 	      solution_star=solution;
+	      timer.enter_subsection ("Assemble");
 	      assemble_fluid(state, true);
+	      timer.leave_subsection();
 	      dirichlet_boundaries((System)0,state);
+	      timer.enter_subsection ("State Solve"); 
 	      if (timestep_number==1)
 	      	{
 	      	  state_solver[0].initialize(system_matrix.block(0,0));
 	      	}
 	      state_solver[0].factorize(system_matrix.block(0,0));
 	      solve(state_solver[0],0,state);
+	      timer.leave_subsection ();
 	      solution_star-=solution;
 	      ++total_solves;
 	      if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
@@ -284,13 +301,17 @@ void FSIProblem<dim>::run ()
 
 	      // get linearized variables
 	      rhs_for_linear = rhs_for_linear_h;
+	      timer.enter_subsection ("Assemble");
 	      assemble_structure(linear, true);
 	      assemble_fluid(linear, true);
+	      timer.leave_subsection ();
 	      for (unsigned int i=0; i<2; ++i)
 		{
 		  dirichlet_boundaries((System)i,linear);
+		  timer.enter_subsection ("Linear Solve");
 		  linear_solver[i].factorize(linear_matrix.block(i,i));
 		  solve(linear_solver[i], i, linear);
+		  timer.leave_subsection ();
 		}
 	      ++total_solves;
 	      
@@ -332,14 +353,18 @@ void FSIProblem<dim>::run ()
 	      rhs_for_adjoint_s.block(0)+=stress.block(0);
 	      rhs_for_adjoint_s.block(0)*=-sqrt(fem_properties.penalty_epsilon);
 
-	      // get adjoint variables 
+	      // get adjoint variables
+	      timer.enter_subsection ("Assemble"); 
 	      assemble_structure(adjoint, true);
 	      assemble_fluid(adjoint, true);
+	      timer.leave_subsection ();
 	      for (unsigned int i=0; i<2; ++i)
 		{
 		  dirichlet_boundaries((System)i,adjoint);
+		  timer.enter_subsection ("Linear Solve");
 		  adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
 		  solve(adjoint_solver[i], i, adjoint);
+		  timer.leave_subsection ();
 		}
 	      ++total_solves;
 	      
@@ -394,12 +419,16 @@ void FSIProblem<dim>::run ()
 		  //std::cout << "more text" << std::endl;
 		  // get linearized variables
 		  rhs_for_linear = rhs_for_linear_p;
+		  timer.enter_subsection ("Assemble"); 
 		  assemble_structure(linear, false);
 		  assemble_fluid(linear, false);
+		  timer.leave_subsection ();
 		  for (unsigned int i=0; i<2; ++i)
 		    {
 		      dirichlet_boundaries((System)i,linear);
+		      timer.enter_subsection ("Linear Solve");
 		      solve(linear_solver[i], i, linear);
+		      timer.leave_subsection ();
 		    }
 		  ++total_solves;
 
@@ -446,12 +475,16 @@ void FSIProblem<dim>::run ()
 		  rhs_for_adjoint_s.block(0).add(-sigma, rhs_for_linear_Ap_s.block(0));
 		  
 		  // get adjoint variables (b^{n+1},....)
+		  timer.enter_subsection ("Assemble"); 
 		  assemble_structure(adjoint, false);
 		  assemble_fluid(adjoint, false);
+		  timer.leave_subsection ();
 		  for (unsigned int i=0; i<2; ++i)
 		    {
 		      dirichlet_boundaries((System)i,adjoint);
+		      timer.enter_subsection ("Linear Solve");
 		      solve(adjoint_solver[i], i, adjoint);
+		      timer.leave_subsection ();
 		    }
 		  ++total_solves;
 
@@ -527,6 +560,7 @@ void FSIProblem<dim>::run ()
       std::cout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
       t.restart();
     }
+  timer.leave_subsection ();
 }
 
 

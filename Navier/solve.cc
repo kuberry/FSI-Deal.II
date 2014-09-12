@@ -10,7 +10,8 @@ void FSIProblem<dim>::solve (const SparseDirectUMFPACK& direct_solver, const int
     {
       solution_vector=&solution;
       rhs_vector=&system_rhs;
-      direct_solver.vmult (solution_vector->block(block_num), rhs_vector->block(block_num));
+      direct_solver.solve (rhs_vector->block(block_num));
+      solution_vector->block(block_num) = rhs_vector->block(block_num);
     }
   else if (enum_==adjoint)
     {
