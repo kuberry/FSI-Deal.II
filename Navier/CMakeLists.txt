@@ -7,6 +7,15 @@ SET(TARGET "FSI_Project")
 
 # Declare all source files the target consists of:
 SET(TARGET_SRC
+  assemble_ale.cc
+  assemble_fluid.cc
+  assemble_structure.cc
+  dof_mapping.cc
+  output.cc
+  run.cc
+  setup.cc
+  solve.cc
+  support.cc
   ${TARGET}.cc
   # You can specify additional files here!
   )
