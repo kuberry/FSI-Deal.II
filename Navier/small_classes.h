@@ -1,6 +1,8 @@
 #ifndef SMALL_CLASSES_H
 #define SMALL_CLASSES_H
 
+using namespace dealii;
+
 template<int dim>
 class Info
 {
@@ -51,5 +53,43 @@ class Info
   }
 };
 
+template <int dim>
+struct PerTaskData {
+  FullMatrix<double> cell_matrix;
+  Vector<double> cell_rhs;
+  std::vector<unsigned int> dof_indices;
+  PerTaskData (const FiniteElement<dim> &fe)
+    :
+  cell_matrix (fe.dofs_per_cell, fe.dofs_per_cell),
+    cell_rhs (fe.dofs_per_cell),
+    dof_indices (fe.dofs_per_cell){}
+    /* assemble_matrix(assemble_matrix_), */
+    /* global_matrix(global_matrix_), */
+    /* global_rhs(global_rhs_) */
+  /* { */
+  /*   unsigned int dofs_per_cell = fe.dofs_per_cell; */
+  /* } */
+};
+
+template <int dim>
+struct ScratchData {
+  std::vector<double> rhs_values;
+  FEValues<dim> fe_values;
+  ScratchData (const FiniteElement<dim> &fe,
+	       const Quadrature<dim> &quadrature,
+	       const UpdateFlags update_flags)
+    :
+    rhs_values (quadrature.size()),
+    fe_values (fe, quadrature, update_flags)
+  {
+  }
+  ScratchData (const ScratchData &scratch)
+    :
+    rhs_values (scratch.rhs_values),
+    fe_values (scratch.fe_values.get_fe(),
+	       scratch.fe_values.get_quadrature(),
+	       scratch.fe_values.get_update_flags())
+  {}
+};
 
 #endif

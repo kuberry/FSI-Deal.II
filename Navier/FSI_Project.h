@@ -39,12 +39,16 @@
 #include <deal.II/base/utilities.h>
 #include <deal.II/base/parameter_handler.h>
 #include <deal.II/base/function_parser.h>
+
+#include <deal.II/base/work_stream.h>
+#include <deal.II/base/multithread_info.h>
+
 #include <fstream>
 #include <iostream>
 #include <boost/timer.hpp>
 
 #include "parameters.h"
-
+#include "small_classes.h"
 
 using namespace dealii;
 
@@ -94,6 +98,15 @@ class FSIProblem
   void assemble_fluid (Mode enum_, bool assemble_matrix);
   void assemble_structure(Mode enum_, bool assemble_matrix);
   void assemble_ale(Mode enum_, bool assemble_matrix);
+  void assemble_ale_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator &cell,
+					ScratchData<dim> &scratch,
+					PerTaskData<dim> &data);
+  /* 							 unsigned int n_q_points, */
+  /* 							 unsigned int dofs_per_cell); */
+  void copy_local_matrix_to_global (const PerTaskData<dim> &data);
+  /* 						     unsigned int dofs_per_cell,  */
+  /* 						     SparseMatrix<double>& global_matrix,  */
+  /* 						     Vector<double>& global_rhs); */
   void build_adjoint_rhs();
   double interface_error();
   double interface_norm(Vector<double>   &values);
