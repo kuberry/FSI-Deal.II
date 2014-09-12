@@ -12,24 +12,24 @@ void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler
 {
   // // rhs_function.value_list (scratch.fe_values.get_quadrature_points,
   // // 			   scratch.rhs_values);
-  // const FEValuesExtractors::Vector displacements (0);
-  // std::vector<Tensor<2,dim> > 	grad_phi_n (dofs_per_cell);
-  // scratch.fe_values.reinit(cell);
-  // for (unsigned int q_point=0; q_point<n_q_points;
-  //      ++q_point)
-  //   {
-  //     for (unsigned int k=0; k<dofs_per_cell; ++k)
-  // 	{
-  // 	  grad_phi_n[k] = scratch.fe_values[displacements].gradient(k, q_point);
-  // 	}
-  //     for (unsigned int i=0; i<dofs_per_cell; ++i)
-  // 	{
-  // 	  for (unsigned int j=0; j<dofs_per_cell; ++j)
-  // 	    {
-  // 	      data.cell_matrix(i,j)+=scalar_product(grad_phi_n[i],grad_phi_n[j])*scratch.fe_values.JxW(q_point);
-  // 	    }
-  // 	}
-  //   }
+  const FEValuesExtractors::Vector displacements (0);
+  std::vector<Tensor<2,dim> > 	grad_phi_n (data.dofs_per_cell);
+  scratch.fe_values.reinit(cell);
+  for (unsigned int q_point=0; q_point<scratch.n_q_points;
+       ++q_point)
+    {
+      for (unsigned int k=0; k<data.dofs_per_cell; ++k)
+  	{
+  	  grad_phi_n[k] = scratch.fe_values[displacements].gradient(k, q_point);
+  	}
+      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
+  	{
+  	  for (unsigned int j=0; j<data.dofs_per_cell; ++j)
+  	    {
+  	      data.cell_matrix(i,j)+=scalar_product(grad_phi_n[i],grad_phi_n[j])*scratch.fe_values.JxW(q_point);
+  	    }
+  	}
+    }
 }
 
 template <int dim>
@@ -38,14 +38,16 @@ void FSIProblem<dim>::copy_local_matrix_to_global (const PerTaskData<dim>& data 
 						   // SparseMatrix<double>* global_matrix, 
 						   // Vector<double>* global_rhs)
 {
+  // for (unsigned int i=0; i<data.dofs_per_cell; ++i)
+  //   for (unsigned int j=0; j<data.dofs_per_cell; ++j)
+  //     data.matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
 
-  // for (unsigned int i=0; i<dofs_per_cell; ++i)
-  //   for (unsigned int j=0; j<dofs_per_cell; ++j)
-  //     global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
-
-
-  //for (unsigned int i=0; i<data.dofs_per_cell; ++i)
-    // global_rhs->add (data.dof_indices, data.cell_rhs);
+  ale_constraints.distribute_local_to_global(data.cell_matrix, data.cell_rhs, data.dof_indices,*data.global_matrix,*data.global_rhs);
+	  // structure_constraints.distribute_local_to_global (local_matrix, local_rhs,
+	  // 						    local_dof_indices,
+	  // 						    *structure_matrix, *structure_rhs);
+  // for (unsigned int i=0; i<data.dofs_per_cell; ++i)
+  //   global_rhs->add (data.dof_indices, data.cell_rhs);
 }
 
 
@@ -83,11 +85,11 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
   // std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
 
-  PerTaskData<dim> per_task_data(ale_fe);//, assemble_matrix, ale_matrix, ale_rhs);
+  PerTaskData<dim> per_task_data(ale_fe, ale_matrix, ale_rhs);//, ale_matrix, ale_rhs);
   ScratchData<dim> scratch_data(ale_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values);
 
-  if (assemble_matrix)
-    {
+  // if (assemble_matrix)
+  //   {
     //   WorkStream::run (ale_dof_handler.begin_active(),
     // 		       ale_dof_handler.end(),
     // 		       std_cxx1x::bind(&assemble_ale_matrix_on_one_cell<dim>,
@@ -122,8 +124,8 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
   		   &FSIProblem<dim>::copy_local_matrix_to_global,
 		   scratch_data,
   		   per_task_data);
-    }
-
+  //}
+  // structure_constraints.condense(*ale_matrix);
 }
 
 // template void FSIProblem<2>::assemble_ale_matrix_on_one_cell (const typename DoFHandler<2>::active_cell_iterator &cell,
