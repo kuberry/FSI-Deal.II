@@ -43,8 +43,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 		  VectorTools::interpolate_boundary_values (structure_dof_handler,
 							    i,
 							    structure_boundary_values_function,
-							    structure_boundary_values,
-							    structure_fe.component_mask(displacements));
+							    structure_boundary_values);
 		}
 	    }
 	  MatrixTools::apply_boundary_values (structure_boundary_values,
