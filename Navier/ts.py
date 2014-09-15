@@ -9,12 +9,16 @@ import math
 import copy
 
 # CONVERGENCE IN TIME #
+
+simulation_name = 'analytical';
+
 time_order = 1;
 polynomial_order = 2;
 
 loops = 4
 
-init_space_mult=2;
+init_space_mult=4;
+init_time_mult=5;
 space_power=2;
 final_time=1;
 optimization_times_time_error=20;
@@ -74,9 +78,11 @@ for i in range(len(subsystems)):
 for i in range(loops):
     # RESET TIME
     n_space_steps = init_space_mult * pow(space_power,i);
+    if simulation_name == 'analytical':
+        assert ((n_space_steps % 4)==0),'only multiples of 4 are allowed for space when using the analytical solution.'
     dh = float(1./n_space_steps);
     #n_time_steps = int(math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
-    n_time_steps = int(math.ceil(pow(n_space_steps,1.5))); #math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
+    n_time_steps = init_time_mult*int(math.ceil(pow(n_space_steps,1.0))); #math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
     dt = float(1./n_time_steps);
 
     # READ IN DEFAULT.PRM AND REPLACE TIME STEPS LINE 
@@ -91,10 +97,18 @@ for i in range(loops):
             success = re.search("jump tolerance", line)
             if success:
                 lines[key] = 'set jump tolerance  = ' + str(math.sqrt(pow(dt,1.5)*pow(dh,polynomial_order+1)*optimization_times_time_error))
-            success = re.search("nx", line) or re.search("ny", line)
+            success = re.search("nx", line)
             if success:
                 objMatch=re.match( r'(.* = )(.*)', line, re.M|re.I)
                 lines[key] = objMatch.group(1) + str(n_space_steps)
+            success = re.search("ny", line)
+            if success:
+                objMatch=re.match( r'(.* = )(.*)', line, re.M|re.I)
+                success2 = re.search("structure", objMatch.group(1))
+                if success2 and simulation_name=='analytical':
+                    lines[key] = objMatch.group(1) + str(n_space_steps/4)
+                else:
+                    lines[key] = objMatch.group(1) + str(n_space_steps)
             objMatch=re.match( r'(.* convergence method .* = )(.*)', line, re.M|re.I)
             if objMatch:
                 lines[key] = objMatch.group(1) + 'space' 
