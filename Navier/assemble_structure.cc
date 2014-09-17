@@ -31,6 +31,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   StructureStressValues<dim> structure_stress_values(physical_properties);
 
   data.cell_matrix=0;
+  data.cell_rhs=0;
 
   if (data.assemble_matrix)
     {
@@ -159,11 +160,11 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
     {
       total_loops = 1;
     }
-  for (unsigned int k=0; k<total_loops; ++k)
+  for (unsigned int i=0; i<total_loops; ++i)
     {
       double multiplier;
       Vector<double> *stress_vector;
-      if (k==0)
+      if (i==0)
 	{
 	  structure_stress_values.set_time(time);
 	  multiplier=structure_theta;
@@ -416,7 +417,6 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
       forcing_terms.add(0.5, tmp);
       *structure_rhs += forcing_terms;
     }
-
 
   PerTaskData<dim> per_task_data(structure_fe, structure_matrix, structure_rhs, assemble_matrix);
   Structure_ScratchData<dim> scratch_data(structure_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
