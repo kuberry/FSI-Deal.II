@@ -54,14 +54,14 @@ class Info
 };
 
 template <int dim>
-struct PerTaskData {
+struct ALE_PerTaskData {
   FullMatrix<double> cell_matrix;
   Vector<double> cell_rhs;
   std::vector<types::global_dof_index> dof_indices;
   unsigned int dofs_per_cell;
   SparseMatrix<double>* global_matrix;
   Vector<double>* global_rhs;
-  PerTaskData (const FiniteElement<dim> &fe, SparseMatrix<double>* matrix_, Vector<double>* rhs_)
+  ALE_PerTaskData (const FiniteElement<dim> &fe, SparseMatrix<double>* matrix_, Vector<double>* rhs_)
     :
   cell_matrix (fe.dofs_per_cell, fe.dofs_per_cell),
     cell_rhs (fe.dofs_per_cell),
@@ -74,11 +74,11 @@ struct PerTaskData {
 };
 
 template <int dim>
-struct ScratchData {
+struct ALE_ScratchData {
   std::vector<double> rhs_values;
   FEValues<dim> fe_values;
   unsigned int n_q_points;
-  ScratchData (const FiniteElement<dim> &fe,
+  ALE_ScratchData (const FiniteElement<dim> &fe,
 	       const Quadrature<dim> &quadrature,
 	       const UpdateFlags update_flags)
     :
@@ -86,7 +86,7 @@ struct ScratchData {
     fe_values (fe, quadrature, update_flags),
     n_q_points(quadrature.size())
   {}
-  ScratchData (const ScratchData &scratch)
+  ALE_ScratchData (const ALE_ScratchData &scratch)
     :
     rhs_values (scratch.rhs_values),
     fe_values (scratch.fe_values.get_fe(),

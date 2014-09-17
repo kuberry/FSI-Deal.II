@@ -100,14 +100,9 @@ class FSIProblem
   void assemble_structure(Mode enum_, bool assemble_matrix);
   void assemble_ale(Mode enum_, bool assemble_matrix);
   void assemble_ale_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator &cell,
-					ScratchData<dim> &scratch,
-					PerTaskData<dim> &data);
-  /* 							 unsigned int n_q_points, */
-  /* 							 unsigned int dofs_per_cell); */
-  void copy_local_matrix_to_global (const PerTaskData<dim> &data);
-  /* 						     unsigned int dofs_per_cell,  */
-  /* 						     SparseMatrix<double>& global_matrix,  */
-  /* 						     Vector<double>& global_rhs); */
+					ALE_ScratchData<dim> &scratch,
+					ALE_PerTaskData<dim> &data);
+  void copy_local_matrix_to_global (const ALE_PerTaskData<dim> &data);
   void build_adjoint_rhs();
   double interface_error();
   double interface_norm(Vector<double>   &values);
