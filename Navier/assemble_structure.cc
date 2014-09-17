@@ -291,6 +291,33 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   cell->get_dof_indices (data.dof_indices);
 }
 
+template <int dim>
+void FSIProblem<dim>::copy_local_structure_to_global (const PerTaskData<dim>& data )
+{
+  if (data.assemble_matrix)
+    {
+      structure_constraints.distribute_local_to_global (data.cell_matrix, data.cell_rhs,
+							data.dof_indices,
+							*data.global_matrix, *data.global_rhs);
+    }
+  else
+    {
+      structure_constraints.distribute_local_to_global (data.cell_rhs,
+							data.dof_indices,
+							*data.global_rhs);
+    }
+  //     structure_constraints.distribute_local_to_global(
+  //     for (unsigned int i=0; i<data.dofs_per_cell; ++i)
+  // 	for (unsigned int j=0; j<data.dofs_per_cell; ++j)
+  // 	  {
+  // 	    data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
+  // 	  }
+  //   }
+  //     else
+
+  // data.global_rhs->add (data.dof_indices, data.cell_rhs);
+}
+
 // template <int dim>
 // void FSIProblem<dim>::assemble_structure_rhs_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
 // 							  Structure_ScratchData<dim>& scratch,
@@ -432,7 +459,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   		   structure_dof_handler.end(),
   		   *this,
   		   &FSIProblem<dim>::assemble_structure_matrix_on_one_cell,
-  		   &FSIProblem<dim>::copy_local_matrix_to_global,
+  		   &FSIProblem<dim>::copy_local_structure_to_global,
   		   scratch_data,
   		   per_task_data);
 
@@ -720,6 +747,8 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
 template void FSIProblem<2>::assemble_structure_matrix_on_one_cell (const typename DoFHandler<2>::active_cell_iterator& cell,
 							     Structure_ScratchData<2>& scratch,
 							     PerTaskData<2>& data );
+
+template void FSIProblem<2>::copy_local_structure_to_global (const PerTaskData<2> &data);
 							     
 template void FSIProblem<2>::assemble_structure (Mode enum_, bool assemble_matrix);
 

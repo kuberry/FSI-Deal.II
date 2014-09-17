@@ -35,7 +35,7 @@ void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler
 }
 
 template <int dim>
-void FSIProblem<dim>::copy_local_matrix_to_global (const PerTaskData<dim>& data )
+void FSIProblem<dim>::copy_local_ale_to_global (const PerTaskData<dim>& data )
 {
   if (data.assemble_matrix)
     {
@@ -46,13 +46,6 @@ void FSIProblem<dim>::copy_local_matrix_to_global (const PerTaskData<dim>& data 
 	  }
     }
   data.global_rhs->add (data.dof_indices, data.cell_rhs);
-}
-
-
-template <int dim>
-void FSIProblem<dim>::copy_local_rhs_to_global (const PerTaskData<dim>& data )
-{
-    data.global_rhs->add (data.dof_indices, data.cell_rhs);
 }
 
 template <int dim>
@@ -95,7 +88,7 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
   		   ale_dof_handler.end(),
   		   *this,
   		   &FSIProblem<dim>::assemble_ale_matrix_on_one_cell,
-  		   &FSIProblem<dim>::copy_local_matrix_to_global,
+  		   &FSIProblem<dim>::copy_local_ale_to_global,
 		   scratch_data,
   		   per_task_data);
 }
@@ -106,7 +99,6 @@ template void FSIProblem<2>::assemble_ale_matrix_on_one_cell (const DoFHandler<2
 							      ScratchData<2> &scratch,
 							      PerTaskData<2> &data );
 
-template void FSIProblem<2>::copy_local_matrix_to_global (const PerTaskData<2> &data);
-template void FSIProblem<2>::copy_local_rhs_to_global (const PerTaskData<2> &data);
+template void FSIProblem<2>::copy_local_ale_to_global (const PerTaskData<2> &data);
 
 template void FSIProblem<2>::assemble_ale (Mode enum_, bool assemble_matrix);

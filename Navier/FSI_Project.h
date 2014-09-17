@@ -105,8 +105,9 @@ class FSIProblem
   void assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
 							     Structure_ScratchData<dim>& scratch,
 							     PerTaskData<dim>& data );
-  void copy_local_matrix_to_global (const PerTaskData<dim> &data);
-  void copy_local_rhs_to_global (const PerTaskData<dim> &data);
+
+  void copy_local_ale_to_global (const PerTaskData<dim> &data);
+  void copy_local_structure_to_global (const PerTaskData<dim> &data);
   void build_adjoint_rhs();
   double interface_error();
   double interface_norm(Vector<double>   &values);
