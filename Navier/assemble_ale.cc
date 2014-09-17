@@ -4,8 +4,8 @@
 
 template <int dim>
 void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-						       ALE_ScratchData<dim>& scratch,
-						       ALE_PerTaskData<dim>& data
+						       ScratchData<dim>& scratch,
+						       PerTaskData<dim>& data
 				      )
 {
   // // rhs_function.value_list (scratch.fe_values.get_quadrature_points,
@@ -35,15 +35,25 @@ void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler
 }
 
 template <int dim>
-void FSIProblem<dim>::copy_local_matrix_to_global (const ALE_PerTaskData<dim>& data )
+void FSIProblem<dim>::copy_local_matrix_to_global (const PerTaskData<dim>& data )
 {
-  for (unsigned int i=0; i<data.dofs_per_cell; ++i)
-    for (unsigned int j=0; j<data.dofs_per_cell; ++j)
-      {
-  	data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
-      }
+  if (data.assemble_matrix)
+    {
+      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
+	for (unsigned int j=0; j<data.dofs_per_cell; ++j)
+	  {
+	    data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
+	  }
+    }
+  data.global_rhs->add (data.dof_indices, data.cell_rhs);
 }
 
+
+template <int dim>
+void FSIProblem<dim>::copy_local_rhs_to_global (const PerTaskData<dim>& data )
+{
+    data.global_rhs->add (data.dof_indices, data.cell_rhs);
+}
 
 template <int dim>
 void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
@@ -77,8 +87,9 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
 			   update_values   | update_gradients |
 			   update_quadrature_points | update_JxW_values);
 
-  ALE_PerTaskData<dim> per_task_data(ale_fe, ale_matrix, ale_rhs);
-  ALE_ScratchData<dim> scratch_data(ale_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values);
+  PerTaskData<dim> per_task_data(ale_fe, ale_matrix, ale_rhs, assemble_matrix);
+  ScratchData<dim> scratch_data(ale_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
+				(unsigned int)enum_);
 
   WorkStream::run (ale_dof_handler.begin_active(),
   		   ale_dof_handler.end(),
@@ -92,9 +103,10 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
 
 
 template void FSIProblem<2>::assemble_ale_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator &cell,
-							      ALE_ScratchData<2> &scratch,
-							      ALE_PerTaskData<2> &data );
+							      ScratchData<2> &scratch,
+							      PerTaskData<2> &data );
 
-template void FSIProblem<2>::copy_local_matrix_to_global (const ALE_PerTaskData<2> &data);
+template void FSIProblem<2>::copy_local_matrix_to_global (const PerTaskData<2> &data);
+template void FSIProblem<2>::copy_local_rhs_to_global (const PerTaskData<2> &data);
 
 template void FSIProblem<2>::assemble_ale (Mode enum_, bool assemble_matrix);

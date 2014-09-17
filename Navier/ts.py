@@ -15,11 +15,11 @@ simulation_name = 'analytical';
 time_order = 1;
 polynomial_order = 2;
 
-loops = 4
+loops = 3
 
 init_space_mult=4;
 init_time_mult=5;
-space_power=2;
+space_power=1.5;
 final_time=1;
 optimization_times_time_error=20;
 
@@ -77,14 +77,14 @@ for i in range(len(subsystems)):
 
 for i in range(loops):
     # RESET TIME
-    n_space_steps = init_space_mult * pow(space_power,i);
-    if simulation_name == 'analytical':
-        assert ((n_space_steps % 4)==0),'only multiples of 4 are allowed for space when using the analytical solution.'
+    n_space_steps = int(math.ceil(init_space_mult * pow(space_power,i)));
+    #if simulation_name == 'analytical':
+        # assert ((n_space_steps % 4)==0),'only multiples of 4 are allowed for space when using the analytical solution.'
     dh = float(1./n_space_steps);
     #n_time_steps = int(math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
-    n_time_steps = init_time_mult*int(math.ceil(pow(n_space_steps,1.0))); #math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
+    n_time_steps = int(math.ceil(pow(n_space_steps,1.0))); #math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
     dt = float(1./n_time_steps);
-
+    print dt
     # READ IN DEFAULT.PRM AND REPLACE TIME STEPS LINE 
     f_in = open('default.prm')
     lines = f_in.readlines()
@@ -106,7 +106,7 @@ for i in range(loops):
                 objMatch=re.match( r'(.* = )(.*)', line, re.M|re.I)
                 success2 = re.search("structure", objMatch.group(1))
                 if success2 and simulation_name=='analytical':
-                    lines[key] = objMatch.group(1) + str(n_space_steps/4)
+                    lines[key] = objMatch.group(1) + str(int(n_space_steps))
                 else:
                     lines[key] = objMatch.group(1) + str(n_space_steps)
             objMatch=re.match( r'(.* convergence method .* = )(.*)', line, re.M|re.I)

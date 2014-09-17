@@ -25,7 +25,7 @@ class StructureStressValues : public dealii::Function<dim>
  public:
   Parameters::PhysicalProperties physical_properties;
   unsigned int side;
-  StructureStressValues (const Parameters::PhysicalProperties & physical_properties_) : dealii::Function<dim>(dim+1), physical_properties(physical_properties_)  {}
+  StructureStressValues (const Parameters::PhysicalProperties & physical_properties_) : dealii::Function<dim>(2*dim), physical_properties(physical_properties_)  {}
 
   virtual double value (const dealii::Point<dim>   &p,
 			const unsigned int  component = 0) const;

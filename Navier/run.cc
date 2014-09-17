@@ -52,9 +52,8 @@ void FSIProblem<dim>::run ()
 
 	   
   // direct_solver.initialize (system_matrix.block(block_num,block_num));
-
   for (timestep_number=1, time=fem_properties.t0+time_step;
-       time<fem_properties.T;++timestep_number)
+       timestep_number<=(double)(fem_properties.T-fem_properties.t0)/time_step;++timestep_number)
     {
       boost::timer t;
       time = fem_properties.t0 + timestep_number*time_step;
@@ -150,7 +149,7 @@ void FSIProblem<dim>::run ()
 	  velocity_jump=interface_error();
 
 	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < pow(time_step,4)) break;
+	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < 1e-10) break; //pow(time_step,4)) break;
 
 	  if (fem_properties.optimization_method.compare("Gradient")==0)
 	    {
