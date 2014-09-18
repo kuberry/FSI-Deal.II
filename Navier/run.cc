@@ -101,7 +101,7 @@ void FSIProblem<dim>::run ()
 	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
 	  
 
-	  for (unsigned int i=1; i<3; ++i)
+	  for (unsigned int i=1; i<2; ++i) // no ale solve currently
 	    {
 	      dirichlet_boundaries((System)i,state);
 	      timer.enter_subsection ("State Solve"); 

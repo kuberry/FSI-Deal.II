@@ -1,5 +1,6 @@
 #include "FSI_Project.h"
 #include "small_classes.h"
+#include <deal.II/base/timer.h>
 
 template <int dim>
 void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
@@ -7,8 +8,10 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 						       PerTaskData<dim>& data
 							     )
 {
-  // // rhs_function.value_list (scratch.fe_values.get_quadrature_points,
-  // // 			   scratch.rhs_values);
+  ConditionalOStream pcout(std::cout,Threads::this_thread_id()==0);//master_thread); 
+  TimerOutput timer (pcout, TimerOutput::summary,
+		     TimerOutput::wall_times);
+  timer.enter_subsection ("Beginning");
 
   const FEValuesExtractors::Vector displacements (0);
   const FEValuesExtractors::Vector velocities (dim);
@@ -33,14 +36,19 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 
   data.cell_matrix=0;
   data.cell_rhs=0;
-
+  
+  timer.leave_subsection ();
+  timer.enter_subsection ("Assembly");
   if (data.assemble_matrix)
     {
+      timer.enter_subsection ("Get Data");
       scratch.fe_values.get_function_values (old_solution.block(1), old_solution_values);
       scratch.fe_values[displacements].get_function_gradients(old_solution.block(1),grad_n);
+      timer.leave_subsection ();
       for (unsigned int q_point=0; q_point<scratch.n_q_points;
 	   ++q_point)
 	{
+	  timer.enter_subsection ("Preload Gradients");
 	  for (unsigned int k=0; k<data.dofs_per_cell; ++k)
 	    {
 	      phi_n[k]	       = scratch.fe_values[displacements].value (k, q_point);
@@ -48,6 +56,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      div_phi_n[k]     = scratch.fe_values[displacements].divergence (k, q_point);
 	      phi_v[k]         = scratch.fe_values[velocities].value (k, q_point);
 	    }
+	  timer.leave_subsection ();
 	  for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 	    {
 	      const unsigned int
@@ -117,8 +126,10 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		    }
 		}
 	    }
+	  
 	  if ((Mode)(scratch.mode_type)==state)
 	    {
+	      timer.enter_subsection ("Rhs Assembly");
 	      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 		{
 		  const unsigned int component_i = structure_fe.system_to_component_index(i).first;
@@ -148,10 +159,12 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			* scratch.fe_values.JxW(q_point);
 		    }
 		}
+	      timer.leave_subsection ();
 	    }
 	}
     }
-
+  timer.leave_subsection ();
+  timer.enter_subsection ("RHS");
   for (unsigned int face_no=0;
        face_no<GeometryInfo<dim>::faces_per_cell;
        ++face_no)
@@ -288,13 +301,18 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	    }
 	}
     }
-
-  cell->get_dof_indices (data.dof_indices);
+    timer.leave_subsection ();
+    
+    cell->get_dof_indices (data.dof_indices);
 }
 
 template <int dim>
 void FSIProblem<dim>::copy_local_structure_to_global (const PerTaskData<dim>& data )
 {
+  ConditionalOStream pcout(std::cout,Threads::this_thread_id()==0);//master_thread); 
+  TimerOutput timer (pcout, TimerOutput::summary,
+		     TimerOutput::wall_times);
+  timer.enter_subsection ("Copy");
   if (data.assemble_matrix)
     {
       structure_constraints.distribute_local_to_global (data.cell_matrix, data.cell_rhs,
@@ -307,6 +325,7 @@ void FSIProblem<dim>::copy_local_structure_to_global (const PerTaskData<dim>& da
 							data.dof_indices,
 							*data.global_rhs);
     }
+  timer.leave_subsection ();
   //     structure_constraints.distribute_local_to_global(
   //     for (unsigned int i=0; i<data.dofs_per_cell; ++i)
   // 	for (unsigned int j=0; j<data.dofs_per_cell; ++j)
@@ -390,6 +409,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   StructureStressValues<dim> old_structure_stress_values(physical_properties);
   old_structure_stress_values.set_time(time-time_step);
 
+  master_thread = Threads::this_thread_id();
 
   PerTaskData<dim> per_task_data(structure_fe, structure_matrix, structure_rhs, assemble_matrix);
   Structure_ScratchData<dim> scratch_data(structure_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,

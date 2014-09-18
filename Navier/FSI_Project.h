@@ -170,6 +170,8 @@ class FSIProblem
   std::map<unsigned int, unsigned int> f2n, n2f, f2v, v2f, n2a, a2n, a2v, v2a, a2f, f2a, n2v, v2n, a2f_all, f2a_all;
   std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
   std::vector<SparseDirectUMFPACK > state_solver,  adjoint_solver,  linear_solver;
+
+  unsigned int master_thread;
 };
 
 
