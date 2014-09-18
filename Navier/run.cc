@@ -96,7 +96,7 @@ void FSIProblem<dim>::run ()
 	  // Solve for the state variables
 	  timer.enter_subsection ("Assemble");
 	  assemble_structure(state, true);
-	  assemble_ale(state, true);
+	  //assemble_ale(state, true);
 	  timer.leave_subsection();
 	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
 	  
