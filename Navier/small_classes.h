@@ -1,5 +1,6 @@
 #ifndef SMALL_CLASSES_H
 #define SMALL_CLASSES_H
+#include "data1.h"
 
 using namespace dealii;
 
@@ -118,19 +119,29 @@ struct ScratchData {
 
 template <int dim>
 struct Structure_ScratchData : public ScratchData<dim> {
+  
+  /* Vector<double> old_solution; */
+  /* Vector<double> rhs_for_adjoint; */
+  /* Vector<double> rhs_for_linear; */
   FEFaceValues<dim> fe_face_values;
   unsigned int n_face_q_points;
-  
+
+  StructureStressValues<dim> structure_stress_values;
+  StructureStressValues<dim> old_structure_stress_values;
   Structure_ScratchData ( const FiniteElement<dim> &fe,
 			  const Quadrature<dim> &quadrature,
 			  const UpdateFlags update_flags,
 			  const Quadrature<dim-1> &face_quadrature,
 			  const UpdateFlags face_update_flags,
-			  const unsigned int mode_type_
+			  const unsigned int mode_type_,
+			  StructureStressValues<dim> &structure_stress_values_,
+			  StructureStressValues<dim> &old_structure_stress_values_
 			)
     : ScratchData<dim>(fe, quadrature, update_flags, mode_type_),
     fe_face_values (fe, face_quadrature, face_update_flags),
-    n_face_q_points(face_quadrature.size())
+    n_face_q_points(face_quadrature.size()),
+    structure_stress_values(structure_stress_values_),
+    old_structure_stress_values(old_structure_stress_values_)
     {}
 
   Structure_ScratchData (const Structure_ScratchData &scratch)
@@ -139,7 +150,9 @@ struct Structure_ScratchData : public ScratchData<dim> {
   		   scratch.fe_face_values.get_quadrature(),
   		   scratch.fe_face_values.get_update_flags()
   		   ),
-    n_face_q_points(scratch.n_face_q_points)
+    n_face_q_points(scratch.n_face_q_points),
+    structure_stress_values(scratch.structure_stress_values),
+    old_structure_stress_values(scratch.old_structure_stress_values)
     {}
 };
 
