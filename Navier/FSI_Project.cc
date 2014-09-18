@@ -3,7 +3,7 @@
 int main (int argc, char *argv[])
 {
   const unsigned int dim = 2;
-
+  //Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv,12);
   if (argc != 2)
     {
       std::cerr << "  usage: ./FSIProblem <parameter-file.prm>" << std::endl;
