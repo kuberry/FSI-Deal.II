@@ -8,9 +8,11 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 						       PerTaskData<dim>& data
 							     )
 {
-  //ConditionalOStream pcout(std::cout,Threads::this_thread_id()==0);//master_thread); 
+  unsigned int state=0, adjoint=1, linear=2;
+
+  //ConditionalOStream pcout(std::cout,Threads::this_thread_id()==scratch.master_thread); 
   //TimerOutput timer (pcout, TimerOutput::summary,
-		     // TimerOutput::wall_times); 
+  //		     TimerOutput::wall_times); 
   //timer.enter_subsection ("Beginning");
 
   const FEValuesExtractors::Vector displacements (0);
@@ -42,8 +44,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   if (data.assemble_matrix)
     {
       //timer.enter_subsection ("Get Data");
-      scratch.fe_values.get_function_values (old_solution.block(1), old_solution_values);
-      scratch.fe_values[displacements].get_function_gradients(old_solution.block(1),grad_n);
+      scratch.fe_values.get_function_values (scratch.old_solution, old_solution_values);
+      scratch.fe_values[displacements].get_function_gradients(scratch.old_solution,grad_n);
       //timer.leave_subsection ();
       for (unsigned int q_point=0; q_point<scratch.n_q_points;
 	   ++q_point)
@@ -60,33 +62,33 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	  for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 	    {
 	      const unsigned int
-		component_i = structure_fe.system_to_component_index(i).first;
+		component_i = scratch.first_system_to_component_index(i);
 	      for (unsigned int j=0; j<data.dofs_per_cell; ++j)
 		{
 		  const unsigned int
-		    component_j = structure_fe.system_to_component_index(j).first;
+		    component_j = scratch.first_system_to_component_index(j);
 
-		  if ((Mode)(scratch.mode_type)==state || (Mode)(scratch.mode_type)==linear)
+		  if ((scratch.mode_type)==state || (scratch.mode_type)==linear)
 		    {
 
 		      if (component_i<dim)
 			{
 			  if (component_j<dim)
 			    {
-			      data.cell_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
-							  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
+			      data.cell_matrix(i,j)+=(.5*	( 2*scratch.physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
+							  + scratch.physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
 				*scratch.fe_values.JxW(q_point);
 			    }
 			  else
 			    {
-			      data.cell_matrix(i,j)+=physical_properties.rho_s/time_step*phi_n[i]*phi_v[j]*scratch.fe_values.JxW(q_point);
+			      data.cell_matrix(i,j)+=scratch.physical_properties.rho_s/scratch.time_step*phi_n[i]*phi_v[j]*scratch.fe_values.JxW(q_point);
 			    }
 			}
 		      else
 			{
 			  if (component_j<dim)
 			    {
-			      data.cell_matrix(i,j)+=(-1./time_step*phi_v[i]*phi_n[j])
+			      data.cell_matrix(i,j)+=(-1./scratch.time_step*phi_v[i]*phi_n[j])
 				*scratch.fe_values.JxW(q_point);
 			    }
 			  else
@@ -102,20 +104,20 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			{
 			  if (component_j<dim)
 			    {
-			      data.cell_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
-							  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
+			      data.cell_matrix(i,j)+=(.5*	( 2*scratch.physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
+							  + scratch.physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
 				*scratch.fe_values.JxW(q_point);
 			    }
 			  else
 			    {
-			      data.cell_matrix(i,j)+=-1./time_step*phi_n[i]*phi_v[j]*scratch.fe_values.JxW(q_point);
+			      data.cell_matrix(i,j)+=-1./scratch.time_step*phi_n[i]*phi_v[j]*scratch.fe_values.JxW(q_point);
 			    }
 			}
 		      else
 			{
 			  if (component_j<dim)
 			    {
-			      data.cell_matrix(i,j)+=physical_properties.rho_s/time_step*phi_v[i]*phi_n[j]*scratch.fe_values.JxW(q_point);
+			      data.cell_matrix(i,j)+=scratch.physical_properties.rho_s/scratch.time_step*phi_v[i]*phi_n[j]*scratch.fe_values.JxW(q_point);
 			    }
 			  else
 			    {
@@ -127,12 +129,12 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		}
 	    }
 	  
-	  if ((Mode)(scratch.mode_type)==state)
+	  if ((scratch.mode_type)==state)
 	    {
 	      //timer.enter_subsection ("Rhs Assembly");
 	      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 		{
-		  const unsigned int component_i = structure_fe.system_to_component_index(i).first;
+		  const unsigned int component_i = scratch.first_system_to_component_index(i);
 		  Tensor<1,dim> old_n;
 		  Tensor<1,dim> old_v;
 		  for (unsigned int d=0; d<dim; ++d)
@@ -145,16 +147,16 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		  const Tensor<1,dim> phi_i_eta_dot  	= scratch.fe_values[velocities].value (i, q_point);
 		  if (component_i<dim)
 		    {
-		      data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
-				       +0.5*(-2*physical_properties.mu*(scalar_product(grad_n[q_point],symgrad_phi_i_eta))
-					     -physical_properties.lambda*((grad_n[q_point][0][0]+grad_n[q_point][1][1])*div_phi_i_eta))
+		      data.cell_rhs(i) += (scratch.physical_properties.rho_s/scratch.time_step *phi_i_eta*old_v
+				       +0.5*(-2*scratch.physical_properties.mu*(scalar_product(grad_n[q_point],symgrad_phi_i_eta))
+					     -scratch.physical_properties.lambda*((grad_n[q_point][0][0]+grad_n[q_point][1][1])*div_phi_i_eta))
 				       )
 			* scratch.fe_values.JxW(q_point);
 		    }
 		  else
 		    {
 		      data.cell_rhs(i) += (-0.5*phi_i_eta_dot*old_v
-				       -1./time_step*phi_i_eta_dot*old_n
+				       -1./scratch.time_step*phi_i_eta_dot*old_n
 				       )
 			* scratch.fe_values.JxW(q_point);
 		    }
@@ -173,7 +175,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	{
 	  if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
 	    {
-	      if ((Mode)(scratch.mode_type)==state)
+	      if ((scratch.mode_type)==state)
 		{
 		  scratch.fe_face_values.reinit (cell, face_no);
 		  // GET SIDE ID!
@@ -188,7 +190,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			new_stresses[1][0]=stress_values[1][0];
 			new_stresses[1][1]=stress_values[1][1];
 			new_stresses[0][1]=stress_values[0][1];
-			data.cell_rhs(i) += structure_theta*(scratch.fe_face_values[displacements].value (i, q)*
+			data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
 							new_stresses*scratch.fe_face_values.normal_vector(q) *
 							scratch.fe_face_values.JxW(q));
 		      }
@@ -203,7 +205,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			new_stresses[1][0]=stress_values[1][0];
 			new_stresses[1][1]=stress_values[1][1];
 			new_stresses[0][1]=stress_values[0][1];
-			data.cell_rhs(i) += (1-structure_theta)*(scratch.fe_face_values[displacements].value (i, q)*
+			data.cell_rhs(i) += (1-.5)*(scratch.fe_face_values[displacements].value (i, q)*
 							     new_stresses*scratch.fe_face_values.normal_vector(q) *
 							     scratch.fe_face_values.JxW(q));
 		      }
@@ -211,10 +213,10 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	    }
 	  else if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 	    {
-	      if ((Mode)(scratch.mode_type)==state)
+	      if ((scratch.mode_type)==state)
 		{
 		  scratch.fe_face_values.reinit (cell, face_no);
-		  scratch.fe_face_values.get_function_values (stress.block(1), g_stress_values);
+		  scratch.fe_face_values.get_function_values (scratch.stress, g_stress_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
 		      Tensor<1,dim> g_stress;
@@ -222,11 +224,11 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += structure_theta*(scratch.fe_face_values[displacements].value (i, q)*
+			  data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
 							       (-g_stress) * scratch.fe_face_values.JxW(q));
 			}
 		    }
-		  scratch.fe_face_values.get_function_values (old_stress.block(1), g_stress_values);
+		  scratch.fe_face_values.get_function_values (scratch.old_stress, g_stress_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
 		      Tensor<1,dim> g_stress;
@@ -234,37 +236,37 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += (1-structure_theta)*(scratch.fe_face_values[displacements].value (i, q)*
+			  data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
 								   (-g_stress) * scratch.fe_face_values.JxW(q));
 			}
 		    }
 		}
-	      else if ((Mode)(scratch.mode_type)==adjoint)
+	      else if ((scratch.mode_type)==adjoint)
 		{
 		  scratch.fe_face_values.reinit (cell, face_no);
-		  scratch.fe_face_values.get_function_values (rhs_for_adjoint.block(1), adjoint_rhs_values);
+		  scratch.fe_face_values.get_function_values (scratch.rhs_for_adjoint, adjoint_rhs_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
 		      Tensor<1,dim> r;
-		      if (fem_properties.adjoint_type==1)
+		      if (scratch.fem_properties.adjoint_type==1)
 			{
 			  for (unsigned int d=0; d<dim; ++d)
 			    r[d] = adjoint_rhs_values[q](d);
 			  for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 			    {
-			      data.cell_rhs(i) += structure_theta*(scratch.fe_face_values[displacements].value (i, q)*
+			      data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
 								   r * scratch.fe_face_values.JxW(q));
 			    }
 			}
 		      else
 			{
-			  if (fem_properties.optimization_method.compare("Gradient")==0)
+			  if (scratch.fem_properties.optimization_method.compare("Gradient")==0)
 			    {
 			      for (unsigned int d=0; d<dim; ++d)
 				r[d] = adjoint_rhs_values[q](d+dim);
 			      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 				{
-				  data.cell_rhs(i) += structure_theta*(scratch.fe_face_values[velocities].value (i, q)*
+				  data.cell_rhs(i) += .5*(scratch.fe_face_values[velocities].value (i, q)*
 								       r * scratch.fe_face_values.JxW(q));
 				}
 			    }
@@ -274,7 +276,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 				r[d] = adjoint_rhs_values[q](d+dim);
 			      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 				{
-				  data.cell_rhs(i) += structure_theta*(scratch.fe_face_values[velocities].value (i, q)*
+				  data.cell_rhs(i) += .5*(scratch.fe_face_values[velocities].value (i, q)*
 								       r * scratch.fe_face_values.JxW(q));
 				}
 			    }
@@ -282,10 +284,10 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 
 		    }
 		}
-	      else // (Mode)(scratch.mode_type)==linear
+	      else // (scratch.mode_type)==linear
 		{
 		  scratch.fe_face_values.reinit (cell, face_no);
-		  scratch.fe_face_values.get_function_values (rhs_for_linear.block(1), linear_rhs_values);
+		  scratch.fe_face_values.get_function_values (scratch.rhs_for_linear, linear_rhs_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
 		      Tensor<1,dim> h;
@@ -293,7 +295,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			h[d] = linear_rhs_values[q](d);
 		      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += structure_theta*(scratch.fe_face_values[displacements].value (i, q)*
+			  data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
 							       h * scratch.fe_face_values.JxW(q));
 			}
 		    }
@@ -316,24 +318,29 @@ void FSIProblem<dim>::copy_local_structure_to_global (const PerTaskData<dim>& da
   if (data.assemble_matrix)
     {
       structure_constraints.distribute_local_to_global (data.cell_matrix, data.cell_rhs,
-							data.dof_indices,
-							*data.global_matrix, *data.global_rhs);
+  							data.dof_indices,
+  							*data.global_matrix, *data.global_rhs);
     }
   else
     {
       structure_constraints.distribute_local_to_global (data.cell_rhs,
-							data.dof_indices,
-							*data.global_rhs);
+  							data.dof_indices,
+  							*data.global_rhs);
     }
-  //timer.leave_subsection ();
-  //     structure_constraints.distribute_local_to_global(
+  //timer.leave_subsection (); 
+  // structure_constraints.distribute_local_to_global(
+  // if (data.assemble_matrix)
+  //   {
   //     for (unsigned int i=0; i<data.dofs_per_cell; ++i)
   // 	for (unsigned int j=0; j<data.dofs_per_cell; ++j)
   // 	  {
   // 	    data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
   // 	  }
   //   }
-  //     else
+  // else
+  //   {
+  //     data.global_rhs->add (data.dof_indices,data.cell_rhs);
+  //   }
 
   // data.global_rhs->add (data.dof_indices, data.cell_rhs);
 }
@@ -414,8 +421,9 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   PerTaskData<dim> per_task_data(structure_fe, structure_matrix, structure_rhs, assemble_matrix);
   Structure_ScratchData<dim> scratch_data(structure_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
 					  face_quadrature_formula, update_values | update_normal_vectors | update_quadrature_points  | update_JxW_values,
-					  (unsigned int)enum_,  structure_stress_values, old_structure_stress_values);
-
+					  (unsigned int)enum_,  structure_stress_values, old_structure_stress_values, physical_properties, fem_properties, time_step,
+					  old_solution.block(1), stress.block(1), old_stress.block(1), rhs_for_adjoint.block(1), rhs_for_linear.block(1), master_thread);
+ 
   WorkStream::run (structure_dof_handler.begin_active(),
   		   structure_dof_handler.end(),
   		   *this,
@@ -423,6 +431,8 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   		   &FSIProblem<dim>::copy_local_structure_to_global,
   		   scratch_data,
   		   per_task_data);
+
+  
 }
 
 template void FSIProblem<2>::assemble_structure_matrix_on_one_cell (const typename DoFHandler<2>::active_cell_iterator& cell,

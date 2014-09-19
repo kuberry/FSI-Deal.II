@@ -1,6 +1,7 @@
 #ifndef SMALL_CLASSES_H
 #define SMALL_CLASSES_H
 #include "data1.h"
+#include "parameters.h"
 
 using namespace dealii;
 
@@ -119,15 +120,27 @@ struct ScratchData {
 
 template <int dim>
 struct Structure_ScratchData : public ScratchData<dim> {
-  
-  /* Vector<double> old_solution; */
-  /* Vector<double> rhs_for_adjoint; */
-  /* Vector<double> rhs_for_linear; */
+ 
   FEFaceValues<dim> fe_face_values;
   unsigned int n_face_q_points;
 
+  Vector<double> first_system_to_component_index;
+
   StructureStressValues<dim> structure_stress_values;
   StructureStressValues<dim> old_structure_stress_values;
+
+  Parameters::PhysicalProperties physical_properties;
+  Parameters::SimulationProperties fem_properties;
+  double time_step;
+
+  Vector<double> old_solution; 
+  Vector<double> stress; 
+  Vector<double> old_stress; 
+  Vector<double> rhs_for_adjoint; 
+  Vector<double> rhs_for_linear; 
+
+  unsigned int master_thread;
+
   Structure_ScratchData ( const FiniteElement<dim> &fe,
 			  const Quadrature<dim> &quadrature,
 			  const UpdateFlags update_flags,
@@ -135,14 +148,39 @@ struct Structure_ScratchData : public ScratchData<dim> {
 			  const UpdateFlags face_update_flags,
 			  const unsigned int mode_type_,
 			  StructureStressValues<dim> &structure_stress_values_,
-			  StructureStressValues<dim> &old_structure_stress_values_
+			  StructureStressValues<dim> &old_structure_stress_values_,
+			  const Parameters::PhysicalProperties physical_properties_,
+			  const Parameters::SimulationProperties fem_properties_,
+			  const double time_step_,
+			  const Vector<double> old_solution_,
+			  const Vector<double> stress_,
+			  const Vector<double> old_stress_,
+			  const Vector<double> rhs_for_adjoint_,
+			  const Vector<double> rhs_for_linear_,
+			  const unsigned int master_thread_
 			)
     : ScratchData<dim>(fe, quadrature, update_flags, mode_type_),
     fe_face_values (fe, face_quadrature, face_update_flags),
     n_face_q_points(face_quadrature.size()),
+    first_system_to_component_index(fe.dofs_per_cell),
     structure_stress_values(structure_stress_values_),
-    old_structure_stress_values(old_structure_stress_values_)
-    {}
+    old_structure_stress_values(old_structure_stress_values_),
+    physical_properties(physical_properties_),
+    fem_properties(fem_properties_),
+    time_step(time_step_),
+    old_solution(old_solution_),
+    stress(stress_),
+    old_stress(old_stress_),
+    rhs_for_adjoint(rhs_for_adjoint_),
+    rhs_for_linear(rhs_for_linear_),
+    master_thread(master_thread_)
+    {
+      
+      for (unsigned int i=0; i<fe.dofs_per_cell; ++i)
+	{
+	  first_system_to_component_index(i) = fe.system_to_component_index(i).first;
+	}
+    }
 
   Structure_ScratchData (const Structure_ScratchData &scratch)
     : ScratchData<dim>(scratch),
@@ -151,8 +189,18 @@ struct Structure_ScratchData : public ScratchData<dim> {
   		   scratch.fe_face_values.get_update_flags()
   		   ),
     n_face_q_points(scratch.n_face_q_points),
+    first_system_to_component_index(scratch.first_system_to_component_index),
     structure_stress_values(scratch.structure_stress_values),
-    old_structure_stress_values(scratch.old_structure_stress_values)
+    old_structure_stress_values(scratch.old_structure_stress_values),
+    physical_properties(scratch.physical_properties),
+    fem_properties(scratch.fem_properties),
+    time_step(scratch.time_step),
+    old_solution(scratch.old_solution),
+    stress(scratch.stress),
+    old_stress(scratch.old_stress),
+    rhs_for_adjoint(scratch.rhs_for_adjoint),
+    rhs_for_linear(scratch.rhs_for_linear),
+    master_thread(scratch.master_thread)
     {}
 };
 
