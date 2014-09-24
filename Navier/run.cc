@@ -101,52 +101,52 @@ void FSIProblem<dim>::run ()
 	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
 	  
 
-	  // for (unsigned int i=1; i<2; ++i) // no ale solve currently
-	  //   {
-	  //     dirichlet_boundaries((System)i,state);
-	  //     timer.enter_subsection ("State Solve"); 
-	  //     if (timestep_number==1)
-	  //     	{
-	  //     	  state_solver[i].initialize(system_matrix.block(i,i));
-	  //     	}
-	  //     // solver uses vmult which doesn't require factorization
-	  //     solve(state_solver[i],i,state);
-	  //     timer.leave_subsection ();
-	  //   }
+	  for (unsigned int i=1; i<2; ++i) // no ale solve currently
+	    {
+	      dirichlet_boundaries((System)i,state);
+	      timer.enter_subsection ("State Solve"); 
+	      if (timestep_number==1)
+	      	{
+	      	  state_solver[i].initialize(system_matrix.block(i,i));
+	      	}
+	      // solver uses vmult which doesn't require factorization
+	      solve(state_solver[i],i,state);
+	      timer.leave_subsection ();
+	    }
 
-	  // solution_star=1;
+	  solution_star=1;
 
-	  // while (solution_star.l2_norm()>1e-8)
-	  //   {
-	  //     solution_star=solution;
-	  //     timer.enter_subsection ("Assemble");
-	  //     assemble_fluid(state, true);
-	  //     timer.leave_subsection();
-	  //     dirichlet_boundaries((System)0,state);
-	  //     timer.enter_subsection ("State Solve"); 
-	  //     if (timestep_number==1)
-	  //     	{
-	  //     	  state_solver[0].initialize(system_matrix.block(0,0));
-	  //     	}
-	  //     state_solver[0].factorize(system_matrix.block(0,0));
-	  //     solve(state_solver[0],0,state);
-	  //     timer.leave_subsection ();
-	  //     solution_star-=solution;
-	  //     ++total_solves;
-	  //     if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
-	  //     	{
-	  //     	  break;
-	  //     	}
-	  //     else
-	  //     	{
-	  //     	  std::cout << solution_star.l2_norm() << std::endl;
-	  //     	}
-	  //   }
-	  // solution_star = solution; 
-	  // build_adjoint_rhs();
+	  while (solution_star.l2_norm()>1e-8)
+	    {
+	      solution_star=solution;
+	      timer.enter_subsection ("Assemble");
+	      assemble_fluid(state, true);
+	      timer.leave_subsection();
+	      dirichlet_boundaries((System)0,state);
+	      timer.enter_subsection ("State Solve"); 
+	      if (timestep_number==1)
+	      	{
+	      	  state_solver[0].initialize(system_matrix.block(0,0));
+	      	}
+	      state_solver[0].factorize(system_matrix.block(0,0));
+	      solve(state_solver[0],0,state);
+	      timer.leave_subsection ();
+	      solution_star-=solution;
+	      ++total_solves;
+	      if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
+	      	{
+	      	  break;
+	      	}
+	      else
+	      	{
+	      	  std::cout << solution_star.l2_norm() << std::endl;
+	      	}
+	    }
+	  solution_star = solution; 
+	  build_adjoint_rhs();
 
-	  // velocity_jump_old = velocity_jump;
-	  // velocity_jump=interface_error();
+	  velocity_jump_old = velocity_jump;
+	  velocity_jump=interface_error();
 
 	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
 	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < 1e-10) break; //pow(time_step,4)) break;

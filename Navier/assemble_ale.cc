@@ -8,44 +8,44 @@ void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler
 						       PerTaskData<dim>& data
 				      )
 {
-  // // rhs_function.value_list (scratch.fe_values.get_quadrature_points,
-  // // 			   scratch.rhs_values);
-  const FEValuesExtractors::Vector displacements (0);
-  std::vector<Tensor<2,dim> > 	grad_phi_n (data.dofs_per_cell);
-  scratch.fe_values.reinit(cell);
+  // // // rhs_function.value_list (scratch.fe_values.get_quadrature_points,
+  // // // 			   scratch.rhs_values);
+  // const FEValuesExtractors::Vector displacements (0);
+  // std::vector<Tensor<2,dim> > 	grad_phi_n (ale_fe.dofs_per_cell);
+  // scratch.fe_values.reinit(cell);
 
-  data.cell_matrix=0;
+  // data.cell_matrix=0;
 
-  for (unsigned int q_point=0; q_point<scratch.n_q_points;
-       ++q_point)
-    {
-      for (unsigned int k=0; k<data.dofs_per_cell; ++k)
-  	{
-  	  grad_phi_n[k] = scratch.fe_values[displacements].gradient(k, q_point);
-  	}
-      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
-  	{
-  	  for (unsigned int j=0; j<data.dofs_per_cell; ++j)
-	    {
-  	      data.cell_matrix(i,j)+=scalar_product(grad_phi_n[i],grad_phi_n[j])*scratch.fe_values.JxW(q_point);
-  	    }
-  	}
-    }
-  cell->get_dof_indices (data.dof_indices);
+  // for (unsigned int q_point=0; q_point<scratch.n_q_points;
+  //      ++q_point)
+  //   {
+  //     for (unsigned int k=0; k<ale_fe.dofs_per_cell; ++k)
+  // 	{
+  // 	  grad_phi_n[k] = scratch.fe_values[displacements].gradient(k, q_point);
+  // 	}
+  //     for (unsigned int i=0; i<ale_fe.dofs_per_cell; ++i)
+  // 	{
+  // 	  for (unsigned int j=0; j<ale_fe.dofs_per_cell; ++j)
+  // 	    {
+  // 	      data.cell_matrix(i,j)+=scalar_product(grad_phi_n[i],grad_phi_n[j])*scratch.fe_values.JxW(q_point);
+  // 	    }
+  // 	}
+  //   }
+  // cell->get_dof_indices (data.dof_indices);
 }
 
 template <int dim>
 void FSIProblem<dim>::copy_local_ale_to_global (const PerTaskData<dim>& data )
 {
-  if (data.assemble_matrix)
-    {
-      for (unsigned int i=0; i<data.dofs_per_cell; ++i)
-	for (unsigned int j=0; j<data.dofs_per_cell; ++j)
-	  {
-	    data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
-	  }
-    }
-  data.global_rhs->add (data.dof_indices, data.cell_rhs);
+  // if (data.assemble_matrix)
+  //   {
+  //     for (unsigned int i=0; i<ale_fe.dofs_per_cell; ++i)
+  // 	for (unsigned int j=0; j<ale_fe.dofs_per_cell; ++j)
+  // 	  {
+  // 	    data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
+  // 	  }
+  //   }
+  // data.global_rhs->add (data.dof_indices, data.cell_rhs);
 }
 
 template <int dim>
