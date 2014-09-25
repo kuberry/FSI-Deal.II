@@ -83,12 +83,12 @@ struct PerTaskData {
 /* }; */
 
 template <int dim>
-struct ScratchData {
+struct BaseScratchData {
   unsigned int mode_type;
   FEValues<dim> fe_values;
   unsigned int n_q_points;
 
-  ScratchData (const FiniteElement<dim> &fe,
+  BaseScratchData (const FiniteElement<dim> &fe,
 	       const Quadrature<dim> &quadrature,
 	       const UpdateFlags update_flags,
 	       const unsigned int mode_type_
@@ -99,7 +99,7 @@ struct ScratchData {
     n_q_points (quadrature.size())
   {}
 
-  ScratchData (const ScratchData &scratch)
+  BaseScratchData (const BaseScratchData &scratch)
   :
   mode_type(scratch.mode_type),
     fe_values (scratch.fe_values.get_fe(),
@@ -113,23 +113,23 @@ struct ScratchData {
 
 
 template <int dim>
-struct Structure_ScratchData : public ScratchData<dim> {
+struct FullScratchData : public BaseScratchData<dim> {
   FEFaceValues<dim> fe_face_values;
   unsigned int n_face_q_points;
-  Structure_ScratchData ( const FiniteElement<dim> &fe,
+  FullScratchData ( const FiniteElement<dim> &fe,
 			  const Quadrature<dim> &quadrature,
 			  const UpdateFlags update_flags,
 			  const Quadrature<dim-1> &face_quadrature,
 			  const UpdateFlags face_update_flags,
 			  const unsigned int mode_type_
 			  )
-    : ScratchData<dim>(fe, quadrature, update_flags, mode_type_),
+    : BaseScratchData<dim>(fe, quadrature, update_flags, mode_type_),
     fe_face_values (fe, face_quadrature, face_update_flags),
     n_face_q_points(face_quadrature.size())
       {}
       
-  Structure_ScratchData (const Structure_ScratchData &scratch)
-    : ScratchData<dim>(scratch),
+  FullScratchData (const FullScratchData &scratch)
+    : BaseScratchData<dim>(scratch),
     fe_face_values(scratch.fe_face_values.get_fe(),
   		   scratch.fe_face_values.get_quadrature(),
   		   scratch.fe_face_values.get_update_flags()

@@ -1,5 +1,6 @@
 #include "FSI_Project.h"
 #include "small_classes.h"
+// this function is fast, no need to parallelize
 
 template <int dim>
 void FSIProblem<dim>::build_dof_mapping()

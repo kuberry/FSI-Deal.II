@@ -4,7 +4,7 @@
 
 template <int dim>
 void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-						       ScratchData<dim>& scratch,
+						       BaseScratchData<dim>& scratch,
 						       PerTaskData<dim>& data
 				      )
 {
@@ -81,7 +81,7 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
 			   update_quadrature_points | update_JxW_values);
 
   PerTaskData<dim> per_task_data(ale_fe, ale_matrix, ale_rhs, assemble_matrix);
-  ScratchData<dim> scratch_data(ale_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
+  BaseScratchData<dim> scratch_data(ale_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
 				(unsigned int)enum_);
 
   WorkStream::run (ale_dof_handler.begin_active(),
@@ -96,7 +96,7 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
 
 
 template void FSIProblem<2>::assemble_ale_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator &cell,
-							      ScratchData<2> &scratch,
+							      BaseScratchData<2> &scratch,
 							      PerTaskData<2> &data );
 
 template void FSIProblem<2>::copy_local_ale_to_global (const PerTaskData<2> &data);

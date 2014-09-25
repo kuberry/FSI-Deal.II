@@ -97,17 +97,23 @@ class FSIProblem
   };
 
   void assemble_fluid (Mode enum_, bool assemble_matrix);
+  void assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
+							     FullScratchData<dim>& scratch,
+							     PerTaskData<dim>& data );
+  void copy_local_fluid_to_global (const PerTaskData<dim> &data);
+
   void assemble_structure(Mode enum_, bool assemble_matrix);
+  void assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
+							     FullScratchData<dim>& scratch,
+							     PerTaskData<dim>& data );
+  void copy_local_structure_to_global (const PerTaskData<dim> &data);
+
   void assemble_ale(Mode enum_, bool assemble_matrix);
   void assemble_ale_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator &cell,
-					ScratchData<dim> &scratch,
+					BaseScratchData<dim> &scratch,
 					PerTaskData<dim> &data);
-  void assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-							     Structure_ScratchData<dim>& scratch,
-							     PerTaskData<dim>& data );
-
   void copy_local_ale_to_global (const PerTaskData<dim> &data);
-  void copy_local_structure_to_global (const PerTaskData<dim> &data);
+
   void build_adjoint_rhs();
   double interface_error();
   double interface_norm(Vector<double>   &values);

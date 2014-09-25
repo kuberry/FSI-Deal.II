@@ -4,9 +4,8 @@
 
 template <int dim>
 void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-						       Structure_ScratchData<dim>& scratch,
-						       PerTaskData<dim>& data
-							     )
+						       FullScratchData<dim>& scratch,
+						       PerTaskData<dim>& data )
 {
   unsigned int state=0, adjoint=1, linear=2;
 
@@ -20,7 +19,6 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   structure_stress_values.set_time(time);
   StructureStressValues<dim> old_structure_stress_values(physical_properties);
   old_structure_stress_values.set_time(time-time_step);
-
 
   const FEValuesExtractors::Vector displacements (0);
   const FEValuesExtractors::Vector velocities (dim);
@@ -36,13 +34,12 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   std::vector<SymmetricTensor<2,dim> > 	symgrad_phi_n (structure_fe.dofs_per_cell);
   std::vector<double>                  	div_phi_n   (structure_fe.dofs_per_cell);
   std::vector<Tensor<1,dim> >           phi_v       (structure_fe.dofs_per_cell);
-
   std::vector<Tensor<2,dim> > 	grad_phi_n (structure_fe.dofs_per_cell);
-  scratch.fe_values.reinit(cell);
   
   std::vector<Tensor<1,dim> > grad_known_stress_now (scratch.n_face_q_points,Tensor<1,dim>(2*dim));
   std::vector<Tensor<1,dim> > grad_known_stress_old (scratch.n_face_q_points,Tensor<1,dim>(2*dim));
 
+  scratch.fe_values.reinit(cell);
   data.cell_matrix=0;
   data.cell_rhs=0;
   
@@ -334,22 +331,6 @@ void FSIProblem<dim>::copy_local_structure_to_global (const PerTaskData<dim>& da
   							data.dof_indices,
   							*data.global_rhs);
     }
-  //timer.leave_subsection (); 
-  // structure_constraints.distribute_local_to_global(
-  // if (data.assemble_matrix)
-  //   {
-  //     for (unsigned int i=0; i<data.dofs_per_cell; ++i)
-  // 	for (unsigned int j=0; j<data.dofs_per_cell; ++j)
-  // 	  {
-  // 	    data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
-  // 	  }
-  //   }
-  // else
-  //   {
-  //     data.global_rhs->add (data.dof_indices,data.cell_rhs);
-  //   }
-
-  // data.global_rhs->add (data.dof_indices, data.cell_rhs);
 }
 
 
@@ -422,7 +403,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   master_thread = Threads::this_thread_id();
 
   PerTaskData<dim> per_task_data(structure_fe, structure_matrix, structure_rhs, assemble_matrix);
-  Structure_ScratchData<dim> scratch_data(structure_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
+  FullScratchData<dim> scratch_data(structure_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
 					  face_quadrature_formula, update_values | update_normal_vectors | update_quadrature_points  | update_JxW_values,
 					  (unsigned int)enum_);
  
@@ -438,7 +419,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
 }
 
 template void FSIProblem<2>::assemble_structure_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
-							     Structure_ScratchData<2>& scratch,
+							     FullScratchData<2>& scratch,
 							     PerTaskData<2>& data );
 
 template void FSIProblem<2>::copy_local_structure_to_global (const PerTaskData<2> &data);
