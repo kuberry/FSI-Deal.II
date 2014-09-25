@@ -15,7 +15,7 @@ simulation_name = 'analytical';
 time_order = 1;
 polynomial_order = 2;
 
-loops = 4
+loops = 8
 
 init_space_mult=4;
 init_time_mult=5;
@@ -82,7 +82,7 @@ for i in range(loops):
         # assert ((n_space_steps % 4)==0),'only multiples of 4 are allowed for space when using the analytical solution.'
     dh = float(1./n_space_steps);
     #n_time_steps = int(math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
-    n_time_steps = int(math.ceil(pow(n_space_steps,1.0))); #math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
+    n_time_steps = int(math.ceil(pow(n_space_steps,1.5))); #math.ceil(float(final_time)*math.ceil(math.sqrt(pow(n_space_steps,polynomial_order+1)))));
     dt = float(1./n_time_steps);
     print dt
     # READ IN DEFAULT.PRM AND REPLACE TIME STEPS LINE 
