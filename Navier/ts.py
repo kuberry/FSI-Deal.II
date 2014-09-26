@@ -95,8 +95,8 @@ for i in range(loops):
             if success:
                 lines[key] = 'set number of time steps  = ' + str(n_time_steps)
             success = re.search("jump tolerance", line)
-            if success:
-                lines[key] = 'set jump tolerance  = ' + str(math.sqrt(pow(dt,1.5)*pow(dh,polynomial_order+1)*optimization_times_time_error))
+            # if success:
+            #    lines[key] = 'set jump tolerance  = ' + str(math.sqrt(pow(dt,1.5)*pow(dh,polynomial_order+1)*optimization_times_time_error))
             success = re.search("nx", line)
             if success:
                 objMatch=re.match( r'(.* = )(.*)', line, re.M|re.I)

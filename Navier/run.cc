@@ -158,7 +158,7 @@ void FSIProblem<dim>::run ()
 	  velocity_jump=interface_error();
 
 	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < 1e-10) break; //pow(time_step,4)) break;
+	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break; //pow(time_step,4)) break;
 
 	  if (fem_properties.optimization_method.compare("Gradient")==0)
 	    {

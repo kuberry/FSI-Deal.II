@@ -65,6 +65,7 @@ namespace Parameters
   struct PhysicalProperties
   {
     // Problem Parameters
+    int                 simulation_type;
     double		viscosity;
     double		lambda;
     double		mu;
@@ -122,6 +123,8 @@ namespace Parameters
 	  			  "# of vertical edges of the structure.");
 
 	  // Problem Parameters
+	  prm.declare_entry("simulation type", "0", Patterns::Integer(0),
+	  			  "0 for analytic solution for gradient paper. 1 for bloodflow problem from SINUM paper.");
 	  prm.declare_entry("viscosity", "1.0", Patterns::Double(0),
 	  			  "viscosity of the fluid.");
 	  prm.declare_entry("lambda", "1.0", Patterns::Double(0),

@@ -76,7 +76,8 @@ class FSIProblem
   {
     Dirichlet,
     Neumann,
-    Interface
+    Interface,
+    DoNothing
   };
   enum System
   {
@@ -243,6 +244,7 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   physical_properties.move_domain	= prm_.get_bool("move domain");
 
   // Problem Parameters
+  physical_properties.simulation_type   = prm_.get_integer("simulation type");
   physical_properties.viscosity		= prm_.get_double("viscosity");
   physical_properties.lambda		= prm_.get_double("lambda");
   physical_properties.mu		= prm_.get_double("mu");

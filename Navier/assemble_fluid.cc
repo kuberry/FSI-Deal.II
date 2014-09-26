@@ -282,7 +282,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
     {
       if (cell->at_boundary(face_no))
 	{
-	  if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
+	  if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann || fluid_boundaries[cell->face(face_no)->boundary_indicator()]==DoNothing)
 	    {
 	      if (scratch.mode_type==state)
 		{
@@ -297,15 +297,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			{
 			  fluid_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
 							      stress_values);
-			  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
-								      u_true_side_values);
-			  Tensor<1,dim> u_old_old_side, u_old_side, u_star_side, u_true_side;
+			  Tensor<1,dim> u_old_old_side, u_old_side, u_star_side;
 			  for (unsigned int d=0; d<dim; ++d)
 			    {
 			      u_old_old_side[d] = old_old_solution_side_values[q](d);
 			      u_old_side[d] = old_solution_side_values[q](d);
 			      u_star_side[d] = u_star_side_values[q](d);
-			      u_true_side[d] = u_true_side_values(d);
 			    }
 			  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			    {
@@ -364,35 +361,66 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			}
 		    }
-		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+		  if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
 		    {
-		      fluid_stress_values.set_time(time);
-		      fluid_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
-							  stress_values);
-		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+		      if (physical_properties.simulation_type == 0)
 			{
-			  Tensor<2,dim> new_stresses;
-			  new_stresses[0][0]=stress_values[0][0];
-			  new_stresses[1][0]=stress_values[1][0];
-			  new_stresses[1][1]=stress_values[1][1];
-			  new_stresses[0][1]=stress_values[0][1];
-			  data.cell_rhs(i) += fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
-						       new_stresses*scratch.fe_face_values.normal_vector(q) *
-						       scratch.fe_face_values.JxW(q));
+			  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+			    {
+			      fluid_stress_values.set_time(time);
+			      fluid_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
+								  stress_values);
+			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+				{
+				  Tensor<2,dim> new_stresses;
+				  new_stresses[0][0]=stress_values[0][0];
+				  new_stresses[1][0]=stress_values[1][0];
+				  new_stresses[1][1]=stress_values[1][1];
+				  new_stresses[0][1]=stress_values[0][1];
+				  data.cell_rhs(i) += fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
+								   new_stresses*scratch.fe_face_values.normal_vector(q) *
+								   scratch.fe_face_values.JxW(q));
+				}
+			      fluid_stress_values.set_time(time-time_step);
+			      fluid_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
+								  stress_values);
+			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+				{
+				  Tensor<2,dim> new_stresses;
+				  new_stresses[0][0]=stress_values[0][0];
+				  new_stresses[1][0]=stress_values[1][0];
+				  new_stresses[1][1]=stress_values[1][1];
+				  new_stresses[0][1]=stress_values[0][1];
+				  data.cell_rhs(i) += (1-fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
+								       new_stresses*scratch.fe_face_values.normal_vector(q) *
+								       scratch.fe_face_values.JxW(q));
+				}
+			    }
 			}
-		      fluid_stress_values.set_time(time-time_step);
-		      fluid_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
-							  stress_values);
-		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+		      else
 			{
-			  Tensor<2,dim> new_stresses;
-			  new_stresses[0][0]=stress_values[0][0];
-			  new_stresses[1][0]=stress_values[1][0];
-			  new_stresses[1][1]=stress_values[1][1];
-			  new_stresses[0][1]=stress_values[0][1];
-			  data.cell_rhs(i) += (1-fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
-							   new_stresses*scratch.fe_face_values.normal_vector(q) *
-							   scratch.fe_face_values.JxW(q));
+			  fluid_boundary_values_function.set_time(time - (1-fluid_theta)*time_step);
+			  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+			    {
+			      Tensor<1,dim> u_true_side;
+			      if (physical_properties.simulation_type!=0) 
+				{
+				  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
+									      u_true_side_values);
+				  for (unsigned int d=0; d<dim; ++d)
+				    {
+				      u_true_side[d] = u_true_side_values(d);
+				    }
+				}
+		      
+			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+				{
+				  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				    *(
+				      u_true_side*scratch.fe_face_values[velocities].value (i, q)
+				      ) * scratch.fe_face_values.JxW(q);
+				}
+			    }
 			}
 		    }
 		}
@@ -409,15 +437,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      scratch.fe_face_values.get_function_values (solution_star.block(0), u_star_side_values);
 		      for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 			{
-			  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
-								      u_true_side_values);
-			  Tensor<1,dim> u_old_old_side, u_old_side, u_star_side, u_true_side;
+			  Tensor<1,dim> u_old_old_side, u_old_side, u_star_side;
 			  for (unsigned int d=0; d<dim; ++d)
 			    {
 			      u_old_old_side[d] = old_old_solution_side_values[q](d);
 			      u_old_side[d] = old_solution_side_values[q](d);
 			      u_star_side[d] = u_star_side_values[q](d);
-			      u_true_side[d] = u_true_side_values(d);
 			    }
 			  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			    {
@@ -548,13 +573,17 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		  scratch.fe_face_values.reinit (cell, face_no);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
-								  u_true_side_values);
 		      Tensor<1,dim> u_true_side;
-		      for (unsigned int d=0; d<dim; ++d)
+		      if (physical_properties.simulation_type==0) // assumes only time there would be nonzero dirichlet bc
 			{
-			  u_true_side[d] = u_true_side_values(d);
+			  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
+								      u_true_side_values);
+			  for (unsigned int d=0; d<dim; ++d)
+			    {
+			      u_true_side[d] = u_true_side_values(d);
+			    }
 			}
+		      
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			{
 			  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 

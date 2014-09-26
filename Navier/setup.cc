@@ -178,44 +178,83 @@ template <int dim>
 void FSIProblem<dim>::setup_system ()
 {
   AssertThrow(dim==2,ExcNotImplemented());
-  Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
-  Point<2> structure_bottom_left(0,fem_properties.fluid_height),
-    structure_top_right(fem_properties.structure_width,fem_properties.fluid_height+fem_properties.structure_height);
-  std::vector<double> x_scales(fem_properties.nx_f,fem_properties.fluid_width/((double)fem_properties.nx_f));
-  std::vector<double> f_y_scales(fem_properties.ny_f,fem_properties.fluid_height/((double)fem_properties.ny_f));
-  std::vector<double> s_y_scales(fem_properties.ny_s,fem_properties.structure_height/((double)fem_properties.ny_s));
+  if (physical_properties.simulation_type == 0) {
+    Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
+    Point<2> structure_bottom_left(0,fem_properties.fluid_height),
+      structure_top_right(fem_properties.structure_width,fem_properties.fluid_height+fem_properties.structure_height);
+    std::vector<double> x_scales(fem_properties.nx_f,fem_properties.fluid_width/((double)fem_properties.nx_f));
+    std::vector<double> f_y_scales(fem_properties.ny_f,fem_properties.fluid_height/((double)fem_properties.ny_f));
+    std::vector<double> s_y_scales(fem_properties.ny_s,fem_properties.structure_height/((double)fem_properties.ny_s));
 
-  std::vector<std::vector<double> > f_scales(2),s_scales(2);
-  f_scales[0]=x_scales;f_scales[1]=f_y_scales;
-  s_scales[0]=x_scales;s_scales[1]=s_y_scales;
-  GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_scales,fluid_bottom_left,fluid_top_right,false);
-  GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_scales,structure_bottom_left,structure_top_right,false);
+    std::vector<std::vector<double> > f_scales(2),s_scales(2);
+    f_scales[0]=x_scales;f_scales[1]=f_y_scales;
+    s_scales[0]=x_scales;s_scales[1]=s_y_scales;
+    GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_scales,fluid_bottom_left,fluid_top_right,false);
+    GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_scales,structure_bottom_left,structure_top_right,false);
 
-  // Structure sits on top of fluid
-  AssertThrow(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
-  AssertThrow(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
+    // Structure sits on top of fluid
+    AssertThrow(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
+    AssertThrow(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
 
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+      }
 
-  for (unsigned int i=0; i<4; ++i)
-    {
-      if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-      else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-      else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
-    }
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+      }
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else if (i==0) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+      }
+  } else if (physical_properties.simulation_type == 1) {
+    Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
+    Point<2> structure_bottom_left(0,fem_properties.fluid_height),
+      structure_top_right(fem_properties.structure_width,fem_properties.fluid_height+fem_properties.structure_height);
+    std::vector<double> x_scales(fem_properties.nx_f,fem_properties.fluid_width/((double)fem_properties.nx_f));
+    std::vector<double> f_y_scales(fem_properties.ny_f,fem_properties.fluid_height/((double)fem_properties.ny_f));
+    std::vector<double> s_y_scales(fem_properties.ny_s,fem_properties.structure_height/((double)fem_properties.ny_s));
 
-  for (unsigned int i=0; i<4; ++i)
-    {
-      if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-      else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-      else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
-    }
-  for (unsigned int i=0; i<4; ++i)
-    {
-      if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-      else if (i==0) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
-      else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-    }
+    std::vector<std::vector<double> > f_scales(2),s_scales(2);
+    f_scales[0]=x_scales;f_scales[1]=f_y_scales;
+    s_scales[0]=x_scales;s_scales[1]=s_y_scales;
+    GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_scales,fluid_bottom_left,fluid_top_right,false);
+    GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_scales,structure_bottom_left,structure_top_right,false);
 
+    // Structure sits on top of fluid
+    AssertThrow(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
+    AssertThrow(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
+
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==1) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
+	else if (i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+      }
+
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+      }
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+      }
+  } else {
+    AssertThrow(false,ExcNotImplemented());
+  }
   // we need to track cells, faces, and temporarily the centers for the faces
   // also, we will initially have a temp_* vectors that we will rearrange to match the order of the fluid
   std::vector<Point<dim> > fluid_face_centers, temp_structure_face_centers(structure_triangulation.n_active_cells());
