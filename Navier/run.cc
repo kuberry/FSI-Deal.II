@@ -4,6 +4,12 @@
 template <int dim>
 void FSIProblem<dim>::run ()
 {
+  std::ofstream file_out;
+  if (physical_properties.simulation_type==1)
+    {
+      file_out.open("interface.txt");
+    }
+ 
   TimerOutput timer (std::cout, TimerOutput::summary,
 		     TimerOutput::wall_times);
   timer.enter_subsection ("Everything");
@@ -50,9 +56,7 @@ void FSIProblem<dim>::run ()
   transfer_interface_dofs(old_stress,old_stress,0,1);
   stress=old_stress;
   double total_time = 0;
-
-
-	   
+  
   // direct_solver.initialize (system_matrix.block(block_num,block_num));
   for (timestep_number=1, time=fem_properties.t0+time_step;
        timestep_number<=(double)(fem_properties.T-fem_properties.t0)/time_step;++timestep_number)
@@ -96,31 +100,30 @@ void FSIProblem<dim>::run ()
 
 	  // RHS and Neumann conditions are inside these functions
 	  // Solve for the state variables
-	  timer.enter_subsection ("Assemble");
-	  Threads::Task<> structure_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true); 
-	  Threads::Task<> fluid_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true); 
-	  //assemble_ale(state, true);
-	  timer.leave_subsection();
-	  // This solving order will need changed later since the Dirichlet bcs for the ALE depend on the solution to the structure problem
-	  
-	  structure_assembly.join();
-	  for (unsigned int i=1; i<2; ++i) // no ale solve currently
+	  timer.enter_subsection ("Assemble"); 
+	  if (physical_properties.moving_domain)
 	    {
-	      dirichlet_boundaries((System)i,state);
-	      //dirichlet_boundaries((System)i,state);
-	      timer.enter_subsection ("State Solve");
-	      if (timestep_number==1)
-	      	{
-	      	  state_solver[i].initialize(system_matrix.block(i,i));
-	      	}
-	      // solver uses vmult which doesn't require factorization
-	      solve(state_solver[i],i,state);
-	      timer.leave_subsection ();
+	      assemble_ale(state,true);
+	      dirichlet_boundaries((System)2,state);
+	      state_solver[2].factorize(system_matrix.block(2,2));
+	      solve(state_solver[2],2,state);
 	    }
+
+	  Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
+	  Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
+	  s_assembly.join();
+	  dirichlet_boundaries((System)1,state);
+	  Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, state_solver[1], system_matrix.block(1,1));
+	  s_factor.join();
+	  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
+	  s_solve.join();
+	  f_assembly.join();
+	    
+
+	  timer.leave_subsection();
 
 	  solution_star=1;
 	  bool not_first_newton=false;
-	  fluid_assembly.join();
 	  while (solution_star.l2_norm()>1e-8)
 	    {
 	      solution_star=solution;
@@ -162,18 +165,24 @@ void FSIProblem<dim>::run ()
 
 	  if (fem_properties.optimization_method.compare("Gradient")==0)
 	    {
-	      assemble_structure(adjoint, true);
-	      assemble_fluid(adjoint, true);
-	      assemble_ale(adjoint, true);
-	      // Solve for the adjoint
-	      for (unsigned int i=0; i<2; ++i)
-		{
-		  dirichlet_boundaries((System)i,adjoint);
-		  adjoint_solver[i].factorize(adjoint_matrix.block(i,i));
-		  solve(adjoint_solver[i], i, adjoint);
-		}
-	      ++total_solves;
+	      Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, adjoint, true);
+	      Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, adjoint, true);
 
+	      s_assembly.join();
+	      dirichlet_boundaries((System)1, adjoint);
+	      f_assembly.join();
+	      dirichlet_boundaries((System)0, adjoint);
+
+	      Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[0], adjoint_matrix.block(0,0));
+	      Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[1], adjoint_matrix.block(1,1));
+
+	      f_factor.join();
+	      Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, adjoint_solver[1], 1, adjoint);
+	      s_factor.join();
+	      Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, adjoint_solver[0], 0, adjoint);				
+	      f_solve.join();
+	      s_solve.join();
+	      total_solves += 2;
 
 	      if (velocity_jump>velocity_jump_old)
 		{
@@ -594,6 +603,17 @@ void FSIProblem<dim>::run ()
       total_time += t.elapsed();
       std::cout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
       t.restart();
+      if (physical_properties.simulation_type==1)
+	{
+	  if (timestep_number%10==0)
+	    {
+	      dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
+	      Point<dim> p1(1.5,1);
+	      Point<dim> p2(3,1);
+	      Point<dim> p3(4.5,1);
+	      file_out << time << " " << fe_function.value(p1,1) << " " << fe_function.value(p2,1) << " " << fe_function.value(p3,1) << std::endl; 
+	    }
+	}
     }
   timer.leave_subsection ();
 }

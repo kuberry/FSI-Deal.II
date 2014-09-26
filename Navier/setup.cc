@@ -19,11 +19,22 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)
 		{
-		  VectorTools::interpolate_boundary_values (fluid_dof_handler,
-							    i,
-							    fluid_boundary_values_function,
-							    fluid_boundary_values,
-							    fluid_fe.component_mask(velocities));
+		  if (physical_properties.simulation_type==0)
+		    {
+		      VectorTools::interpolate_boundary_values (fluid_dof_handler,
+								i,
+								fluid_boundary_values_function,
+								fluid_boundary_values,
+								fluid_fe.component_mask(velocities));
+		    }
+		  else
+		    {
+		      VectorTools::interpolate_boundary_values (fluid_dof_handler,
+								i,
+								ZeroFunction<dim>(dim),
+								fluid_boundary_values,
+								fluid_fe.component_mask(velocities));
+		    }
 		}
 	    }
 	  MatrixTools::apply_boundary_values (fluid_boundary_values,
@@ -55,9 +66,9 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	{
 	  std::map<types::global_dof_index,double> ale_dirichlet_boundary_values;
 	  std::map<types::global_dof_index,double> ale_interface_boundary_values;
-	  for (unsigned int i=0; i<dofs_per_big_block[2]; ++i)
+	  for (unsigned int i=0; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
 	    {
-	      if (a2n.count(i))
+	      if (a2n.count(i)) // lookup key for certain ale dof
 		{
 		  ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2n[i]]));
 		}

@@ -290,7 +290,8 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
     switch (component)
       {
       case 0:
-	return -1000 * cos(1-(double)(2*pi*t)/.025);//-1000t)*sin(y + t) + sin(x + t)*cos(y + t);
+	if (t<.025) return 1000 * (1 - cos(2*pi*t*40));//-1000t)*sin(y + t) + sin(x + t)*cos(y + t);
+        else return 0;
       case 1:
 	return 0;
       case 2:
