@@ -4,6 +4,8 @@
 template <int dim>
 void FSIProblem<dim>::run ()
 {
+  unsigned int total_timesteps = (double)(fem_properties.T-fem_properties.t0)/time_step;
+
   std::ofstream file_out;
   if (physical_properties.simulation_type==1)
     {
@@ -59,7 +61,7 @@ void FSIProblem<dim>::run ()
   
   // direct_solver.initialize (system_matrix.block(block_num,block_num));
   for (timestep_number=1, time=fem_properties.t0+time_step;
-       timestep_number<=(double)(fem_properties.T-fem_properties.t0)/time_step;++timestep_number)
+       timestep_number<=total_timesteps;++timestep_number)
     {
       boost::timer t;
       time = fem_properties.t0 + timestep_number*time_step;
@@ -107,6 +109,21 @@ void FSIProblem<dim>::run ()
 	      dirichlet_boundaries((System)2,state);
 	      state_solver[2].factorize(system_matrix.block(2,2));
 	      solve(state_solver[2],2,state);
+
+	      // remove the contributions from Omega^{n-1}
+	      
+	      //mesh_displacement.block(0).add(-(1-fluid_theta),old_mesh_displacement.block(0));
+	      //mesh_displacement.block(0)/=(double)(fluid_theta);
+	      old_mesh_displacement.block(0) = mesh_displacement.block(0);
+	      transfer_all_dofs(solution,mesh_displacement,2,0);
+
+	      mesh_velocity.block(0)=mesh_displacement.block(0);
+	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+	      mesh_velocity.block(0)*=1./time_step;
+
+	      // Omega^{n-1/2}
+	      //mesh_displacement.block(0)*=fluid_theta;
+	      //mesh_displacement.block(0).add(1-fluid_theta,old_mesh_displacement.block(0));
 	    }
 
 	  Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
@@ -161,7 +178,23 @@ void FSIProblem<dim>::run ()
 	  velocity_jump=interface_error();
 
 	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break; //pow(time_step,4)) break;
+	  if (physical_properties.moving_domain && fem_properties.optimization_method.compare("Gradient")==0)
+	    {
+	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance)
+		{
+		  if (update_domain) break; // previous iteration had updated domain
+		  else update_domain = true;
+		}
+	      else
+		{
+		  if (count%50==0) update_domain = true;
+		  else update_domain = false;
+		}
+	    }
+	  else
+	    {
+	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;
+	    }
 
 	  if (fem_properties.optimization_method.compare("Gradient")==0)
 	    {
@@ -605,7 +638,7 @@ void FSIProblem<dim>::run ()
       t.restart();
       if (physical_properties.simulation_type==1)
 	{
-	  if (timestep_number%10==0)
+	  if (timestep_number%(total_timesteps/100)==0)
 	    {
 	      dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
 	      Point<dim> p1(1.5,1);

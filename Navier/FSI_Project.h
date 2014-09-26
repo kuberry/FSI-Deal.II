@@ -99,7 +99,7 @@ class FSIProblem
 
   void assemble_fluid (Mode enum_, bool assemble_matrix);
   void assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-							     FullScratchData<dim>& scratch,
+							     FluidScratchData<dim>& scratch,
 							     PerTaskData<dim>& data );
   void copy_local_fluid_to_global (const PerTaskData<dim> &data);
 
@@ -179,6 +179,7 @@ class FSIProblem
   std::vector<SparseDirectUMFPACK > state_solver,  adjoint_solver,  linear_solver;
 
   unsigned int master_thread;
+  bool update_domain;
 };
 
 

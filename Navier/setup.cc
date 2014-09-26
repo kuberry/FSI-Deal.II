@@ -447,6 +447,9 @@ void FSIProblem<dim>::setup_system ()
   linear_rhs.reinit (n_big_blocks);
   stress.reinit (n_big_blocks);
   old_stress.reinit (n_big_blocks);
+  mesh_displacement.reinit (n_big_blocks);
+  old_mesh_displacement.reinit (n_big_blocks);
+  mesh_velocity.reinit (n_big_blocks);
   for (unsigned int i=0; i<n_big_blocks; ++i)
     {
       solution.block(i).reinit (dofs_per_big_block[i]);
@@ -469,6 +472,9 @@ void FSIProblem<dim>::setup_system ()
       linear_rhs.block(i).reinit (dofs_per_big_block[i]);
       stress.block(i).reinit (dofs_per_big_block[i]);
       old_stress.block(i).reinit (dofs_per_big_block[i]);
+      mesh_displacement.block(i).reinit (dofs_per_big_block[i]);
+      old_mesh_displacement.block(i).reinit (dofs_per_big_block[i]);
+      mesh_velocity.block(i).reinit (dofs_per_big_block[i]);
     }
   solution.collect_sizes ();
   solution_star.collect_sizes ();
@@ -490,6 +496,9 @@ void FSIProblem<dim>::setup_system ()
   linear_rhs.collect_sizes ();
   stress.collect_sizes ();
   old_stress.collect_sizes ();
+  mesh_displacement.collect_sizes ();
+  old_mesh_displacement.collect_sizes ();
+  mesh_velocity.collect_sizes ();
 
   fluid_constraints.close ();
   structure_constraints.close ();

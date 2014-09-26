@@ -1,13 +1,14 @@
 #include "FSI_Project.h"
+#include <deal.II/base/conditional_ostream.h>
 
 template <int dim>
 void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-						       FullScratchData<dim>& scratch,
+						       FluidScratchData<dim>& scratch,
 						       PerTaskData<dim>& data )
 {
   unsigned int state=0, adjoint=1, linear=2;
 
-  //ConditionalOStream pcout(std::cout,Threads::this_thread_id()==scratch.master_thread); 
+  ConditionalOStream pcout(std::cout,Threads::this_thread_id()==master_thread); 
   //TimerOutput timer (pcout, TimerOutput::summary,
   //		     TimerOutput::wall_times); 
   //timer.enter_subsection ("Beginning");
@@ -24,10 +25,14 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   std::vector<Vector<double> > adjoint_rhs_values(scratch.n_face_q_points, Vector<double>(dim+1));
   std::vector<Vector<double> > linear_rhs_values(scratch.n_face_q_points, Vector<double>(dim+1));
   std::vector<Vector<double> > u_star_values(scratch.n_q_points, Vector<double>(dim+1));
+  std::vector<Vector<double> > z(scratch.n_q_points, Vector<double>(dim+1));
 
+  std::vector<Vector<double> > z_vertices(scratch.n_vertices_q_points, Vector<double>(dim+1));
+  std::vector<Vector<double> > z_old_vertices(scratch.n_vertices_q_points, Vector<double>(dim+1));
   std::vector<Tensor<2,dim> > grad_u_old (scratch.n_q_points);
   std::vector<Tensor<2,dim> > grad_u_star (scratch.n_q_points);
   std::vector<Tensor<2,dim> > F (scratch.n_q_points);
+  std::vector<Tensor<2,dim> > grad_z (scratch.n_q_points);
 
   std::vector<Tensor<1,dim> > stress_values (dim+1);
   Vector<double> u_true_side_values (dim+1);
@@ -42,18 +47,47 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   std::vector<double>                     div_phi_u   (fluid_fe.dofs_per_cell);
   std::vector<double>                     phi_p       (fluid_fe.dofs_per_cell);
 
-  scratch.fe_values.reinit(cell);
+
+  scratch.fe_vertices_values.reinit(cell);
   data.cell_matrix=0;
   data.cell_rhs=0;
+
+  if (scratch.mode_type==state)
+    {
+      //if (update_domain)
+      //{
+	  AssertThrow((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes, ExcNotImplemented());
+	  //std::cout << GeometryInfo<dim>::vertices_per_cell << " " << scratch.n_vertices_q_points << std::endl;
+	  for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
+	    {
+	      Point<2> &v = cell->vertex(i);
+	      scratch.fe_vertices_values.get_function_values(mesh_displacement.block(0), z_vertices);
+	      scratch.fe_vertices_values.get_function_values(old_mesh_displacement.block(0), z_old_vertices);
+	      // pcout << "i= " << i << " point " << scratch.fe_vertices_values.get_quadrature().point(i) << std::endl;
+	      // pcout << " v(0)= " << v(0) << " v(1)= " << v(1) <<  std::endl;
+	      // pcout << " z(0)= " << z_vertices[i](0) << " z(1)= " << z_vertices[i](1) <<  std::endl;
+	  
+	      for (unsigned int j=0; j<dim; ++j)
+		{
+		  v(j) -= z_old_vertices[i](j);
+		  v(j) += z_vertices[i](j);
+		}
+	    }
+	  //}
+    }
+
+  scratch.fe_values.reinit(cell);
 
   if (data.assemble_matrix)
     {
       scratch.fe_values.get_function_values (old_solution.block(0), old_solution_values);
       scratch.fe_values.get_function_values (old_old_solution.block(0), old_old_solution_values);
       scratch.fe_values.get_function_values (solution_star.block(0),u_star_values);
+      scratch.fe_values.get_function_values (mesh_velocity.block(0), z);
       scratch.fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u_old);
       scratch.fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star);
-
+      scratch.fe_values[velocities].get_function_gradients(mesh_velocity.block(0),grad_z);
+      
       for (unsigned int q=0; q<scratch.n_q_points; ++q)
 	{
 	  F[q]=0;
@@ -68,12 +102,13 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	  detTimesFinv[1][1]=F[q][0][0];
 	  // This should be computed at this and the previous time step so that we can have a mesh for the center
 
-	  Tensor<1,dim> u_star, u_old, u_old_old;
+	  Tensor<1,dim> u_star, u_old, u_old_old,meshvelocity;
 	  for (unsigned int d=0; d<dim; ++d)
 	    {
 	      u_star[d] = u_star_values[q](d);
 	      u_old[d] = old_solution_values[q](d);
 	      u_old_old[d] = old_old_solution_values[q](d);
+	      meshvelocity[d] = z[q](d);
 	    }
 
 	  for (unsigned int k=0; k<fluid_fe.dofs_per_cell; ++k)
@@ -222,6 +257,31 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 					 + epsilon * phi_p[i] * phi_p[j])
 		    * scratch.fe_values.JxW(q);
 		  //std::cout << physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i] << std::endl;
+
+		  if (physical_properties.moving_domain) // z grad u term
+		    {
+		      if (scratch.mode_type==state)
+		  	{
+		  	  data.cell_matrix(i,j) += 
+		  	    (-physical_properties.rho_f * (meshvelocity*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i]
+		  	     +physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+		  	     )* scratch.fe_values.JxW(q);
+		  	}
+		      else if (scratch.mode_type==state)
+		  	{
+		  	  data.cell_matrix(i,j) += 
+		  	    (-physical_properties.rho_f * (meshvelocity*(transpose(detTimesFinv)*transpose(grad_phi_u[i])))*phi_u[j]
+		  	     +physical_properties.rho_f * (phi_u[i]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[j]
+		  	     )* scratch.fe_values.JxW(q);
+		  	}
+		      else // linear
+		  	{
+		  	  data.cell_matrix(i,j) += 
+		  	    (-physical_properties.rho_f * (meshvelocity*(transpose(detTimesFinv)*transpose(grad_phi_u[j])))*phi_u[i]
+		  	     +physical_properties.rho_f * (phi_u[j]*(transpose(detTimesFinv)*transpose(grad_u_star[q])))*phi_u[i]
+		  	     )* scratch.fe_values.JxW(q);
+		  	}
+		    }
 		}
 	    }
 	  if (scratch.mode_type==state)
@@ -664,6 +724,10 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 				    update_values    | update_normal_vectors |
 				    update_quadrature_points  | update_JxW_values);
 
+  QTrapez<dim> vertices_quadrature_formula;
+  FEValues<dim> fe_vertices_values (fluid_fe, vertices_quadrature_formula,
+				    update_values);
+
   if (enum_==state)
     {
       FluidRightHandSide<dim> rhs_function(physical_properties);
@@ -683,12 +747,12 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
       *fluid_rhs += forcing_terms;
     }
 
-  master_thread = Threads::this_thread_id();
+  static int master_thread = Threads::this_thread_id();
 
   PerTaskData<dim> per_task_data(fluid_fe, fluid_matrix, fluid_rhs, assemble_matrix);
-  FullScratchData<dim> scratch_data(fluid_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
-					  face_quadrature_formula, update_values | update_normal_vectors | update_quadrature_points  | update_JxW_values,
-					  (unsigned int)enum_);
+  FluidScratchData<dim> scratch_data(fluid_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
+				     face_quadrature_formula, update_values | update_normal_vectors | update_quadrature_points  | update_JxW_values,
+				     (unsigned int)enum_, vertices_quadrature_formula, update_values);
  
   WorkStream::run (fluid_dof_handler.begin_active(),
   		   fluid_dof_handler.end(),
@@ -700,7 +764,7 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 }
 
 template void FSIProblem<2>::assemble_fluid_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
-							     FullScratchData<2>& scratch,
+							     FluidScratchData<2>& scratch,
 							     PerTaskData<2>& data );
 
 template void FSIProblem<2>::copy_local_fluid_to_global (const PerTaskData<2> &data);

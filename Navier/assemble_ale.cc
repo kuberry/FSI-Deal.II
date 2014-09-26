@@ -1,7 +1,6 @@
 #include "FSI_Project.h"
 #include "small_classes.h"
 
-
 template <int dim>
 void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
 						       BaseScratchData<dim>& scratch,

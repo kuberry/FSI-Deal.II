@@ -138,5 +138,33 @@ struct FullScratchData : public BaseScratchData<dim> {
       {}
 };
 
+template <int dim>
+struct FluidScratchData : public FullScratchData<dim> {
+  FEValues<dim> fe_vertices_values;
+  unsigned int n_vertices_q_points;
+  FluidScratchData ( const FiniteElement<dim> &fe,
+		    const Quadrature<dim> &quadrature,
+		    const UpdateFlags update_flags,
+		    const Quadrature<dim-1> &face_quadrature,
+		    const UpdateFlags face_update_flags,
+		    const unsigned int mode_type_,
+		    const Quadrature<dim> &vertices_quadrature,
+		    const UpdateFlags vertices_update_flags
+		    )
+    : FullScratchData<dim>(fe, quadrature, update_flags, face_quadrature, face_update_flags, mode_type_),
+    fe_vertices_values(fe, vertices_quadrature, vertices_update_flags),
+    n_vertices_q_points(vertices_quadrature.size())
+      {}
+      
+  FluidScratchData (const FluidScratchData &scratch)
+    : FullScratchData<dim>(scratch),
+    fe_vertices_values(scratch.fe_vertices_values.get_fe(),
+  		   scratch.fe_vertices_values.get_quadrature(),
+  		   scratch.fe_vertices_values.get_update_flags()
+		       ),
+    n_vertices_q_points(scratch.n_vertices_q_points)
+      {}
+};
+
 
 #endif
