@@ -54,8 +54,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
   if (scratch.mode_type==state)
     {
-      //if (update_domain)
-      //{
+      if (update_domain)
+      {
 	  AssertThrow((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes, ExcNotImplemented());
 	  //std::cout << GeometryInfo<dim>::vertices_per_cell << " " << scratch.n_vertices_q_points << std::endl;
 	  for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
@@ -73,7 +73,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		  v(j) += z_vertices[i](j);
 		}
 	    }
-	  //}
+	  }
     }
 
   scratch.fe_values.reinit(cell);
