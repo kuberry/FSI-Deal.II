@@ -447,17 +447,21 @@ void FSIProblem<dim>::run ()
 		  // get linearized variables
 		  rhs_for_linear = rhs_for_linear_p;
 		  timer.enter_subsection ("Assemble"); 
-		  assemble_structure(linear, false);
-		  assemble_fluid(linear, false);
+		  Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, false);
+		  Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, false);	      
+		  f_assembly.join();
+		  dirichlet_boundaries((System)0,linear);
+		  s_assembly.join();
+		  dirichlet_boundaries((System)1,linear);
 		  timer.leave_subsection ();
-		  for (unsigned int i=0; i<2; ++i)
-		    {
-		      dirichlet_boundaries((System)i,linear);
-		      timer.enter_subsection ("Linear Solve");
-		      solve(linear_solver[i], i, linear);
-		      timer.leave_subsection ();
-		    }
-		  ++total_solves;
+
+		  timer.enter_subsection ("Linear Solve");
+		  Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+		  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+		  f_solve.join();
+		  s_solve.join();
+		  timer.leave_subsection ();
+		  total_solves += 2;
 
 		  // ||Ap||^2 = (w-phi/dt)^2+delta*h^2
 		  tmp=0;tmp2=0;
@@ -503,17 +507,21 @@ void FSIProblem<dim>::run ()
 		  
 		  // get adjoint variables (b^{n+1},....)
 		  timer.enter_subsection ("Assemble"); 
-		  assemble_structure(adjoint, false);
-		  assemble_fluid(adjoint, false);
+		  s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, adjoint, false);
+		  f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, adjoint, false);
+		  f_assembly.join();
+		  dirichlet_boundaries((System)0,adjoint);
+		  s_assembly.join();
+		  dirichlet_boundaries((System)1,adjoint);
 		  timer.leave_subsection ();
-		  for (unsigned int i=0; i<2; ++i)
-		    {
-		      dirichlet_boundaries((System)i,adjoint);
-		      timer.enter_subsection ("Linear Solve");
-		      solve(adjoint_solver[i], i, adjoint);
-		      timer.leave_subsection ();
-		    }
-		  ++total_solves;
+	      
+		  timer.enter_subsection ("Linear Solve");	      
+		  f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[1],1,adjoint);
+		  s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[0],0,adjoint);				
+		  f_solve.join();
+		  s_solve.join();
+		  timer.leave_subsection ();		
+		  total_solves += 2;
 
 		  // apply preconditioner
 		  // adjoint_solution*=float(time_step)/(time_step-1);
