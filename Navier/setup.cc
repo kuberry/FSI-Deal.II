@@ -237,8 +237,12 @@ void FSIProblem<dim>::setup_system ()
     std::vector<std::vector<double> > f_scales(2),s_scales(2);
     f_scales[0]=x_scales;f_scales[1]=f_y_scales;
     s_scales[0]=x_scales;s_scales[1]=s_y_scales;
-    GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_scales,fluid_bottom_left,fluid_top_right,false);
-    GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_scales,structure_bottom_left,structure_top_right,false);
+    std::vector<unsigned int > f_reps(2),s_reps(2);
+    f_reps[0]=fem_properties.nx_f; f_reps[1]=fem_properties.ny_f;
+    s_reps[0]=fem_properties.nx_s; s_reps[1]=fem_properties.ny_s;
+
+    GridGenerator::subdivided_hyper_rectangle (fluid_triangulation,f_reps,fluid_bottom_left,fluid_top_right,false);
+    GridGenerator::subdivided_hyper_rectangle (structure_triangulation,s_reps,structure_bottom_left,structure_top_right,false);
 
     // Structure sits on top of fluid
     AssertThrow(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
