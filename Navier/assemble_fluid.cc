@@ -52,28 +52,28 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   data.cell_matrix=0;
   data.cell_rhs=0;
 
-  if (scratch.mode_type==state)
+  if (scratch.mode_type==state && physical_properties.moving_domain)
     {
-      if (update_domain)
-      {
-	  AssertThrow((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes, ExcNotImplemented());
+      // if (update_domain)
+      // {
+	AssertThrow((!fem_properties.richardson)||(fem_properties.richardson && fem_properties.newton) || !physical_properties.navier_stokes, ExcNotImplemented());
 	  //std::cout << GeometryInfo<dim>::vertices_per_cell << " " << scratch.n_vertices_q_points << std::endl;
 	  for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
 	    {
 	      Point<2> &v = cell->vertex(i);
-	      scratch.fe_vertices_values.get_function_values(mesh_displacement.block(0), z_vertices);
-	      scratch.fe_vertices_values.get_function_values(old_mesh_displacement.block(0), z_old_vertices);
+	      scratch.fe_vertices_values.get_function_values(mesh_displacement_star.block(0), z_vertices);
+	      scratch.fe_vertices_values.get_function_values(mesh_displacement_star_old.block(0), z_old_vertices);
 	      // pcout << "i= " << i << " point " << scratch.fe_vertices_values.get_quadrature().point(i) << std::endl;
 	      // pcout << " v(0)= " << v(0) << " v(1)= " << v(1) <<  std::endl;
 	      // pcout << " z(0)= " << z_vertices[i](0) << " z(1)= " << z_vertices[i](1) <<  std::endl;
 	  
 	      for (unsigned int j=0; j<dim; ++j)
-		{
-		  v(j) -= z_old_vertices[i](j);
-		  v(j) += z_vertices[i](j);
-		}
+	      	{
+	      	  v(j) -= z_old_vertices[i](j);
+	      	  v(j) += z_vertices[i](j);
+	      	}
 	    }
-	  }
+	  // }
     }
 
   scratch.fe_values.reinit(cell);

@@ -157,7 +157,8 @@ class FSIProblem
   BlockVector<double>       	linear_rhs;
   BlockVector<double>		stress;
   BlockVector<double>		old_stress;
-  BlockVector<double>		mesh_displacement;
+  BlockVector<double>		mesh_displacement_star;
+  BlockVector<double>		mesh_displacement_star_old;
   BlockVector<double>		old_mesh_displacement;
   BlockVector<double>		mesh_velocity;
 

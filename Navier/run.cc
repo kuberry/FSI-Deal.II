@@ -88,6 +88,11 @@ void FSIProblem<dim>::run ()
 
       unsigned int total_solves = 0;
 
+      if (physical_properties.moving_domain)
+	{
+	  old_mesh_displacement.block(0) = mesh_displacement_star.block(0);
+	}
+
       while (true)
         {
 	  ++count;
@@ -114,10 +119,11 @@ void FSIProblem<dim>::run ()
 	      
 	      //mesh_displacement.block(0).add(-(1-fluid_theta),old_mesh_displacement.block(0));
 	      //mesh_displacement.block(0)/=(double)(fluid_theta);
-	      old_mesh_displacement.block(0) = mesh_displacement.block(0);
-	      transfer_all_dofs(solution,mesh_displacement,2,0);
 
-	      mesh_velocity.block(0)=mesh_displacement.block(0);
+	      mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
+	      transfer_all_dofs(solution,mesh_displacement_star,2,0);
+
+	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
 	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
 	      mesh_velocity.block(0)*=1./time_step;
 
@@ -149,6 +155,11 @@ void FSIProblem<dim>::run ()
 		  timer.enter_subsection ("Assemble");
 		  assemble_fluid(state, true);
 		  timer.leave_subsection();
+		}
+	      else
+		{
+		  // this really only needs done once
+		  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
 		}
 	      dirichlet_boundaries((System)0,state);
 	      timer.enter_subsection ("State Solve"); 
