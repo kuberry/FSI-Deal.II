@@ -157,10 +157,10 @@ void FSIProblem<dim>::run ()
 		  timer.leave_subsection();
 		}
 	      else
-		{
-		  // this really only needs done once
-		  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
-		}
+	      	{
+	      	  // this really only needs done once
+	      	  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
+	      	}
 	      dirichlet_boundaries((System)0,state);
 	      timer.enter_subsection ("State Solve"); 
 	      if (timestep_number==1)
@@ -189,23 +189,23 @@ void FSIProblem<dim>::run ()
 	  velocity_jump=interface_error();
 
 	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-	  if (physical_properties.moving_domain && fem_properties.optimization_method.compare("Gradient")==0)
-	    {
-	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance)
-		{
-		  if (update_domain) break; // previous iteration had updated domain
-		  else update_domain = true;
-		}
-	      else
-		{
-		  if (count%50==0) update_domain = true;
-		  else update_domain = false;
-		}
-	    }
-	  else
-	    {
+	  // if (physical_properties.moving_domain && fem_properties.optimization_method.compare("Gradient")==0)
+	  //   {
+	  //     if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance)
+	  // 	{
+	  // 	  if (update_domain) break; // previous iteration had updated domain
+	  // 	  else update_domain = true;
+	  // 	}
+	  //     else
+	  // 	{
+	  // 	  if (count%50==0) update_domain = true;
+	  // 	  else update_domain = false;
+	  // 	}
+	  //   }
+	  // else
+	  //   {
 	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;
-	    }
+	    // }
 
 	  if (fem_properties.optimization_method.compare("Gradient")==0)
 	    {
@@ -274,11 +274,12 @@ void FSIProblem<dim>::run ()
 	      if (fem_properties.adjoint_type==1)
 		{
 		  transfer_interface_dofs(adjoint_solution,tmp,1,0,Displacement);
-		  tmp.block(0)*=1./time_step;
+		  tmp.block(0)*= ((double)fem_properties.structure_theta)/time_step;
 		}
 	      else
 		{
 		  transfer_interface_dofs(adjoint_solution,tmp,1,0,Velocity);
+		  tmp.block(0)*= fem_properties.structure_theta;
 		}
 
 	      tmp.block(0).add(-fem_properties.fluid_theta,adjoint_solution.block(0));
@@ -621,16 +622,19 @@ void FSIProblem<dim>::run ()
 		  p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
 		  //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
 		  //std::cout << p_n_norm_square << std::endl;
-		}		  
+		}
 	      // update stress
 	      stress.block(0) += rhs_for_linear_h.block(0);
 	      tmp=0;
 	      transfer_interface_dofs(stress,tmp,0,0);
+	      std::cout << "Begin" << std::endl;
 	      transfer_interface_dofs(stress,tmp,1,1,Displacement);
 	      stress=0;
 	      transfer_interface_dofs(tmp,stress,0,0);
 	      transfer_interface_dofs(tmp,stress,1,1,Displacement);
+
 	      transfer_interface_dofs(stress,stress,0,1,Displacement);
+	      std::cout << "End" << std::endl;
 	    }
 
 	}
@@ -649,7 +653,7 @@ void FSIProblem<dim>::run ()
       t.restart();
       if (physical_properties.simulation_type==1)
 	{
-	  if (timestep_number%(total_timesteps/100)==0)
+	  if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0)
 	    {
 	      dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
 	      Point<dim> p1(1.5,1);
