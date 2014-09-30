@@ -31,7 +31,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 		    {
 		      VectorTools::interpolate_boundary_values (fluid_dof_handler,
 								i,
-								ZeroFunction<dim>(dim),
+								ZeroFunction<dim>(dim+1),
 								fluid_boundary_values,
 								fluid_fe.component_mask(velocities));
 		    }
