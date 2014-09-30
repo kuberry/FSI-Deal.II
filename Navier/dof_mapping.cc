@@ -346,7 +346,7 @@ void FSIProblem<dim>::transfer_interface_dofs(BlockVector<double> & solution_1, 
       //     solution_2.block(to)[it->second]=solution_1.block(from)[it->first];
       //   }
       // else if ( COULD BE both notset and from to are not equal 1      OR if is 1, at least one not set)
-      if ((from==0 || from==2) || (from==1 && structure_var_1==structure_var_2))
+      if ((from==0 || from==2) || (from==1 && (structure_var_1==structure_var_2 || structure_var_2== NotSet)))
 	{ 
 	  for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
 	    {
