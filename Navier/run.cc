@@ -189,23 +189,23 @@ void FSIProblem<dim>::run ()
 	  velocity_jump=interface_error();
 
 	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
-	  // if (physical_properties.moving_domain && fem_properties.optimization_method.compare("Gradient")==0)
-	  //   {
-	  //     if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance)
-	  // 	{
-	  // 	  if (update_domain) break; // previous iteration had updated domain
-	  // 	  else update_domain = true;
-	  // 	}
-	  //     else
-	  // 	{
-	  // 	  if (count%50==0) update_domain = true;
-	  // 	  else update_domain = false;
-	  // 	}
-	  //   }
-	  // else
-	  //   {
+	  if (physical_properties.moving_domain && fem_properties.optimization_method.compare("Gradient")==0)
+	    {
+	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance)
+	  	{
+	  	  if (update_domain) break; // previous iteration had updated domain
+	  	  else update_domain = true;
+	  	}
+	      else
+	  	{
+	  	  if (count%3==0) update_domain = true;
+	  	  else update_domain = false;
+	  	}
+	    }
+	  else
+	    {
 	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;
-	    // }
+	    }
 
 	  if (fem_properties.optimization_method.compare("Gradient")==0)
 	    {
@@ -627,14 +627,12 @@ void FSIProblem<dim>::run ()
 	      stress.block(0) += rhs_for_linear_h.block(0);
 	      tmp=0;
 	      transfer_interface_dofs(stress,tmp,0,0);
-	      std::cout << "Begin" << std::endl;
 	      transfer_interface_dofs(stress,tmp,1,1,Displacement);
 	      stress=0;
 	      transfer_interface_dofs(tmp,stress,0,0);
 	      transfer_interface_dofs(tmp,stress,1,1,Displacement);
 
 	      transfer_interface_dofs(stress,stress,0,1,Displacement);
-	      std::cout << "End" << std::endl;
 	    }
 
 	}
