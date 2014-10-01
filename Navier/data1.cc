@@ -183,6 +183,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 				       const unsigned int component) const
 {
   if (physical_properties.simulation_type==0){
+    double result;
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -194,17 +195,25 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     switch (component)
       {
       case 0:
-	return physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y)) + 4*physical_properties.viscosity 
-	  * (cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x)) - 2*physical_properties.mu*sin(t + x)*sin(t + y)
-	  + physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
-	  				 *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
-	  				 *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
+	result = physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y)) + 4*physical_properties.viscosity 
+	  * (cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x)) - 2*physical_properties.mu*sin(t + x)*sin(t + y);
+	if (physical_properties.navier_stokes)
+	  {
+	    result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
+						   *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
+						   *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
+	  }
+	return result;
 	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
       case 1:
-	return 2*physical_properties.mu*cos(t + x)*cos(t + y) - physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y))
-	  + physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
+	result = 2*physical_properties.mu*cos(t + x)*cos(t + y) - physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y));
+	if (physical_properties.navier_stokes)
+	  {
+	    result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
 	  				 *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
 	  				 *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
+	  }
+	return result;
 	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
       case 2:
 	return 0;
