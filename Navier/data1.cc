@@ -300,8 +300,8 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
     Assert (component < 3, ExcInternalError());
     double pi =  3.14159265358979323846;
     const double t = this->get_time();
-    const double x = p[0];
-    const double y = p[1];
+    // const double x = p[0];
+    // const double y = p[1];
     switch (component)
       {
       case 0:
