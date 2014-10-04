@@ -809,29 +809,32 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      if (data.assemble_matrix)
 	      if (physical_properties.navier_stokes && physical_properties.stability_terms)
 	      	{
-	      	  scratch.fe_face_values.reinit (cell, face_no);
-	      	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
-	      	    {
-	      	      Tensor<1,dim> u_true_side;
-	      	      if (physical_properties.simulation_type==0) // assumes only time there would be nonzero dirichlet bc
-	      		{
-	      		  fluid_boundary_values_function.set_time (time);
-	      		  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
-	      							      u_true_side_values);
-	      		  for (unsigned int d=0; d<dim; ++d)
-	      		    {
-	      		      u_true_side[d] = u_true_side_values(d);
-	      		    }
-	      		}
+		  if (scratch.mode_type==state)
+		    {
+		      scratch.fe_face_values.reinit (cell, face_no);
+		      for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+			{
+			  Tensor<1,dim> u_true_side;
+			  if (physical_properties.simulation_type==0) // assumes only time there would be nonzero dirichlet bc
+			    {
+			      fluid_boundary_values_function.set_time (time);
+			      fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
+									  u_true_side_values);
+			      for (unsigned int d=0; d<dim; ++d)
+				{
+				  u_true_side[d] = u_true_side_values(d);
+				}
+			    }
 		      
-	      	      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
-	      		{
-	      		  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
-	      		    *(
-	      		      (u_true_side*scratch.fe_face_values.normal_vector(q))*(u_true_side*scratch.fe_face_values[velocities].value (i, q))
-	      		      ) * scratch.fe_face_values.JxW(q);
-	      		}
-	      	    }
+			  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+			    {
+			      data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				*(
+				  (u_true_side*scratch.fe_face_values.normal_vector(q))*(u_true_side*scratch.fe_face_values[velocities].value (i, q))
+				  ) * scratch.fe_face_values.JxW(q);
+			    }
+			}
+		    }
 	      	}
 	    }
 	}
