@@ -197,22 +197,22 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       case 0:
 	result = physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y)) + 4*physical_properties.viscosity 
 	  * (cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x)) - 2*physical_properties.mu*sin(t + x)*sin(t + y);
-	if (physical_properties.navier_stokes)
-	  {
-	    result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
-						   *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
-						   *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
-	  }
+	// if (physical_properties.navier_stokes)
+	//   {
+	//     result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
+	// 					   *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
+	// 					   *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
+	//   }
 	return result;
 	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
       case 1:
 	result = 2*physical_properties.mu*cos(t + x)*cos(t + y) - physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y));
-	if (physical_properties.navier_stokes)
-	  {
-	    result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
-	  				 *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
-	  				 *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
-	  }
+	// if (physical_properties.navier_stokes)
+	//   {
+	//     result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
+	//   				 *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
+	//   				 *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
+	//   }
 	return result;
 	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
       case 2:
