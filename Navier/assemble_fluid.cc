@@ -6,7 +6,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 						       FluidScratchData<dim>& scratch,
 						       PerTaskData<dim>& data )
 {
-  unsigned int state=0, adjoint=1, linear=2;
+  unsigned int state=0, adjoint=1;//, linear=2;
 
   ConditionalOStream pcout(std::cout,Threads::this_thread_id()==master_thread); 
   //TimerOutput timer (pcout, TimerOutput::summary,
@@ -427,7 +427,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	  if (scratch.mode_type==state)
 	    for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 	      {
-		const double old_p = old_solution_values[q](dim);
+		//const double old_p = old_solution_values[q](dim);
 		Tensor<1,dim> old_u;
 		for (unsigned int d=0; d<dim; ++d)
 		  old_u[d] = old_solution_values[q](d);
@@ -435,7 +435,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		//const Tensor<2,dim> symgrad_phi_i_s = scratch.fe_values[velocities].symmetric_gradient (i, q);
 		//const double div_phi_i_s =  scratch.fe_values[velocities].divergence (i, q);
 		const Tensor<2,dim> grad_phi_i_s = scratch.fe_values[velocities].gradient (i, q);
-		const double div_phi_i_s =  scratch.fe_values[velocities].divergence (i, q);
+		//const double div_phi_i_s =  scratch.fe_values[velocities].divergence (i, q);
 		if (physical_properties.navier_stokes)
 		  {
 		    if (fem_properties.richardson && !fem_properties.newton)
@@ -525,6 +525,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	    {
 	      scratch.fe_face_values.reinit (cell, face_no);
 
+	      if (data.assemble_matrix)
 	      if (physical_properties.navier_stokes && physical_properties.stability_terms)
 	      	{
 	      	  scratch.fe_face_values.get_function_values (old_old_solution.block(0), old_old_solution_side_values);
@@ -664,6 +665,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	  else if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 	    {
 	      scratch.fe_face_values.reinit (cell, face_no);
+
+	      if (data.assemble_matrix)
 	      if ((!physical_properties.moving_domain && physical_properties.navier_stokes) && physical_properties.stability_terms)
 	      	{
 	      	  scratch.fe_face_values.get_function_values (old_old_solution.block(0), old_old_solution_side_values);
@@ -803,6 +806,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	    }
 	  else if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Dirichlet)
 	    {
+	      if (data.assemble_matrix)
 	      if (physical_properties.navier_stokes && physical_properties.stability_terms)
 	      	{
 	      	  scratch.fe_face_values.reinit (cell, face_no);
@@ -811,7 +815,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      	      Tensor<1,dim> u_true_side;
 	      	      if (physical_properties.simulation_type==0) // assumes only time there would be nonzero dirichlet bc
 	      		{
-			  fluid_boundary_values_function.set_time (time);
+	      		  fluid_boundary_values_function.set_time (time);
 	      		  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
 	      							      u_true_side_values);
 	      		  for (unsigned int d=0; d<dim; ++d)
@@ -822,8 +826,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      
 	      	      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 	      		{
-			  Assert(false, ExcNotImplemented());
-	      		  data.cell_rhs(i) += 10000000*0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+	      		  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
 	      		    *(
 	      		      (u_true_side*scratch.fe_face_values.normal_vector(q))*(u_true_side*scratch.fe_face_values[velocities].value (i, q))
 	      		      ) * scratch.fe_face_values.JxW(q);
@@ -844,17 +847,36 @@ void FSIProblem<dim>::copy_local_fluid_to_global (const PerTaskData<dim>& data )
   //TimerOutput timer (pcout, TimerOutput::summary,
   //		     TimerOutput::wall_times);
   //timer.enter_subsection ("Copy");
-  if (data.assemble_matrix)
+  if (physical_properties.stability_terms)
     {
-      fluid_constraints.distribute_local_to_global (data.cell_matrix, data.cell_rhs,
-  							data.dof_indices,
-  							*data.global_matrix, *data.global_rhs);
+      if (data.assemble_matrix)
+	{
+	  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+	    for (unsigned int j=0; j<fluid_fe.dofs_per_cell; ++j)
+	      data.global_matrix->add (data.dof_indices[i], data.dof_indices[j], data.cell_matrix(i,j));
+	  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+	    (*data.global_rhs)(data.dof_indices[i]) += data.cell_rhs(i);
+	}
+      else
+	{
+	  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+	    (*data.global_rhs)(data.dof_indices[i]) += data.cell_rhs(i);
+	}
     }
   else
     {
-      fluid_constraints.distribute_local_to_global (data.cell_rhs,
+      if (data.assemble_matrix)
+	{
+	  fluid_constraints.distribute_local_to_global (data.cell_matrix, data.cell_rhs,
+  							data.dof_indices,
+  							*data.global_matrix, *data.global_rhs);
+	}
+      else
+	{
+	  fluid_constraints.distribute_local_to_global (data.cell_rhs,
   							data.dof_indices,
   							*data.global_rhs);
+	}
     }
 }
 
@@ -924,7 +946,7 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
       *fluid_rhs += forcing_terms;
     }
 
-  static int master_thread = Threads::this_thread_id();
+  //static int master_thread = Threads::this_thread_id();
 
   PerTaskData<dim> per_task_data(fluid_fe, fluid_matrix, fluid_rhs, assemble_matrix);
   FluidScratchData<dim> scratch_data(fluid_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
