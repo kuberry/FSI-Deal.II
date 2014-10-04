@@ -40,7 +40,8 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	  MatrixTools::apply_boundary_values (fluid_boundary_values,
 					      system_matrix.block(0,0),
 					      solution.block(0),
-					      system_rhs.block(0));
+					      system_rhs.block(0),
+					      !physical_properties.stability_terms);
 	}
       else if (system==Structure)
 	{
@@ -405,23 +406,46 @@ void FSIProblem<dim>::setup_system ()
 	    << '+' << dofs_per_block[2] << '+' << dofs_per_block[3] << '+' << dofs_per_block[4] << ')'
 	    << std::endl;
 
+  BlockCompressedSparsityPattern csp_alt (n_big_blocks,n_big_blocks);
   BlockCompressedSimpleSparsityPattern csp (n_big_blocks,n_big_blocks);
+
   dofs_per_big_block.push_back(dofs_per_block[0]+dofs_per_block[1]);
   dofs_per_big_block.push_back(dofs_per_block[2]+dofs_per_block[3]);
   dofs_per_big_block.push_back(dofs_per_block[4]);
 
+  if (physical_properties.stability_terms) 
+    {
+      for (unsigned int i=0; i<n_big_blocks; ++i)
+	for (unsigned int j=0; j<n_big_blocks; ++j)
+	  csp_alt.block(i,j).reinit (dofs_per_big_block[i], dofs_per_big_block[j]);
 
-  for (unsigned int i=0; i<n_big_blocks; ++i)
-    for (unsigned int j=0; j<n_big_blocks; ++j)
-      csp.block(i,j).reinit (dofs_per_big_block[i], dofs_per_big_block[j]);
+      csp_alt.collect_sizes();
 
-  csp.collect_sizes();
+      DoFTools::make_sparsity_pattern (fluid_dof_handler, csp_alt.block(0,0), fluid_constraints, true);
+      DoFTools::make_sparsity_pattern (structure_dof_handler, csp_alt.block(1,1), structure_constraints, true);
+      DoFTools::make_sparsity_pattern (ale_dof_handler, csp_alt.block(2,2), ale_constraints, true);
 
-  DoFTools::make_sparsity_pattern (fluid_dof_handler, csp.block(0,0), fluid_constraints, false);
-  DoFTools::make_sparsity_pattern (structure_dof_handler, csp.block(1,1), structure_constraints, false);
-  DoFTools::make_sparsity_pattern (ale_dof_handler, csp.block(2,2), ale_constraints, false);
+      fluid_constraints.condense(csp_alt.block(0,0));
+      structure_constraints.condense(csp_alt.block(1,1));
+      ale_constraints.condense(csp_alt.block(2,2));
 
-  sparsity_pattern.copy_from (csp);
+      sparsity_pattern.copy_from (csp_alt);
+    }
+  else
+    {
+      for (unsigned int i=0; i<n_big_blocks; ++i)
+	for (unsigned int j=0; j<n_big_blocks; ++j)
+	  csp.block(i,j).reinit (dofs_per_big_block[i], dofs_per_big_block[j]);
+
+      csp.collect_sizes();
+
+      DoFTools::make_sparsity_pattern (fluid_dof_handler, csp.block(0,0), fluid_constraints, false);
+      DoFTools::make_sparsity_pattern (structure_dof_handler, csp.block(1,1), structure_constraints, false);
+      DoFTools::make_sparsity_pattern (ale_dof_handler, csp.block(2,2), ale_constraints, false);
+
+      sparsity_pattern.copy_from (csp);
+    }
+
 
   system_matrix.reinit (sparsity_pattern);
   adjoint_matrix.reinit (sparsity_pattern);
