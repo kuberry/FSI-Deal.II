@@ -43,7 +43,6 @@ double FSIProblem<dim>::interface_error()
   FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
 				    update_values    | update_normal_vectors |
 				    update_quadrature_points  | update_JxW_values);
-  const unsigned int   dofs_per_cell   = fluid_fe.dofs_per_cell;
   const unsigned int   n_face_q_points = face_quadrature_formula.size();
 
   std::vector<Vector<double> > error_values(n_face_q_points, Vector<double>(dim+1));
@@ -95,7 +94,6 @@ double FSIProblem<dim>::interface_norm(Vector<double>   &values)
   FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
 				    update_values    | update_normal_vectors |
 				    update_quadrature_points  | update_JxW_values);
-  const unsigned int   dofs_per_cell   = fluid_fe.dofs_per_cell;
   const unsigned int   n_face_q_points = face_quadrature_formula.size();
 
   std::vector<Vector<double> > actual_values(n_face_q_points, Vector<double>(dim+1));
