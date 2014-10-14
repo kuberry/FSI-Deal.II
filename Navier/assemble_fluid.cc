@@ -702,7 +702,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 			    {
 			      Tensor<1,dim> u_true_side;
-			      if (physical_properties.simulation_type!=0) 
+			      if (physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2) 
 				{
 				  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
 									      u_true_side_values);

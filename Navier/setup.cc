@@ -19,7 +19,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)
 		{
-		  if (physical_properties.simulation_type==0)
+		  if (physical_properties.simulation_type==0 || physical_properties.simulation_type==2)
 		    {
 		      VectorTools::interpolate_boundary_values (fluid_dof_handler,
 								i,
@@ -190,7 +190,7 @@ template <int dim>
 void FSIProblem<dim>::setup_system ()
 {
   AssertThrow(dim==2,ExcNotImplemented());
-  if (physical_properties.simulation_type == 0) {
+  if (physical_properties.simulation_type == 0 || physical_properties.simulation_type == 2) {
     Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
     Point<2> structure_bottom_left(0,fem_properties.fluid_height),
       structure_top_right(fem_properties.structure_width,fem_properties.fluid_height+fem_properties.structure_height);
