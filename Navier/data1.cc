@@ -2,14 +2,17 @@
 
 using namespace dealii;
 
-Tensor<2,2> get_Jacobian(double x, double y, double t) {
+Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   Tensor<2,2> F;
   // x_new = x_old + .5*cos(y_old*t);
   // y_new = y_old + .5*sin(y_old*t);
-  F[0][0] = 1;
-  F[0][1] = -t*.5*sin(y*t);
-  F[1][0] =  t*.5*cos(x*t);
   F[1][1] = 1;
+  F[0][0] = 1;
+  if (move_domain)
+    {
+      F[0][1] = sin(y-t)*.1;
+      F[1][0] = -2./3*sin(x-t)*.1;
+    }
   return F;
 }
 
@@ -65,9 +68,9 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
   } else if (physical_properties.simulation_type==2){
     // This function can be deleted later. It is just for interpolating g on the boundary
     /*
-     * u1=cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x);
-     * u2=- cos(t + x)*sin(t + y) - cos(t + y)*sin(t + x);
-     * p=2*lambda*cos(t + x)*sin(t + y) - 2*viscosity*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y));
+     * u1=2*sin(y-t)+3*x*t;
+     * u2=3*sin(x-t)-3*y*t;
+     * p=100*x;
      * 2*viscosity*(diff(u1,x)*n1+0.5*(diff(u1,y)+diff(u2,x))*n2)-p*n1*u1
      * 2*viscosity*(diff(u2,y)*n2+0.5*(diff(u1,y)+diff(u2,x))*n1)-p*n2*u2
      *
@@ -77,25 +80,24 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    grad_u[0][0] = cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y);
-    grad_u[1][1] = sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y);
-    grad_u[1][0] = cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y);
-    grad_u[0][1] = sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y);
-    Tensor<2,dim> F = get_Jacobian(x, y, t);
+    grad_u[0][0] = 3*t;
+    grad_u[1][1] = -3*t;
+    grad_u[1][0] = 2*cos(y-t);
+    grad_u[0][1] = 3*cos(x-t);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
-    Tensor<2,dim> FInv = detTimesFInv/determinant(F);
-    grad_u = transpose(FInv)*grad_u + transpose(grad_u)*FInv;
-    const double pval = 2*physical_properties.mu*cos(t + x)*sin(t + y) - 2*physical_properties.viscosity*(cos(t + x)*cos(t + y)
-													  - sin(t + x)*sin(t + y));
+    Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
+    grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
+    const double pval = 100*x;
 
     switch (component)
       {
       case 0:
 	result[0]=2*physical_properties.viscosity*grad_u[0][0]-pval;
-	result[1]=2*physical_properties.viscosity*0.5*(grad_u[1][0]+grad_u[0][1]);
+	result[1]=2*physical_properties.viscosity*grad_u[0][1];
 	break;
       case 1:
-	result[0]=2*physical_properties.viscosity*0.5*(grad_u[1][0]+grad_u[0][1]);
+	result[0]=2*physical_properties.viscosity*grad_u[1][0];
 	result[1]=2*physical_properties.viscosity*grad_u[1][1]-pval;
 	break;
       default:
@@ -146,38 +148,41 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
 	return result;
       }
   } else if (physical_properties.simulation_type==2){
+    // This function can be deleted later. It is just for interpolating g on the boundary
     /*
-     * u1=cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x);
-     * u2=- cos(t + x)*sin(t + y) - cos(t + y)*sin(t + x);
-     * p=2*lambda*cos(t + x)*sin(t + y) - 2*viscosity*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y));
+     * u1=2*sin(y-t)+3*x*t;
+     * u2=3*sin(x-t)-3*y*t;
+     * p=100*x;
      * 2*viscosity*(diff(u1,x)*n1+0.5*(diff(u1,y)+diff(u2,x))*n2)-p*n1*u1
      * 2*viscosity*(diff(u2,y)*n2+0.5*(diff(u1,y)+diff(u2,x))*n1)-p*n2*u2
      *
      */
-  
+    Tensor<2,dim> grad_u;
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    const double u1_x = cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y);
-    const double u2_y = sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y);
-    const double u1_y = cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y);
-    const double u2_x = sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y);
-    const double pval = 2*physical_properties.mu*cos(t + x)*sin(t + y) - 2*physical_properties.viscosity*(cos(t + x)*cos(t + y)
-													  - sin(t + x)*sin(t + y));
+    grad_u[0][0] = 3*t;
+    grad_u[1][1] = -3*t;
+    grad_u[1][0] = 2*cos(y-t);
+    grad_u[0][1] = 3*cos(x-t);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
+    Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
+    Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
+    grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
+    const double pval = 100*x;
 
     switch (component)
       {
       case 0:
-	result[0]=2*physical_properties.viscosity*u1_x-pval;
-	result[1]=2*physical_properties.viscosity*0.5*(u1_y+u2_x);
-	return result;
+	result[0]=2*physical_properties.viscosity*grad_u[0][0]-pval;
+	result[1]=2*physical_properties.viscosity*grad_u[0][1];
+	break;
       case 1:
-	result[0]=2*physical_properties.viscosity*0.5*(u1_y+u2_x);
-	result[1]=2*physical_properties.viscosity*u2_y-pval;
-	return result;
+	result[0]=2*physical_properties.viscosity*grad_u[1][0];
+	result[1]=2*physical_properties.viscosity*grad_u[1][1]-pval;
+	break;
       default:
 	result=0;
-	return result;
       }
   }
   return result;
@@ -315,38 +320,63 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 	return 0;
       }
   } else if (physical_properties.simulation_type==2){
-    double result;
+    /*
+     * u1=2*sin(y-t)+3*x*t;
+     * u2=3*sin(x-t)-3*y*t;
+     * p=100*x;
+     */
+    // >> rho_f*diff(u1,t)-2*viscosity*(diff(diff(u1,x),x)+0.5*(diff(diff(u1,y),y)+diff(diff(u2,x),y)))+diff(p,x) + convection
+    // >> rho_f*diff(u2,t)-2*viscosity*(diff(diff(u2,y),y)+0.5*(diff(diff(u2,x),x)+diff(diff(u1,y),x)))+diff(p,y) + convection
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    // >> u1=cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x);
-    // >> u2=- cos(t + x)*sin(t + y) - cos(t + y)*sin(t + x);
-    // >> p=2*mu*cos(t + x)*sin(t + y) - 2*viscosity*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y));
-    // >> rho_f*diff(u1,t)-2*viscosity*(diff(diff(u1,x),x)+0.5*(diff(diff(u1,y),y)+diff(diff(u2,x),y)))+diff(p,x) + convection
-    // >> rho_f*diff(u2,t)-2*viscosity*(diff(diff(u2,y),y)+0.5*(diff(diff(u2,x),x)+diff(diff(u1,y),x)))+diff(p,y) + convection
+    Tensor<1,dim> result(2);
+    Tensor<1,dim> u;
+    u[0] = 2*sin(y-t)+3*x*t;
+    u[1] = 3*sin(x-t)-3*y*t;
+    Tensor<1,dim> grad_p(2);
+    grad_p[0] = 100; // pval
+    grad_p[1] = 0;
+    Tensor<1,dim> u_t;
+    u_t[0] = -2*cos(y-t)+3*x;
+    u_t[1] = -3*cos(x-t)-3*y;
+    Tensor<2,dim> grad_u;
+    grad_u[0][0] = 3*t;
+    grad_u[1][1] = -3*t;
+    grad_u[1][0] = 2*cos(y-t);
+    grad_u[0][1] = 3*cos(x-t);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
+    Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
+    Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
+    Tensor<1,dim> div_deformation(2);
+    Tensor<3,dim> second_partial_u;
+    second_partial_u[0][0][0] = 0;
+    second_partial_u[1][1][0] = -2*sin(y-t);
+    second_partial_u[1][0][0] = 0;
+    second_partial_u[0][1][0] = 0;
+    second_partial_u[0][0][1] = -3*sin(x-t);
+    second_partial_u[1][1][1] = 0;
+    second_partial_u[1][0][1] = 0;
+    second_partial_u[0][1][1] = 0;
+    for (unsigned int i=0; i<dim; ++i)
+      for (unsigned int j=0; j<dim; ++j) 
+	{
+	  div_deformation[0]+=second_partial_u[i][j][0]*(FInv[i][0]*FInv[j][0]+.5*FInv[i][1]*FInv[j][1]) + .5*second_partial_u[i][j][1]*FInv[i][0]*FInv[j][1];
+	  div_deformation[1]+=second_partial_u[i][j][1]*(FInv[i][1]*FInv[j][1]+.5*FInv[i][0]*FInv[j][0]) + .5*second_partial_u[i][j][0]*FInv[i][1]*FInv[j][0];
+	}
+    // std::cout << "true: " << sin(t - y) << std::endl;
+    // std::cout << "adde: " << div_deformation[0] << std::endl;
+    result += physical_properties.rho_f*u_t; // time term
+    if (physical_properties.navier_stokes)
+      result += physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
+    result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
+    result += grad_p;
     switch (component)
       {
       case 0:
-	result = physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y)) + 4*physical_properties.viscosity 
-	  * (cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x)) - 2*physical_properties.mu*sin(t + x)*sin(t + y);
-	// if (physical_properties.navier_stokes)
-	//   {
-	//     result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
-	// 					   *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
-	// 					   *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
-	//   }
-	return result;
-	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
+	return result[0];// - 2*physical_properties.viscosity*sin(t - y);
       case 1:
-	result = 2*physical_properties.mu*cos(t + x)*cos(t + y) - physical_properties.rho_f*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y));
-	// if (physical_properties.navier_stokes)
-	//   {
-	//     result += physical_properties.rho_f * ((-sin(t + x)*sin(t + y) + cos(t + x)*cos(t + y))
-	//   				 *(sin(t + x)*cos(t + y) + sin(t + y)*cos(t + x)) + (sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y))
-	//   				 *(-sin(t + x)*cos(t + y) - sin(t + y)*cos(t + x)));
-	//   }
-	return result;
-	//+ physical_properties.rho_f*(2*(cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x))*(cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y)));
+	return result[1];// - 3*physical_properties.viscosity*sin(t - x);
       case 2:
 	return 0;
       default:
@@ -448,19 +478,22 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
       }    
   } else if (physical_properties.simulation_type==2) {
     Assert (component < 3, ExcInternalError());
-    double pi =  3.14159265358979323846;
+    /*
+     * u1=2*sin(y-t)+3*x*t;
+     * u2=3*sin(x-t)-3*y*t;
+     * p=100*x;
+     */
     const double t = this->get_time();
-    // const double x = p[0];
-    // const double y = p[1];
+    const double x = p[0];
+    const double y = p[1];
     switch (component)
       {
       case 0:
-	if (t<.025) return 1000 * (1 - cos(2*pi*t*40));//-1000t)*sin(y + t) + sin(x + t)*cos(y + t);
-        else return 0;
+	return 2*sin(y-t)+3*x*t;
       case 1:
-	return 0;
+	return 3*sin(x-t)-3*y*t;
       case 2:
-	return 0;
+	return 100*x; // pval
       default:
 	return 0;
       }    
@@ -508,23 +541,30 @@ Tensor<1,dim> FluidBoundaryValues<dim>::gradient (const dealii::Point<dim>   &p,
 	return result;
       }
   } else if (physical_properties.simulation_type==2){
+    Tensor<2,dim> grad_u;
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    const double u1_x = cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y);
-    const double u2_y = sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y);
-    const double u1_y = cos(t + x)*cos(t + y) - sin(t + x)*sin(t + y);
-    const double u2_x = sin(t + x)*sin(t + y) - cos(t + x)*cos(t + y);
+    grad_u[0][0] = 3*t;
+    grad_u[1][1] = -3*t;
+    grad_u[1][0] = 2*cos(y-t);
+    grad_u[0][1] = 3*cos(x-t);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
+    Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
+    Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
+    grad_u = transpose(FInv)*grad_u;
 
     switch (component)
       {
       case 0:
-	result[0]=u1_x;
-	result[1]=u1_y;
+	result[0]=grad_u[0][0];
+	result[1]=grad_u[1][0]; 
+	// CHECK THIS LATER, it may be the cause of some issues with transposes. I replaced what you see with their equivalents grad_u[0][1]=u2_x
+	// Basically, Deal.II expects the transpose of the gradient instead of the gradient
 	return result;
       case 1:
-	result[0]=u2_x;
-	result[1]=u2_y;
+	result[0]=grad_u[0][1];
+	result[1]=grad_u[1][1];
 	return result;
       default:
 	result=0;
@@ -655,13 +695,16 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
       }
   } else {
     Assert (component < dim, ExcInternalError());
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
     if (component==0)
       {
-	return 3;
+	return sin(y-t)*.1;
       }
     else
       {
-	return 0;
+	return -2./3*sin(x-t)*.1;
       }
   }
   return 0;

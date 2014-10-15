@@ -25,6 +25,7 @@ void FSIProblem<dim>::run ()
 
   StructureBoundaryValues<dim> structure_boundary_values(physical_properties);
   FluidBoundaryValues<dim> fluid_boundary_values(physical_properties);
+  AleBoundaryValues<dim> ale_boundary_values(physical_properties);
 
   StructureStressValues<dim> structure_boundary_stress(physical_properties);
   FluidStressValues<dim> fluid_boundary_stress(physical_properties);
@@ -120,8 +121,24 @@ void FSIProblem<dim>::run ()
 	      //mesh_displacement.block(0).add(-(1-fluid_theta),old_mesh_displacement.block(0));
 	      //mesh_displacement.block(0)/=(double)(fluid_theta);
 
+	      if (physical_properties.simulation_type==2)
+		{
+		  ale_boundary_values.set_time(time-time_step);
+		  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+				       ale_boundary_values,
+				       mesh_displacement_star.block(0));
+		}
+
 	      mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
 	      transfer_all_dofs(solution,mesh_displacement_star,2,0);
+
+	      if (physical_properties.simulation_type==2)
+		{
+		  ale_boundary_values.set_time(time);
+		  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+				       ale_boundary_values,
+				       mesh_displacement_star.block(0));
+		}
 
 	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
 	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
@@ -131,7 +148,7 @@ void FSIProblem<dim>::run ()
 	      //mesh_displacement.block(0)*=fluid_theta;
 	      //mesh_displacement.block(0).add(1-fluid_theta,old_mesh_displacement.block(0));
 	    }
-
+	  
 	  Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
 	  Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
 	  s_assembly.join();
