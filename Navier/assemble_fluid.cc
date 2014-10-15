@@ -563,7 +563,23 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   //        
   // LOOP OVER BOUNDARY FACES BEGINS HERE       
   // 
-
+  if (scratch.mode_type==state && physical_properties.moving_domain && (physical_properties.simulation_type==0 || physical_properties.simulation_type==2))
+    {
+      for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
+  	{
+  	  Point<2> &v = cell->vertex(i);
+  	  scratch.fe_vertices_values.get_function_values(mesh_displacement_star.block(0), z_vertices);
+  	  scratch.fe_vertices_values.get_function_values(mesh_displacement_star_old.block(0), z_old_vertices);
+  	  // pcout << "i= " << i << " point " << scratch.fe_vertices_values.get_quadrature().point(i) << std::endl;
+  	  // pcout << " v(0)= " << v(0) << " v(1)= " << v(1) <<  std::endl;
+  	  // pcout << " z(0)= " << z_vertices[i](0) << " z(1)= " << z_vertices[i](1) <<  std::endl;
+	  
+  	  for (unsigned int j=0; j<dim; ++j)
+  	    {
+  	      v(j) -= z_vertices[i](j);
+  	    }
+  	}
+    }
   for (unsigned int face_no=0;
        face_no<GeometryInfo<dim>::faces_per_cell;
        ++face_no)
@@ -677,9 +693,11 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				  new_stresses[1][0]=stress_values[1][0];
 				  new_stresses[1][1]=stress_values[1][1];
 				  new_stresses[0][1]=stress_values[0][1];
-				  data.cell_rhs(i) += fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
-								   new_stresses*scratch.fe_face_values.normal_vector(q) *
-								   scratch.fe_face_values.JxW(q));
+				  // data.cell_rhs(i) += fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
+				  // 				   new_stresses*scratch.fe_face_values.normal_vector(q) *
+				  // 				   scratch.fe_face_values.JxW(q));
+				  data.cell_rhs(i) += fluid_theta*(new_stresses*scratch.fe_face_values.normal_vector(q) *
+								   scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.JxW(q));
 				}
 			      fluid_stress_values.set_time(time-time_step);
 			      fluid_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
@@ -691,9 +709,11 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				  new_stresses[1][0]=stress_values[1][0];
 				  new_stresses[1][1]=stress_values[1][1];
 				  new_stresses[0][1]=stress_values[0][1];
-				  data.cell_rhs(i) += (1-fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
-								       new_stresses*scratch.fe_face_values.normal_vector(q) *
-								       scratch.fe_face_values.JxW(q));
+				  // data.cell_rhs(i) += (1-fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
+				  // 				       new_stresses*scratch.fe_face_values.normal_vector(q) *
+				  // 				       scratch.fe_face_values.JxW(q));
+				  data.cell_rhs(i) += (1-fluid_theta)*(new_stresses*scratch.fe_face_values.normal_vector(q) *
+								       scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.JxW(q));
 				}
 			    }
 			}
@@ -915,7 +935,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
     }
   cell->get_dof_indices (data.dof_indices);
 
-  if (scratch.mode_type==state && physical_properties.moving_domain)
+  if (scratch.mode_type==state && physical_properties.moving_domain && physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2)
     {
       for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
   	{
