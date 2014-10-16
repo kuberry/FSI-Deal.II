@@ -1,7 +1,11 @@
 #include "data1.h"
 
-// Temporary test not divergence free
-// add x^2 to u1 and y^2 to u2
+// It is okay if not divergence free so long as it is adjust for as a source
+// term in the right hand side. This should similarly permit arbitrary non-
+// divergence free solutions to be used to test moving domain problems.
+// 
+// Also note that the divergence source must be negated, since it is in the 
+// operator (to provide a symmetric operator for Stokes)
 
 using namespace dealii;
 
