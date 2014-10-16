@@ -1,5 +1,8 @@
 #include "data1.h"
 
+// Temporary test not divergence free
+// add x^2 to u1 and y^2 to u2
+
 using namespace dealii;
 
 Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
@@ -14,6 +17,11 @@ Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
       F[1][0] = -2./3*cos(x-t)*.1;
     }
   return F;
+}
+
+Point<2> reference_coord(double x, double y, double t, bool move_domain) {
+  Point<2> inverse_coord;
+  
 }
 
 Tensor<2,2> get_DetTimesJacobianInv(Tensor<2,2> Jacobian) {
@@ -347,7 +355,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 	z[0] = cos(y-t)*.1; 
 	z[1] = -2./3*cos(x-t)*.1;
       } 
-    Tensor<2,dim> determinate_derivatives(2);
+    Tensor<2,dim> determinant_derivatives;
     // x/x_1 = 1
     // y/x_2 = 1
     // x/x_2 = cos(y-t)*.1
@@ -356,13 +364,13 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       {
 	// these powers denote partial derivatives
 	// x^2/x_1^2 * y/x_2 - y^2/x_1^2 * x/x_1
-	determinate_derivatives[0][0]= 0;// 0*0 - (2./3*(sin(x-t)*.1)*0; 
+	determinant_derivatives[0][0]= 0;// 0*0 - (2./3*(sin(x-t)*.1)*0; 
 	// x/x_1 * y^2/x_2,x_1 - y/x_1 * x^2/x_1^2
-	determinate_derivatives[0][1]= 0;//0*0 - (-2./3*cos(x-t)*.1 * 0;
+	determinant_derivatives[0][1]= 0;//0*0 - (-2./3*cos(x-t)*.1 * 0;
 	// x^2/x_1,x_2 * y/x_2 - y^2/x_1,x_2 * x/x_1
-	determinate_derivatives[1][0]= 0;//0*0 - 0*0; 
+	determinant_derivatives[1][0]= 0;//0*0 - 0*0; 
 	// x/x_1 * y^2/x_2^2 - y/x_1 * x^2/x_1,x_2
-	determinate_derivatives[1][1]= 0;//0*0 - 0*0;
+	determinant_derivatives[1][1]= 0;//0*0 - 0*0;
       } 
 
     Tensor<1,dim> grad_p(2);
@@ -381,7 +389,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
 
-    Tensor<2,dim> grad_u_transformed_times_TransposeFInv = .5*(transpose(FInv)*grad_u + transpose(grad_u)*Finv)*transpose(FInv);
+    Tensor<2,dim> grad_u_transformed_times_TransposeFInv = .5*(transpose(FInv)*grad_u + transpose(grad_u)*FInv)*transpose(FInv);
 
     Tensor<1,dim> div_deformation(2);
     Tensor<3,dim> second_partial_u;
@@ -395,35 +403,47 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     second_partial_u[0][1][1] = 0;
 
     // product rule of jacobians * transformed gradient
-    div_deformation[0]+=(determinate_derivatives[0][0]+determinate_derivatives[0][1])*grad_u_transformed_times_TransposeFInv[0][0];
-    div_deformation[1]+=(determinate_derivatives[0][0]+determinate_derivatives[0][1])*grad_u_transformed_times_TransposeFInv[0][1];
-    div_deformation[0]+=(determinate_derivatives[1][0]+determinate_derivatives[1][1])*grad_u_transformed_times_TransposeFInv[1][0];
-    div_deformation[1]+=(determinate_derivatives[1][0]+determinate_derivatives[1][1])*grad_u_transformed_times_TransposeFInv[1][1];
+    div_deformation[0]+=(determinant_derivatives[0][0]+determinant_derivatives[0][1])*grad_u_transformed_times_TransposeFInv[0][0];
+    div_deformation[1]+=(determinant_derivatives[0][0]+determinant_derivatives[0][1])*grad_u_transformed_times_TransposeFInv[0][1];
+    div_deformation[0]+=(determinant_derivatives[1][0]+determinant_derivatives[1][1])*grad_u_transformed_times_TransposeFInv[1][0];
+    div_deformation[1]+=(determinant_derivatives[1][0]+determinant_derivatives[1][1])*grad_u_transformed_times_TransposeFInv[1][1];
 
-    // jacobian * derivatives of transformed gradient
+    Tensor<1,dim> second_partials_transformed(2);
     
 
+    // jacobian * derivatives of transformed gradient
+    // for (unsigned int i=0; i<dim; ++i)
+    //   // for (unsigned int j=0; j<dim; ++j) 
+    //   // 	{
+    //   {
+	second_partials_transformed[0]=second_partial_u[0][0][0]*FInv[0][0]+second_partial_u[1][0][0]*FInv[1][0];
+	second_partials_transformed[0]=.5*(second_partial_u[0][1][0]*FInv[0][1]+second_partial_u[1][1][0]*FInv[1][1]
+					   +second_partial_u[0][1][1]*FInv[0][0]+second_partial_u[1][1][1]*FInv[1][0]);
+	second_partials_transformed[1]=second_partial_u[1][1][1]*FInv[1][1]+second_partial_u[0][1][1]*FInv[0][1];
+	second_partials_transformed[1]=.5*(second_partial_u[0][0][0]*FInv[0][1]+second_partial_u[1][0][0]*FInv[1][1]
+					   +second_partial_u[0][0][1]*FInv[0][0]+second_partial_u[1][0][1]*FInv[1][0]);
 
-    for (unsigned int i=0; i<dim; ++i)
-      for (unsigned int j=0; j<dim; ++j) 
-	{
-	  div_deformation[0]+=second_partial_u[i][j][0]*(FInv[i][0]*FInv[j][0]+.5*FInv[i][1]*FInv[j][1]) + .5*second_partial_u[i][j][1]*FInv[i][0]*FInv[j][1];
-	  div_deformation[1]+=second_partial_u[i][j][1]*(FInv[i][1]*FInv[j][1]+.5*FInv[i][0]*FInv[j][0]) + .5*second_partial_u[i][j][0]*FInv[i][1]*FInv[j][0];
-	}
+	second_partials_transformed=determinant(F)*second_partials_transformed*transpose(FInv);
+	div_deformation=div_deformation+second_partials_transformed;
 
-    result += physical_properties.rho_f*u_t; // time term
+	  // div_deformation[0]+=second_partial_u[i][j][0]*(FInv[i][0]*FInv[j][0]+.5*FInv[i][1]*FInv[j][1]) + .5*second_partial_u[i][j][1]*FInv[i][0]*FInv[j][1];
+	  // div_deformation[1]+=second_partial_u[i][j][1]*(FInv[i][1]*FInv[j][1]+.5*FInv[i][0]*FInv[j][0]) + .5*second_partial_u[i][j][0]*FInv[i][1]*FInv[j][0];
+      // }
+	// }
+
+    result += determinant(F)*physical_properties.rho_f*u_t; // time term
     if (physical_properties.navier_stokes)
-      result += physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
+      result += determinant(F)*physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
     if (physical_properties.moving_domain)
-      result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u);
+      result -= determinant(F)*physical_properties.rho_f*z*(transpose(FInv)*grad_u);
     result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
-    result += transpose(FInv)*grad_p; 
+    result += determinant(F)*transpose(FInv)*grad_p; 
     switch (component)
       {
       case 0:
-	return determinant(F)*result[0];// - 2*physical_properties.viscosity*sin(t - y);
+	return result[0];// - 2*physical_properties.viscosity*sin(t - y);
       case 1:
-	return determinant(F)*result[1];// - 3*physical_properties.viscosity*sin(t - x);
+	return result[1];// - 3*physical_properties.viscosity*sin(t - x);
       case 2:
 	return 0;
       default:

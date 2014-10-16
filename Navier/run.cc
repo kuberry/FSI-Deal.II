@@ -126,9 +126,9 @@ void FSIProblem<dim>::run ()
 		  ale_boundary_values.set_time(time-time_step);
 		  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
 				       ale_boundary_values,
-				       mesh_displacement_star.block(0));
+				       mesh_displacement_star.block(2));
 		}
-
+	      transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
 	      mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
 	      transfer_all_dofs(solution,mesh_displacement_star,2,0);
 
@@ -137,8 +137,9 @@ void FSIProblem<dim>::run ()
 		  ale_boundary_values.set_time(time);
 		  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
 				       ale_boundary_values,
-				       mesh_displacement_star.block(0));
+				       mesh_displacement_star.block(2));
 		}
+	      transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
 
 	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
 	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
