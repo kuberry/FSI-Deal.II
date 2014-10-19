@@ -357,7 +357,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f *
 			  	(- (meshvelocity*(transpose(grad_phi_u[j])*transpose(detTimesFinv)))*phi_u[i]
-			  	 //- scalar_product(grad_z[q],transpose(detTimesFinv)) * phi_u[j] * phi_u[i]
+			  	 - scalar_product(grad_z[q],transpose(detTimesFinv)) * phi_u[j] * phi_u[i]
 			  	 )* scratch.fe_values.JxW(q);
 			    }
 			}
@@ -540,7 +540,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			data.cell_rhs(i) -= (1 - fluid_theta) * physical_properties.rho_f 
 			  * (
 			     - meshvelocity*(transpose(grad_u_old[q])*transpose(detTimesFinv))*phi_i_s
-			     //- scalar_product(grad_z[q],transpose(detTimesFinv)) * u_old * phi_i_s
+			     - scalar_product(grad_z[q],transpose(detTimesFinv)) * u_old * phi_i_s
 			     ) * scratch.fe_values.JxW(q);
 		      }
 		  }

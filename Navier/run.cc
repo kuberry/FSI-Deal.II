@@ -159,7 +159,9 @@ void FSIProblem<dim>::run ()
 	  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
 	  s_solve.join();
 	  f_assembly.join();
-	    
+	  // std::cout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
+	  // As timestep decreases, this makes it increasing difficult to get within some tolerance on the interface error
+	  // This really only becomes noticeable using the first order finite difference in the objective
 
 	  timer.leave_subsection();
 
@@ -238,10 +240,10 @@ void FSIProblem<dim>::run ()
 	      Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[0], adjoint_matrix.block(0,0));
 	      Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[1], adjoint_matrix.block(1,1));
 
-	      f_factor.join();
-	      Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, adjoint_solver[1], 1, adjoint);
 	      s_factor.join();
-	      Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, adjoint_solver[0], 0, adjoint);				
+	      Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, adjoint_solver[1], 1, adjoint);
+	      f_factor.join();
+	      Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, adjoint_solver[0], 0, adjoint);				
 	      f_solve.join();
 	      s_solve.join();
 	      total_solves += 2;
@@ -274,10 +276,10 @@ void FSIProblem<dim>::run ()
 		  relrecord = 0;
 		}
 	      else if (imprecord > 0)
-		{
-		  alpha *= 0.95;
-		  imprecord = 0;
-		}
+	      	{
+	      	  alpha *= 0.95;
+	      	  imprecord = 0;
+	      	}
 	    
 	      if (consecutiverelrecord>50)
 		{
@@ -292,7 +294,7 @@ void FSIProblem<dim>::run ()
 	      if (fem_properties.adjoint_type==1)
 		{
 		  transfer_interface_dofs(adjoint_solution,tmp,1,0,Displacement);
-		  tmp.block(0)*= ((double)fem_properties.structure_theta)/time_step;
+		  tmp.block(0)*= fem_properties.structure_theta;
 		}
 	      else
 		{

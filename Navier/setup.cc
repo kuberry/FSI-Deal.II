@@ -210,7 +210,7 @@ void FSIProblem<dim>::setup_system ()
 
     for (unsigned int i=0; i<4; ++i)
       {
-	if (i==1||i==3||i==0) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
       }

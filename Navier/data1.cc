@@ -25,7 +25,7 @@ Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
 
 Point<2> reference_coord(double x, double y, double t, bool move_domain) {
   Point<2> inverse_coord;
-  
+  return inverse_coord;
 }
 
 Tensor<2,2> get_DetTimesJacobianInv(Tensor<2,2> Jacobian) {
