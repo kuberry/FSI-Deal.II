@@ -1,0 +1,108 @@
+# Listing of Parameters
+# ---------------------
+# 1 - "analytic" used in gradient paper
+# 2 - "murea & sy"   -used in SINUM paper
+set simulation type       = 0
+
+# time to run the simulation until.
+set t0                    = 0.8
+set T                     = 0.800001
+# set T                     = 1.0
+
+# order of the finite element to use for the ALE mesh update.
+set ale degree            = 2
+
+# convergence method. choice between 'time' and 'space'.
+set convergence method    = time
+
+# height of the fluid domain.
+set fluid height          = 1.0
+
+# order of the finite element to use for the fluid pressure.
+set fluid pressure degree = 1
+
+# density of the fluid.
+set fluid rho             = 1.0
+
+# order of the finite element to use for the fluid velocity.
+set fluid velocity degree = 2
+
+# width of the fluid domain.
+set fluid width           = 1.0
+
+# tolerance to which the velocities must match on the interface.
+set jump tolerance              = 1e-10
+
+# lambda of the structure.
+set lambda                = 0.0
+
+# create plots of the solution at each time step.
+set make plots            = false
+
+# maximum number of optimization iterations per time step.
+set max optimization iterations = 1000
+
+set moving domain         = false
+
+# mu of the structure.
+set mu                    = 3.0
+
+# mu of the structure.
+set nu                    = 0.3
+
+# number of time steps to divide T by.
+set number of time steps  = 16
+
+# # of horizontal edges of the fluid.
+set nx fluid              = 4
+
+# # of horizontal edges of the structure.
+set nx structure          = 4
+
+# # of vertical edges of the fluid.
+set ny fluid              = 4
+
+# # of vertical edges of the structure.
+set ny structure          = 4
+
+# give error output info at each time step.
+set output error          = true
+
+# second tuning parameter for the steepest descent algorithm.
+set penalty epsilon             = 1e-24
+
+# tuning parameter for the steepest descent algorithm.
+set steepest descent alpha      = 1e-17
+
+# order of the finite element to use for the structure displacement and
+# velocity.
+set structure degree      = 2
+
+# height of the structure domain.
+set structure height      = 0.25
+
+# density of the structure.
+set structure rho         = 1.9
+
+# width of the structure domain.
+set structure width       = 1.0
+
+# theta value for the fluid, 0.5 is Crank-Nicolson and 1.0 is Implicit Euler.
+set fluid theta                 = 1.0
+set structure theta 		= 0.5
+# viscosity of the fluid.
+set viscosity             = 0.013
+
+# Richardson or Newton for solving the nonlinearity in NS
+# If there is a conflict, the default is Newton's method
+set richardson            = false
+set newton                = true
+
+set navier stokes         = true
+
+set true control          = false
+
+set optimization method   = Gradient
+set cg tolerance          = 1e-13
+set stability terms       = true
+set adjoint type          = 1

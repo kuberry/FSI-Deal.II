@@ -1,0 +1,8 @@
+Computations were made using:
+commit 8568f3df79751d12784bf175a32c570947978a17 
+of the repository along with the included default.prm file
+for the gradient method over a single time step
+
+commit 87d625155b83bba95a752edee1eab8f3de653cd3
+was used with the included default.prm file for the GN-CG
+over all time steps
