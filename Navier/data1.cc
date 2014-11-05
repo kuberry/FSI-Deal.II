@@ -96,7 +96,7 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
     grad_u[1][1] = -3*t;
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
-    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
@@ -181,7 +181,7 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     grad_u[1][1] = -3*t;
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
-    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
@@ -364,7 +364,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     // y/x_2 = 1
     // x/x_2 = cos(y-t)*.1
     // y/x_1 = -2./3*cos(x-t)*.1
-    if (physical_properties.moving_domain)
+    if (physical_properties.move_domain)
       {
 	// these powers denote partial derivatives
 	// x^2/x_1^2 * y/x_2 - y^2/x_1^2 * x/x_1
@@ -389,7 +389,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
 
-    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
 
@@ -620,7 +620,7 @@ Tensor<1,dim> FluidBoundaryValues<dim>::gradient (const dealii::Point<dim>   &p,
     grad_u[1][1] = -3*t;
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
-    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.moving_domain);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = transpose(FInv)*grad_u;
