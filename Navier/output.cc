@@ -130,8 +130,8 @@ void FSIProblem<dim>::compute_error ()
       //errors.fluid_pressure_L2_Error=std::max(errors.fluid_pressure_L2_Error,fluid_cellwise_errors.l2_norm());
       errors.fluid_pressure_L2_Error=fluid_cellwise_errors.l2_norm();
 
-      AssertThrow(errors.fluid_velocity_L2_Error>0 && errors.fluid_velocity_H1_Error>0 && errors.fluid_pressure_L2_Error>0
-		  && errors.structure_displacement_L2_Error>0 && errors.structure_displacement_H1_Error>0 && errors.structure_velocity_L2_Error>0,ExcIO());
+      AssertThrow(errors.fluid_velocity_L2_Error>=0 && errors.fluid_velocity_H1_Error>=0 && errors.fluid_pressure_L2_Error>=0
+		  && errors.structure_displacement_L2_Error>=0 && errors.structure_displacement_H1_Error>=0 && errors.structure_velocity_L2_Error>=0,ExcIO());
       errors.fluid_velocity_H1_Error *= time_step;
       errors.structure_displacement_H1_Error *= time_step;
       errors.structure_displacement_L2_Error *= time_step;
