@@ -210,22 +210,36 @@ void FSIProblem<dim>::setup_system ()
 
     for (unsigned int i=0; i<4; ++i)
       {
-	if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	if (physical_properties.simulation_type == 0) {
+	  if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	  else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	  else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	} else { // simulation_type ==2
+	  if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	  else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	}
       }
 
     for (unsigned int i=0; i<4; ++i)
       {
-	if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-	else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	if (physical_properties.simulation_type == 0) {
+	  if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	  else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	} else { // simulation_type ==2
+	  if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	}
       }
     for (unsigned int i=0; i<4; ++i)
       {
-	if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	else if (i==0) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
-	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	if (physical_properties.simulation_type == 0) {
+	  if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	  else if (i==0) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	  else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	} else { // simulation_type ==2
+	  ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	}
       }
   } else if (physical_properties.simulation_type == 1) {
     Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
