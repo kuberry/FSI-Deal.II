@@ -1071,7 +1071,7 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
     endc = fluid_dof_handler.end();
   for (; cell!=endc; ++cell) {
     fe_vertices_values.reinit(cell);
-    if (physical_properties.moving_domain)
+    if (physical_properties.move_domain)
       {
 	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
 	  {
@@ -1112,7 +1112,7 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
   endc = fluid_dof_handler.end();
   for (; cell!=endc; ++cell) {
     fe_vertices_values.reinit(cell);
-    if (physical_properties.moving_domain)
+    if (physical_properties.move_domain)
       {
   	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
   	  {

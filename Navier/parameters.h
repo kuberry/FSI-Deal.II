@@ -178,7 +178,7 @@ namespace Parameters
 			    "use Newton's method for convergence of nonlinearity in NS solve.");
 	  prm.declare_entry("moving domain", "true", Patterns::Bool(),
 	  			  "should the ALE be used.");
-	  prm.declare_entry("move domain", "true", Patterns::Bool(),
+	  prm.declare_entry("move domain", "false", Patterns::Bool(),
 	  			  "should the points be physically moved (vs using determinants).");
 
   }
