@@ -354,10 +354,17 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     u[0] = 2*sin(y-t)+3*x*t;
     u[1] = 3*sin(x-t)-3*y*t;
     Tensor<1,dim> z(2);
+    Tensor<2,dim> grad_z;
     if (physical_properties.moving_domain)
       {
-	z[0] = cos(y-t)*.1; 
-	z[1] = -2./3*cos(x-t)*.1;
+	z[0] = -cos(y-t)*.1; 
+	z[1] = 2./3*cos(x-t)*.1;
+	z[0] = -2; 
+	z[1] = 5;
+	grad_z[0][0]=0;
+	grad_z[1][0]=sin(y-t)*.1;
+	grad_z[0][1]=-2./3*cos(x-t)*.1;
+        grad_z[1][1]=0;
       } 
     Tensor<2,dim> determinant_derivatives;
     // x/x_1 = 1
@@ -444,26 +451,28 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 
 	second_partials_transformed=determinant(F)*second_partials_transformed*transpose(FInv);
 	div_deformation=div_deformation+second_partials_transformed;
-
 	  // div_deformation[0]+=second_partial_u[i][j][0]*(FInv[i][0]*FInv[j][0]+.5*FInv[i][1]*FInv[j][1]) + .5*second_partial_u[i][j][1]*FInv[i][0]*FInv[j][1];
 	  // div_deformation[1]+=second_partial_u[i][j][1]*(FInv[i][1]*FInv[j][1]+.5*FInv[i][0]*FInv[j][0]) + .5*second_partial_u[i][j][0]*FInv[i][1]*FInv[j][0];
       // }
 	// }
 
-    result += determinant(F)*physical_properties.rho_f*u_t; // time term
+    result += physical_properties.rho_f*u_t; // time term
     if (physical_properties.navier_stokes)
-      result += determinant(F)*physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
-    if (physical_properties.moving_domain)
-      result -= determinant(F)*physical_properties.rho_f*z*(transpose(FInv)*grad_u);
+      result += physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
+    if (physical_properties.moving_domain) {
+      result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term
+      result -= physical_properties.rho_f*scalar_product(grad_z,transpose(FInv))*u; // (div z)u term
+      //std::cout << physical_properties.rho_f*scalar_product(grad_z,transpose(FInv)) << std::endl;
+    }
     result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
-    result += determinant(F)*transpose(FInv)*grad_p; 
+    result += transpose(FInv)*grad_p; 
 
     switch (component)
       {
       case 0:
-	return result[0];// - 2*physical_properties.viscosity*sin(t - y);
+	return result[0];//determinant(F)* - 2*physical_properties.viscosity*sin(t - y);
       case 1:
-	return result[1];// - 3*physical_properties.viscosity*sin(t - x);
+	return result[1];//determinant(F)* - 3*physical_properties.viscosity*sin(t - x);
       case 2:
 	return 0;
       default:
@@ -799,6 +808,8 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
 	return -2./3*sin(x-t)*.1;
       }
   }
+  // x_new = x_old + sin(y-t)*.1;
+  // y_new = y_old - .2./3*sin(x-t)*.1;
   return 0;
 }
 
