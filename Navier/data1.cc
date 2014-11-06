@@ -455,15 +455,15 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       result += determinant(F)*physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
     if (physical_properties.moving_domain)
       result -= determinant(F)*physical_properties.rho_f*z*(transpose(FInv)*grad_u);
-    //result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
+    result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
     result += determinant(F)*transpose(FInv)*grad_p; 
 
     switch (component)
       {
       case 0:
-	return result[0] - 2*physical_properties.viscosity*sin(t - y);
+	return result[0];// - 2*physical_properties.viscosity*sin(t - y);
       case 1:
-	return result[1] - 3*physical_properties.viscosity*sin(t - x);
+	return result[1];// - 3*physical_properties.viscosity*sin(t - x);
       case 2:
 	return 0;
       default:
