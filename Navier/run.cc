@@ -89,9 +89,20 @@ void FSIProblem<dim>::run ()
 
       unsigned int total_solves = 0;
 
+
       if (physical_properties.moving_domain)
 	{
-	  old_mesh_displacement.block(0) = mesh_displacement_star.block(0);
+	  if (timestep_number==1) {
+	      if (physical_properties.simulation_type==2)
+	      	{
+	      	  ale_boundary_values.set_time(time-time_step);
+	      	  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+	      			       ale_boundary_values,
+	      			       old_mesh_displacement.block(0));
+	      	} // otherwise the mesh starts at rest
+	  } else {
+	    old_mesh_displacement.block(0) = mesh_displacement_star.block(0);
+	  }
 	}
 
       while (true)
@@ -115,39 +126,21 @@ void FSIProblem<dim>::run ()
 	      dirichlet_boundaries((System)2,state);
 	      state_solver[2].factorize(system_matrix.block(2,2));
 	      solve(state_solver[2],2,state);
-
-	      // remove the contributions from Omega^{n-1}
-	      
-	      //mesh_displacement.block(0).add(-(1-fluid_theta),old_mesh_displacement.block(0));
-	      //mesh_displacement.block(0)/=(double)(fluid_theta);
-
-	      if (physical_properties.simulation_type==2)
-		{
-		  ale_boundary_values.set_time(time-time_step);
-		  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-				       ale_boundary_values,
-				       mesh_displacement_star.block(2));
-		}
-	      transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
-	      mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
 	      transfer_all_dofs(solution,mesh_displacement_star,2,0);
 
 	      if (physical_properties.simulation_type==2)
 		{
+		  // Overwrites the Laplace solve since the velocities compared against will not be correct
 		  ale_boundary_values.set_time(time);
 		  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
 				       ale_boundary_values,
-				       mesh_displacement_star.block(2));
+				       mesh_displacement_star.block(0)); // move directly to fluid block 
 		}
-	      transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+	      mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
 
 	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
 	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
 	      mesh_velocity.block(0)*=1./time_step;
-
-	      // Omega^{n-1/2}
-	      //mesh_displacement.block(0)*=fluid_theta;
-	      //mesh_displacement.block(0).add(1-fluid_theta,old_mesh_displacement.block(0));
 	    }
 	  
 	  Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);

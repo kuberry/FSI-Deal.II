@@ -359,8 +359,8 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       {
 	z[0] = -cos(y-t)*.1; 
 	z[1] = 2./3*cos(x-t)*.1;
-	z[0] = -2; 
-	z[1] = 5;
+	z[0] = 3*x; 
+	z[1] = -5*x*y;
 	grad_z[0][0]=0;
 	grad_z[1][0]=sin(y-t)*.1;
 	grad_z[0][1]=-2./3*cos(x-t)*.1;
@@ -461,8 +461,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       result += physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
     if (physical_properties.moving_domain) {
       result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term
-      result -= physical_properties.rho_f*scalar_product(grad_z,transpose(FInv))*u; // (div z)u term
-      //std::cout << physical_properties.rho_f*scalar_product(grad_z,transpose(FInv)) << std::endl;
+      //result -= physical_properties.rho_f*scalar_product(grad_z,transpose(FInv))*u; // (div z)u term
     }
     result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
     result += transpose(FInv)*grad_p; 
@@ -801,11 +800,13 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     const double y = p[1];
     if (component==0)
       {
-	return sin(y-t)*.1;
+	//return sin(y-t)*.1;
+	return 3*x*t;
       }
     else
       {
-	return -2./3*sin(x-t)*.1;
+	//return -2./3*sin(x-t)*.1;
+	return -5*x*y*t;
       }
   }
   // x_new = x_old + sin(y-t)*.1;
