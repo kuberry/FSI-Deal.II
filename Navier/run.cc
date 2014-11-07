@@ -136,11 +136,11 @@ void FSIProblem<dim>::run ()
 	  timer.enter_subsection ("Assemble"); 
 	  if (physical_properties.moving_domain)
 	    {
-	      // assemble_ale(state,true);
-	      // dirichlet_boundaries((System)2,state);
-	      // state_solver[2].factorize(system_matrix.block(2,2));
-	      // solve(state_solver[2],2,state);
-	      // transfer_all_dofs(solution,mesh_displacement_star,2,0);
+	      assemble_ale(state,true);
+	      dirichlet_boundaries((System)2,state);
+	      state_solver[2].factorize(system_matrix.block(2,2));
+	      solve(state_solver[2],2,state);
+	      transfer_all_dofs(solution,mesh_displacement_star,2,0);
 
 	      if (physical_properties.simulation_type==2)
 		{
