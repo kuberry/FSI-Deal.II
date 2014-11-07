@@ -58,6 +58,30 @@ void FSIProblem<dim>::run ()
   task.join();
   transfer_interface_dofs(old_stress,old_stress,0,1);
   stress=old_stress;
+  // Note to self: On a moving domain, predotting stress tensor with unit normal requires extra work (pull backs)
+  // If only retrieving the stress tensor, it can be dotted with the moving unit normal
+
+  if (physical_properties.moving_domain)
+    {
+      if (physical_properties.simulation_type==2)
+	{
+	  // Directly solved instead of Laplace solve since the velocities compared against would otherwise not be correct
+	  ale_boundary_values.set_time(fem_properties.t0);
+	  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			       ale_boundary_values,
+			       mesh_displacement_star.block(0)); // move directly to fluid block 
+	}
+      else
+	{
+	  solution.block(1)=old_solution.block(1); // solutions sets boundary values for Laplace solve
+	  assemble_ale(state,true);
+	  dirichlet_boundaries((System)2,state);
+	  state_solver[2].factorize(system_matrix.block(2,2));
+	  solve(state_solver[2],2,state);
+	  transfer_all_dofs(solution,mesh_displacement_star,2,0);
+	}
+    }
+
   double total_time = 0;
   
   // direct_solver.initialize (system_matrix.block(block_num,block_num));
@@ -92,17 +116,7 @@ void FSIProblem<dim>::run ()
 
       if (physical_properties.moving_domain)
 	{
-	  if (timestep_number==1) {
-	      if (physical_properties.simulation_type==2)
-	      	{
-	      	  ale_boundary_values.set_time(time-time_step);
-	      	  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-	      			       ale_boundary_values,
-	      			       old_mesh_displacement.block(0));
-	      	} // otherwise the mesh starts at rest
-	  } else {
-	    old_mesh_displacement.block(0) = mesh_displacement_star.block(0);
-	  }
+	  old_mesh_displacement.block(0) = mesh_displacement_star.block(0);
 	}
 
       while (true)
@@ -122,11 +136,11 @@ void FSIProblem<dim>::run ()
 	  timer.enter_subsection ("Assemble"); 
 	  if (physical_properties.moving_domain)
 	    {
-	      assemble_ale(state,true);
-	      dirichlet_boundaries((System)2,state);
-	      state_solver[2].factorize(system_matrix.block(2,2));
-	      solve(state_solver[2],2,state);
-	      transfer_all_dofs(solution,mesh_displacement_star,2,0);
+	      // assemble_ale(state,true);
+	      // dirichlet_boundaries((System)2,state);
+	      // state_solver[2].factorize(system_matrix.block(2,2));
+	      // solve(state_solver[2],2,state);
+	      // transfer_all_dofs(solution,mesh_displacement_star,2,0);
 
 	      if (physical_properties.simulation_type==2)
 		{
@@ -142,7 +156,7 @@ void FSIProblem<dim>::run ()
 	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
 	      mesh_velocity.block(0)*=1./time_step;
 	    }
-	  
+
 	  Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
 	  Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
 	  s_assembly.join();
