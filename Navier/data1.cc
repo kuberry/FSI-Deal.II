@@ -17,8 +17,8 @@ Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   F[0][0] = 1;
   if (move_domain)
     {
-      F[0][1] = cos(y-t)*.1;
-      F[1][0] = -2./3*cos(x-t)*.1;
+      F[0][1] = cos(y-t)*.5;
+      F[1][0] = -2./3*cos(x-t)*.5;
       // F[0][1] = 3*x*t;
       // F[1][0] = -2./3*cos(x-t)*.1;
     }
@@ -362,13 +362,13 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     Tensor<2,dim> grad_z;
     if (physical_properties.moving_domain)
       {
-	z[0] = -cos(y-t)*.1; 
-	z[1] = 2./3*cos(x-t)*.1;
+	z[0] = -cos(y-t)*.5; 
+	z[1] = 2./3*cos(x-t)*.5;
 	// z[0] = 3*x; 
 	// z[1] = -5*x*y;
 	grad_z[0][0]=0;
-	grad_z[1][0]=sin(y-t)*.1;
-	grad_z[0][1]=-2./3*cos(x-t)*.1;
+	grad_z[1][0]=sin(y-t)*.5;
+	grad_z[0][1]=-2./3*cos(x-t)*.5;
         grad_z[1][1]=0;
       } 
     Tensor<2,dim> determinant_derivatives;
@@ -466,6 +466,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 
 	second_partials_transformed=determinant(F)*second_partials_transformed*transpose(FInv);
 	second_partials_transformed *= 0;
+	//FInv=transpose(FInv);
 	for (unsigned int i=0; i<dim; ++i)
 	  for (unsigned int j=0; j<dim; ++j)
 	    for (unsigned int k=0; k<dim; ++k) 
@@ -479,6 +480,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 		    second_partials_transformed[(i+1)%2] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
 		  }
 		}
+	//FInv=transpose(FInv);
 	//div_deformation = transpose(FInv) * second_partials_transformed;
 	div_deformation = second_partials_transformed;
 	// div_deformation=div_deformation+second_partials_transformed;
@@ -489,7 +491,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 
     result += physical_properties.rho_f*u_t; // time term
     if (physical_properties.navier_stokes)
-      result += physical_properties.rho_f*u*(transpose(FInv)*grad_u); // convection term
+      result += physical_properties.rho_f*u*(FInv*grad_u); // convection term
     //if (physical_properties.moving_domain && !physical_properties.move_domain) {
     result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term
     result -= physical_properties.rho_f*scalar_product(grad_z,FInv)*u; // (div z)u term
@@ -504,7 +506,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       case 1:
 	return determinant(F)*result[1];//determinant(F)* - 3*physical_properties.viscosity*sin(t - x);
       case 2:
-	return -determinant(F)*scalar_product(grad_u,FInv)- 1e-11*10000*pow(x,2);
+	return -determinant(F)*scalar_product(grad_u,FInv) - determinant(F)*(1e-15)*(100*x-40*y);
       default:
 	return 0;
       }
@@ -833,12 +835,12 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     const double y = p[1];
     if (component==0)
       {
-	return sin(y-t)*.1;
+	return sin(y-t)*.5;
 	// return 3*x*t+2*y*pow(t,2);
       }
     else
       {
-	return -2./3*sin(x-t)*.1;
+	return -2./3*sin(x-t)*.5;
 	// return -5*x*y*t+4*x*pow(t,3);
       }
   }
