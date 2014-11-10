@@ -215,7 +215,7 @@ void FSIProblem<dim>::setup_system ()
 	  else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	  else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	} else { // simulation_type ==2
-	  if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	  if (i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	  else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	}
       }

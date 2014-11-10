@@ -1,5 +1,6 @@
 #include "FSI_Project.h"
 #include <deal.II/base/conditional_ostream.h>
+// #include <deal.II/grid/grid_out.h> /* remove this when not adding temporary code in assembly */
 
 // regexp replacement for grad_* terms:
 // regexp-replace: \(grad[^
@@ -164,7 +165,6 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      if (physical_properties.moving_domain) 
 		{
 		  meshvelocity[d] = z[q](d);
-		  grad_z[q] *= 0;
 		}
 	    }
 
@@ -183,7 +183,10 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      // 
 	      for (unsigned int j=0; j<fluid_fe.dofs_per_cell; ++j)
 		{
-		  double epsilon = 0*1e-10; // only when all Dirichlet b.c.s
+		  double epsilon = 0;
+		  if (physical_properties.simulation_type==2)
+		    epsilon = 1e-11; // only when all Dirichlet b.c.s
+
 		  if (physical_properties.stability_terms)
 		    {
 		      if (scratch.mode_type==state)
@@ -350,7 +353,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f *
 			  	(- (meshvelocity*transpose(grad_phi_u[j]))*phi_u[i]
-			  	 - scalar_product(grad_z[q],identity) * phi_u[j] * phi_u[i]
+			  	 //- scalar_product(grad_z[q],identity) * phi_u[j] * phi_u[i]
 			  	 )* scratch.fe_values.JxW(q);
 			    }
 			}
@@ -394,7 +397,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f *
 			  	(- meshvelocity*transpose(grad_phi_u[i])*phi_u[j]
-			  	 - scalar_product(grad_z[q],identity) * phi_u[i] * phi_u[j]
+			  	 //- scalar_product(grad_z[q],identity) * phi_u[i] * phi_u[j]
 			  	 )* scratch.fe_values.JxW(q);
 			    }
 			}
@@ -438,7 +441,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f *
 			  	(- meshvelocity*transpose(grad_phi_u[j])*phi_u[i]
-			  	 - scalar_product(grad_z[q],identity) * phi_u[j] * phi_u[i]
+			  	 //- scalar_product(grad_z[q],identity) * phi_u[j] * phi_u[i]
 			  	 )* scratch.fe_values.JxW(q);
 			    }
 			}
@@ -450,7 +453,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 							   *0.25*scalar_product(grad_phi_u[i]+transpose(grad_phi_u[i]),grad_phi_u[j]+transpose(grad_phi_u[j])))		   
 					 - scalar_product(grad_phi_u[i],identity) * phi_p[j] // (p,\div v)  momentum
 					 - phi_p[i] * scalar_product(grad_phi_u[j],identity) // (\div u, q) mass
-					 + epsilon * phi_p[i] * phi_p[j])
+					 - epsilon * phi_p[i] * phi_p[j])
 		    * scratch.fe_values.JxW(q);
 		}
 	    }
@@ -531,7 +534,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			data.cell_rhs(i) -= (1 - fluid_theta) * physical_properties.rho_f 
 			  * (
 			     - meshvelocity*transpose(grad_u_old[q])*phi_i_s
-			     - scalar_product(grad_z[q],identity) * u_old * phi_i_s
+			     //- scalar_product(grad_z[q],identity) * u_old * phi_i_s
 			     ) * scratch.fe_values.JxW(q);
 		      }
 		  }
@@ -1097,6 +1100,14 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
   		   scratch_data,
   		   per_task_data);
 
+  // // TEMPORARY VISUALIZATION OF MOVED VERTICES
+  // const std::string fluid_mesh_filename = "fluid-mesh" +
+  //   Utilities::int_to_string (timestep_number, 3) +
+  //   ".eps";
+  // std::ofstream mesh_out (fluid_mesh_filename.c_str());
+  // GridOut grid_out;
+  // grid_out.write_eps (fluid_triangulation, mesh_out);
+  // // 
 
   visited_vertices.clear();
   cell = fluid_dof_handler.begin_active();
