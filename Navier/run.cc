@@ -50,11 +50,12 @@ void FSIProblem<dim>::run ()
   VectorTools::project (structure_dof_handler, structure_constraints, QGauss<dim>(fem_properties.structure_degree+2),
 			structure_boundary_values,
 			old_solution.block(1));
-
-  VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-		       fluid_boundary_stress,
-		       old_stress.block(0));
-
+  if (physical_properties.simulation_type!=2)
+    {
+      VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			   fluid_boundary_stress,
+			   old_stress.block(0));
+    }
   task.join();
   transfer_interface_dofs(old_stress,old_stress,0,1);
   stress=old_stress;
