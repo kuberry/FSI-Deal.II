@@ -1,4 +1,5 @@
 #include "FSI_Project.h"
+#include <deal.II/grid/grid_out.h>
 
 template <int dim>
 void FSIProblem<dim>::output_results () const
@@ -60,6 +61,12 @@ void FSIProblem<dim>::output_results () const
   std::ofstream structure_output (structure_filename.c_str());
   fluid_data_out.write_vtk (fluid_output);
   structure_data_out.write_vtk (structure_output);
+  // const std::string fluid_mesh_filename = "fluid-" +
+  //   Utilities::int_to_string (timestep_number, 3) +
+  //   ".vtk";
+  // std::ofstream mesh_out (fluid_mesh_filename.c_str());
+  // GridOut grid_out;
+  // grid_out.write_vtk (fluid_triangulation, mesh_out);
 }
 
 template <int dim>
