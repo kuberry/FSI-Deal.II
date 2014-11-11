@@ -11,14 +11,14 @@ using namespace dealii;
 
 Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   Tensor<2,2> F;
-  // x_new = x_old + sin(y-t)*.1;
-  // y_new = y_old - .2./3*sin(x-t)*.1;
-  F[1][1] = 1;
-  F[0][0] = 1;
+  // x_new = x_old + x*sin(y-t)*.1;
+  // y_new = 2*y_old - .2./3*sin(x-t)*.1;
+  F[0][0] = 1 + cos(y-0*t)*1.5;
+  F[1][1] = 2;
   if (move_domain)
     {
-      F[0][1] = cos(y-t)*.5;
-      F[1][0] = -2./3*cos(x-t)*.5;
+      F[0][1] = x*cos(y-0*t)*1.5;
+      F[1][0] = -2./3*cos(x-0*t)*2.5;
       // F[0][1] = 3*x*t;
       // F[1][0] = -2./3*cos(x-t)*.1;
     }
@@ -191,7 +191,7 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
     grad_u *= 2*physical_properties.viscosity;
-    const double pval = 100*x;
+    const double pval = 0;
     grad_u[0][0] -= pval;
     grad_u[1][1] -= pval;
 
@@ -362,13 +362,13 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     Tensor<2,dim> grad_z;
     if (physical_properties.moving_domain)
       {
-	z[0] = -cos(y-t)*.5; 
-	z[1] = 2./3*cos(x-t)*.5;
+	z[0] = 0*(-cos(y-t)*1.5); 
+	z[1] = 0*(2./3*cos(x-t)*2.5);
 	// z[0] = 3*x; 
 	// z[1] = -5*x*y;
 	grad_z[0][0]=0;
-	grad_z[1][0]=sin(y-t)*.5;
-	grad_z[0][1]=-2./3*cos(x-t)*.5;
+	grad_z[1][0]=0*sin(y-t)*1.5;
+	grad_z[0][1]=0*(-2./3*cos(x-t)*2.5);
         grad_z[1][1]=0;
       } 
     Tensor<2,dim> determinant_derivatives;
@@ -390,8 +390,8 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       } 
 
     Tensor<1,dim> grad_p(2);
-    grad_p[0] = 100; // pval
-    grad_p[1] = -40;
+    grad_p[0] = 0;//100; // pval
+    grad_p[1] = 0;//-40;
     Tensor<1,dim> u_t;
     u_t[0] = -2*cos(y-t)+3*x;
     u_t[1] = -3*cos(x-t)-3*y;
@@ -432,6 +432,15 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     second_partial_u[1][0][1] = 0;
     // u
     second_partial_u[0][1][1] = 0;
+    
+    Tensor<2,dim> second_partial_u1;
+    for (unsigned int i=0; i<2; ++i)
+      for (unsigned int j=0; j<2; ++j)
+	second_partial_u1[i][j]=second_partial_u[i][j][0];
+    Tensor<2,dim> second_partial_u2;
+    for (unsigned int i=0; i<2; ++i)
+      for (unsigned int j=0; j<2; ++j)
+	second_partial_u2[i][j]=second_partial_u[i][j][1];
 
     // product rule of jacobians * transformed gradient
     div_deformation[0]+=(determinant_derivatives[0][0]+determinant_derivatives[0][1])*grad_u_transformed_times_TransposeFInv[0][0];
@@ -465,8 +474,10 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 	//+second_partial_u[0][0][1]*FInv[0][0]+second_partial_u[1][0][1]*FInv[1][0]);
 
 	second_partials_transformed=determinant(F)*second_partials_transformed*transpose(FInv);
+
+	// APPROACH BY CHAIN RULE
 	second_partials_transformed *= 0;
-	FInv = transpose(FInv);
+	//FInv = transpose(FInv);
 	for (unsigned int i=0; i<dim; ++i)
 	  for (unsigned int j=0; j<dim; ++j)
 	    for (unsigned int k=0; k<dim; ++k) 
@@ -480,7 +491,20 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 		    second_partials_transformed[(i+1)%2] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
 		  }
 		}
-	FInv = transpose(FInv);
+	//FInv = transpose(FInv);
+
+ 	// // APPROACH BY PIOLA TRANSFORM
+	// second_partials_transformed *= 0;
+	// Tensor<1,dim> temp_holder(2);
+	// temp_holder[0] = scalar_product(second_partial_u1,FInv);
+	// temp_holder[1] = scalar_product(second_partial_u2,FInv);
+	// Tensor<1,dim> other_holder(2);
+	// other_holder[0] = second_partial_u1[0][0]+second_partial_u2[0][1];
+	// other_holder[0] = second_partial_u1[1][0]+second_partial_u2[1][1];
+	// second_partials_transformed = FInv*(temp_holder+transpose(FInv)*other_holder);
+
+
+
 	//div_deformation = transpose(FInv) * second_partials_transformed;
 	div_deformation = second_partials_transformed;
 	// div_deformation=div_deformation+second_partials_transformed;
@@ -493,11 +517,11 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     if (physical_properties.navier_stokes)
       result += physical_properties.rho_f*u*(FInv*grad_u); // convection term
     //if (physical_properties.moving_domain && !physical_properties.move_domain) {
-    result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term, best with transpose
-    result -= physical_properties.rho_f*scalar_product(grad_z,FInv)*u; // (div z)u term
+    //result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term, best with transpose
+    //result -= physical_properties.rho_f*scalar_product(grad_z,FInv)*u; // (div z)u term
       //}
     result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
-    result += transpose(FInv)*grad_p; 
+    //result += transpose(FInv)*grad_p; 
 
     switch (component)
       {
@@ -506,7 +530,8 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       case 1:
 	return determinant(F)*result[1];//determinant(F)* - 3*physical_properties.viscosity*sin(t - x);
       case 2:
-	return -determinant(F)*scalar_product(grad_u,FInv)- 1e-11*100*x;
+        return -determinant(F)*scalar_product(grad_u,transpose(FInv));//- 1e-11*100*x;
+	//return -determinant(F)*trace(FInv*transpose(grad_u));// - 1e-8*100*x;
       default:
 	return 0;
       }
@@ -621,7 +646,7 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
       case 1:
 	return 3*sin(x-t)-3*y*t;
       case 2:
-	return 100*x; // pval
+	return 0; // pval
       default:
 	return 0;
       }    
@@ -833,14 +858,18 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
+
+    // x_new = x_old + x*sin(y-t)*.1;
+    // y_new = 2*y_old - .2./3*sin(x-t)*.1;
+
     if (component==0)
       {
-	return sin(y-t)*.5;
+	return x*sin(y-0*t)*1.5;
 	// return 3*x*t+2*y*pow(t,2);
       }
     else
       {
-	return -2./3*sin(x-t)*.5;
+	return y -2./3*sin(x-0*t)*2.5;
 	// return -5*x*y*t+4*x*pow(t,3);
       }
   }

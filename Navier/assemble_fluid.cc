@@ -1,6 +1,6 @@
 #include "FSI_Project.h"
 #include <deal.II/base/conditional_ostream.h>
-// #include <deal.II/grid/grid_out.h> /* remove this when not adding temporary code in assembly */
+#include <deal.II/grid/grid_out.h> /* remove this when not adding temporary code in assembly */
 
 // regexp replacement for grad_* terms:
 // regexp-replace: \(grad[^
@@ -181,7 +181,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		{
 		  double epsilon = 0;
 		  if (physical_properties.simulation_type==2)
-		    epsilon = 1e-11; // only when all Dirichlet b.c.s
+		    epsilon = 0;//1e-16; // only when all Dirichlet b.c.s
 
 		  if (physical_properties.stability_terms)
 		    {
@@ -1096,14 +1096,15 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
   		   scratch_data,
   		   per_task_data);
 
-  // // TEMPORARY VISUALIZATION OF MOVED VERTICES
-  // const std::string fluid_mesh_filename = "fluid-mesh" +
-  //   Utilities::int_to_string (timestep_number, 3) +
-  //   ".eps";
-  // std::ofstream mesh_out (fluid_mesh_filename.c_str());
-  // GridOut grid_out;
-  // grid_out.write_eps (fluid_triangulation, mesh_out);
-  // // 
+  // TEMPORARY VISUALIZATION OF MOVED VERTICES
+  const std::string fluid_mesh_filename = "fluid-mesh" +
+    Utilities::int_to_string (timestep_number, 3) +
+    ".eps";
+  std::ofstream mesh_out (fluid_mesh_filename.c_str());
+  GridOut grid_out;
+  grid_out.write_eps (fluid_triangulation, mesh_out);
+  //
+  
 
   visited_vertices.clear();
   cell = fluid_dof_handler.begin_active();

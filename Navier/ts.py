@@ -15,7 +15,7 @@ simulation_name = 'analytical';
 time_order = 1;
 polynomial_order = 2;
 
-loops = 7
+loops = 3
 
 init_space_mult=4;
 init_time_mult=1;

@@ -156,6 +156,8 @@ void FSIProblem<dim>::run ()
 	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
 	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
 	      mesh_velocity.block(0)*=1./time_step;
+	      std::cout << mesh_velocity.block(0).l2_norm() << std::endl;
+	      //AssertThrow(mesh_velocity.block(0).l2_norm()==0, ExcNotImplemented());
 	    }
 
 	  Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
