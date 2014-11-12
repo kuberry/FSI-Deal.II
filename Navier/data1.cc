@@ -12,13 +12,13 @@ using namespace dealii;
 Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   Tensor<2,2> F;
   // x_new = x_old + x*sin(y-t)*.1;
-  // y_new = 2*y_old - .2./3*sin(x-t)*.1;
-  F[0][0] = 1 + cos(y-0*t)*1.5;
-  F[1][1] = 2;
+  // y_new = y_old - x*2./3*sin(x-t)*.1;
+  F[0][0] = 1 + sin(y-0*t)*1.5;
+  F[1][1] = 1;
   if (move_domain)
     {
       F[0][1] = x*cos(y-0*t)*1.5;
-      F[1][0] = -2./3*cos(x-0*t)*2.5;
+      F[1][0] = -2./3*sin(x-0*t)*2.5 -x*2./3*cos(x-0*t)*2.5;
       // F[0][1] = 3*x*t;
       // F[1][0] = -2./3*cos(x-t)*.1;
     }
@@ -521,7 +521,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     //result -= physical_properties.rho_f*scalar_product(grad_z,FInv)*u; // (div z)u term
       //}
     result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
-    //result += transpose(FInv)*grad_p; 
+    result += transpose(FInv)*grad_p; 
 
     switch (component)
       {
@@ -530,7 +530,9 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       case 1:
 	return determinant(F)*result[1];//determinant(F)* - 3*physical_properties.viscosity*sin(t - x);
       case 2:
-        return -determinant(F)*scalar_product(grad_u,transpose(FInv));//- 1e-11*100*x;
+        //return -determinant(F)*scalar_product(grad_u,FInv);//- 1e-11*100*x;
+	// THERE WILL ALWAYS BE A PROBLEM HERE IF THE RHS IS INTENDED TO BE EVALUATED AT T^{n+1/2} AND THE DIVERGENCE IS BEING EVALUATED AT T^{n+1}
+	return -1.0*determinant(F)*scalar_product(grad_u,FInv);
 	//return -determinant(F)*trace(FInv*transpose(grad_u));// - 1e-8*100*x;
       default:
 	return 0;
@@ -707,7 +709,7 @@ Tensor<1,dim> FluidBoundaryValues<dim>::gradient (const dealii::Point<dim>   &p,
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     //grad_u = transpose(FInv)*grad_u;
     //grad_u = FInv*grad_u;
-    //grad_u = transpose(grad_u);
+    // grad_u = transpose(grad_u);
     // grad_u *= determinant(F); The domain has returned to the reference domain when the error calculation that uses this is called
 
     switch (component)
@@ -869,7 +871,7 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
       }
     else
       {
-	return y -2./3*sin(x-0*t)*2.5;
+	return -x*2./3*sin(x-0*t)*2.5;
 	// return -5*x*y*t+4*x*pow(t,3);
       }
   }
