@@ -84,7 +84,9 @@ void FSIProblem<dim>::run ()
     }
 
   double total_time = 0;
-  
+  solution = old_solution;
+  if (fem_properties.make_plots) output_results ();
+
   // direct_solver.initialize (system_matrix.block(block_num,block_num));
   for (timestep_number=1, time=fem_properties.t0+time_step;
        timestep_number<=total_timesteps;++timestep_number)
@@ -156,7 +158,7 @@ void FSIProblem<dim>::run ()
 	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
 	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
 	      mesh_velocity.block(0)*=1./time_step;
-	      std::cout << mesh_velocity.block(0).l2_norm() << std::endl;
+	      //std::cout << mesh_velocity.block(0).l2_norm() << std::endl;
 	      //AssertThrow(mesh_velocity.block(0).l2_norm()==0, ExcNotImplemented());
 	    }
 

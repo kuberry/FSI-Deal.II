@@ -186,7 +186,7 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     grad_u[1][1] = -3*t;
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
-    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, false /*physical_properties.move_domain*/);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);

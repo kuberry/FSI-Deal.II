@@ -160,7 +160,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		}
 	      if (physical_properties.moving_domain) 
 		{
-		  meshvelocity[d] = 0*z[q](d);
+		  meshvelocity[d] = z[q](d);
 		}
 	    }
 
