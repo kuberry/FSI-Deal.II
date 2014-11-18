@@ -24,8 +24,8 @@ Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   F[1][1] = 2;
   if (move_domain)
     {
-      F[0][1] = 1;
-      F[1][0] = 2*y;
+      F[0][1] = 0;//2*y;
+      F[1][0] = 0;//1;
       // F[0][1] = 3*x*t;
       // F[1][0] = -2./3*cos(x-t)*.1;
     }
@@ -198,7 +198,7 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
     grad_u *= 2*physical_properties.viscosity;
-    const double pval = 100*x-40*y;//100*x;
+    const double pval = 0;//100*x-40*y;//100*x;
     grad_u[0][0] -= pval;
     grad_u[1][1] -= pval;
 
@@ -397,8 +397,8 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       } 
 
     Tensor<1,dim> grad_p(2);
-    grad_p[0] = 100000000;//100; // pval
-    grad_p[1] = -40;
+    grad_p[0] = 0;//100000000;//100; // pval
+    grad_p[1] = 0;//-40;
     Tensor<1,dim> u_t;
     u_t[0] = -2*cos(y-t)+3*x;
     u_t[1] = -3*cos(x-t)-3*y;
@@ -415,8 +415,9 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 
     Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
+
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
-    
+
     Tensor<2,dim> grad_u_transformed_times_TransposeFInv = .5*(transpose(FInv)*grad_u + transpose(grad_u)*FInv)*transpose(FInv);
 
     Tensor<1,dim> div_deformation(2);
@@ -474,39 +475,48 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     // // 	FInv = transpose(FInv);
 
     // 	second_partials_transformed=determinant(F)*second_partials_transformed*FInv;//transpose(FInv);
-    second_partials_transformed *= 0;
-    FInv = transpose(FInv);
-    for (unsigned int i=0; i<dim; ++i)
-      for (unsigned int j=0; j<dim; ++j)
-    	for (unsigned int k=0; k<dim; ++k) 
-    	  for (unsigned int l=0; l<dim; ++l)
-    	    for (unsigned int m=0; m<dim; ++m) {
-    	      if (i==j && j==k) {
-    		second_partials_transformed[i] += second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];  
-    	      } else if (j==k) {
-    		second_partials_transformed[i] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
-    	      } else {
-    		second_partials_transformed[(i+1)%2] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
-    	      }
-    	    }
+    // second_partials_transformed *= 0;
+    // FInv = transpose(FInv);
+    // for (unsigned int i=0; i<dim; ++i)
+    //   for (unsigned int j=0; j<dim; ++j)
+    // 	for (unsigned int k=0; k<dim; ++k) 
+    // 	  for (unsigned int l=0; l<dim; ++l)
+    // 	    for (unsigned int m=0; m<dim; ++m) {
+    // 	      if (i==j && j==k) {
+    // 		second_partials_transformed[i] += second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];  
+    // 	      } else if (j==k) {
+    // 		second_partials_transformed[i] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
+    // 	      } else {
+    // 		second_partials_transformed[(i+1)%2] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
+    // 	      }
+    // 	    }
     //FInv = transpose(FInv);
 	//div_deformation = transpose(FInv) * second_partials_transformed;
-    div_deformation = second_partials_transformed;
+    //div_deformation = second_partials_transformed;
     
     Tensor<1,dim > first_u(2), second_u(2);
     for (unsigned int i=0; i<2; ++i)
       for (unsigned int j=0; j<2; ++j) {
-	first_u[i]=second_partial_u[j][j][i];
-	second_u[i]=second_partial_u[i][j][j];
-	for (unsigned int k=0; k<2; ++k) {
-	  second_u[i]=second_partial_u[j][k][i]*FInv[j][k];
-	}
+	first_u[i]+=second_partial_u[j][j][i];
+	//first_u[i]=second_partial_u[i][j][j];
+	second_u[i]+=second_partial_u[i][j][j];
+	// for (unsigned int k=0; k<2; ++k) {
+	//   second_u[i]=second_partial_u[j][k][i]*FInv[j][k];
+	// }
       }
     //FInv = transpose(FInv);
-    second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u*FInv); 
-    second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u);
+    second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u*FInv);  
+    
+    //second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u);
     //second_partials_transformed = .5*(transpose(FInv)*first_u*FInv + transpose(FInv)*FInv*second_u); 
-    FInv = transpose(FInv);
+    //FInv = transpose(FInv);
+    //second_partials_transformed[0] = second_partial_u[0][0][0] + .5 * ( second_partial_u[1][1][0] + second_partial_u[0][1][1] ); 
+    //second_partials_transformed[1] = second_partial_u[1][1][1] + .5 * ( second_partial_u[0][0][1] + second_partial_u[1][0][0] ); 
+    //std::cout << "What works" <<  second_partials_transformed << std::endl;
+
+    //second_partials_transformed = 0.5 * (first_u + second_u);  
+    //std::cout << "What doesn" << second_partials_transformed << std::endl; 
+    //std::cout << transpose(FInv) << std::endl;
     div_deformation = second_partials_transformed;
 	// div_deformation=div_deformation+second_partials_transformed;
 	  // div_deformation[0]+=second_partial_u[i][j][0]*(FInv[i][0]*FInv[j][0]+.5*FInv[i][1]*FInv[j][1]) + .5*second_partial_u[i][j][1]*FInv[i][0]*FInv[j][1];
@@ -522,7 +532,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     //result -= physical_properties.rho_f*scalar_product(grad_z,FInv)*u; // (div z)u term
       //}
     result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
-    result += FInv*grad_p; // seems it should be FInv*grap_p
+    result += 0*FInv*grad_p; // seems it should be FInv*grap_p
     // or at least it messes up nothing else when it is FInv
 
     switch (component)
@@ -532,8 +542,8 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       case 1:
 	return determinant(F)*result[1];//determinant(F)* - 3*physical_properties.viscosity*sin(t - x);
       case 2:
-	//std::cout << scalar_product(grad_u,FInv) << std::endl;
-	return -determinant(F)*scalar_product(grad_u,transpose(FInv))- 1e-11*(100000000*x-40*y)*determinant(F);
+	// std::cout << determinant(F) << " " << scalar_product(grad_u,FInv) << std::endl;
+	return -determinant(F)*scalar_product(grad_u,transpose(FInv));//- 1e-11*(100000000*x-40*y)*determinant(F);
       default:
 	return 0;
       }
@@ -865,12 +875,12 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     // 
     if (component==0)
       {
-	return x + pow(y,2); // not currently being used
+	return x;// + pow(y,2); 
 	// return 3*x*t+2*y*pow(t,2);
       }
     else
       {
-	return y + x; // not currently being used
+	return y;// + x; 
 	// return -5*x*y*t+4*x*pow(t,3);
       }
   }
