@@ -133,8 +133,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
       scratch.fe_values.get_function_values (old_solution.block(0), old_solution_values);
       scratch.fe_values.get_function_values (solution_star.block(0),u_star_values);
-      scratch.fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u_old);
-      scratch.fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star);
+      scratch.fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u_old); // THESE NEED TO BE TRANSPOSED IN THE FUTURE
+      scratch.fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star); // THESE ALSO NEED TO BE TRANSPOSED, since Deal.II transposes gradients
 
       if (fem_properties.richardson && !fem_properties.newton)
 	{
