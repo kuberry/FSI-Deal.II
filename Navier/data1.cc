@@ -498,9 +498,13 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       for (unsigned int j=0; j<2; ++j) {
 	first_u[i]=second_partial_u[j][j][i];
 	second_u[i]=second_partial_u[i][j][j];
+	for (unsigned int k=0; k<2; ++k) {
+	  second_u[i]=second_partial_u[j][k][i]*FInv[j][k];
+	}
       }
     //FInv = transpose(FInv);
-    second_partials_transformed = .5*(transpose(FInv)*FInv*first_u + transpose(FInv)*second_u*FInv); 
+    second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u*FInv); 
+    second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u);
     //second_partials_transformed = .5*(transpose(FInv)*first_u*FInv + transpose(FInv)*FInv*second_u); 
     FInv = transpose(FInv);
     div_deformation = second_partials_transformed;
