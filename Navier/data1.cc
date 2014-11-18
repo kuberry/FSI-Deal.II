@@ -24,8 +24,8 @@ Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   F[1][1] = 2;
   if (move_domain)
     {
-      F[0][1] = 0;//2*y;
-      F[1][0] = 0;//1;
+      F[0][1] =  2*y;
+      F[1][0] =  1;
       // F[0][1] = 3*x*t;
       // F[1][0] = -2./3*cos(x-t)*.1;
     }
@@ -423,6 +423,16 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     Tensor<1,dim> div_deformation(2);
     Tensor<3,dim> second_partial_u;
 
+    /*
+     * u1=2*sin(y-t)+3*x*t + x^2;
+     * u2=3*sin(x-t)-3*y*t;
+     * p=0;
+     
+    grad_u[0][0] = 3*t + 2*x;
+    grad_u[1][0] = 2*cos(y-t);
+    grad_u[0][1] = 3*cos(x-t);
+    grad_u[1][1] = -3*t;
+    */
     // grad_u[p1][p2][c]=[partial1][partial2][component]
     // u1_xx
     second_partial_u[0][0][0] = 2;
@@ -440,6 +450,22 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     second_partial_u[1][0][1] = 0;
     // u
     second_partial_u[0][1][1] = 0;
+    // // u1_xx
+    // second_partial_u[0][0][0] = 2;
+    // // u2_yx
+    // second_partial_u[1][1][0] = -2*sin(y-t);
+    // // u1_yx
+    // second_partial_u[1][0][0] = 0;
+    // // u2_xx
+    // second_partial_u[0][1][0] = 0;
+    // // u1_xy
+    // second_partial_u[0][0][1] = -3*sin(x-t);
+    // // u2_yy
+    // second_partial_u[1][1][1] = 0;
+    // // u1_yy
+    // second_partial_u[1][0][1] = 0;
+    // // u
+    // second_partial_u[0][1][1] = 0;
 
     // product rule of jacobians * transformed gradient
     div_deformation[0]+=(determinant_derivatives[0][0]+determinant_derivatives[0][1])*grad_u_transformed_times_TransposeFInv[0][0];
@@ -493,20 +519,27 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     //FInv = transpose(FInv);
 	//div_deformation = transpose(FInv) * second_partials_transformed;
     //div_deformation = second_partials_transformed;
-    
-    Tensor<1,dim > first_u(2), second_u(2);
-    for (unsigned int i=0; i<2; ++i)
+    //std::cout << FInv << std::endl;
+    Tensor<1,dim > first_u(2), second_u(2), third_u(3);
+    for (unsigned int i=0; i<2; ++i) {
       for (unsigned int j=0; j<2; ++j) {
 	first_u[i]+=second_partial_u[j][j][i];
 	//first_u[i]=second_partial_u[i][j][j];
 	second_u[i]+=second_partial_u[i][j][j];
-	// for (unsigned int k=0; k<2; ++k) {
-	//   second_u[i]=second_partial_u[j][k][i]*FInv[j][k];
-	// }
+	for (unsigned int k=0; k<2; ++k) {
+	  third_u[i]+=second_partial_u[j][k][i]*FInv[j][k];
+	}
       }
-    //FInv = transpose(FInv);
-    second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u*FInv);  
-    
+    }
+    // FInv = transpose(FInv);
+    // second_partials_transformed = 0;//.5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*first_u*FInv);  
+    // FInv = transpose(FInv);
+    // second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u*FInv); 
+    // second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*second_u + transpose(FInv)*first_u*transpose(FInv));
+    // second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*second_u + transpose(FInv)*third_u);
+    second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*second_u + transpose(FInv)*third_u);
+    second_partials_transformed = .5*(transpose(FInv)*second_u*transpose(FInv) + third_u*transpose(FInv));
+    second_partials_transformed = 2*(FInv*FInv*second_u + FInv*first_u*FInv); 
     //second_partials_transformed = .5*(transpose(FInv)*transpose(FInv)*first_u + transpose(FInv)*second_u);
     //second_partials_transformed = .5*(transpose(FInv)*first_u*FInv + transpose(FInv)*FInv*second_u); 
     //FInv = transpose(FInv);
@@ -517,6 +550,34 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     //second_partials_transformed = 0.5 * (first_u + second_u);  
     //std::cout << "What doesn" << second_partials_transformed << std::endl; 
     //std::cout << transpose(FInv) << std::endl;
+
+    //FInv = transpose(FInv);
+    second_partials_transformed *= 0;
+    for (unsigned int i=0; i<dim; ++i)
+      for (unsigned int j=0; j<dim; ++j)
+    	for (unsigned int k=0; k<dim; ++k) 
+    	  for (unsigned int l=0; l<dim; ++l)
+    	    for (unsigned int m=0; m<dim; ++m)
+	      if (j==k) {
+		second_partials_transformed[i] += second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];  
+	      }
+    	      // if (i==j && j==k) {
+    	      // 	second_partials_transformed[i] += second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];  
+    	      // } else if (i==j && j==k) {
+	      // 	second_partials_transformed[i] += second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
+	      // }
+
+// else if ((k+1)%2==i) {
+// 		if (i!=j)
+//     		second_partials_transformed[(k+1)%2] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
+// 	      }
+    	      // } else {
+    	      // 	second_partials_transformed[(k+2)%2] += .5 * second_partial_u[l][m][i] * FInv[m][k] * FInv[l][j];
+    	      // }
+    //FInv = transpose(FInv);
+
+
+
     div_deformation = second_partials_transformed;
 	// div_deformation=div_deformation+second_partials_transformed;
 	  // div_deformation[0]+=second_partial_u[i][j][0]*(FInv[i][0]*FInv[j][0]+.5*FInv[i][1]*FInv[j][1]) + .5*second_partial_u[i][j][1]*FInv[i][0]*FInv[j][1];
@@ -543,7 +604,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 	return determinant(F)*result[1];//determinant(F)* - 3*physical_properties.viscosity*sin(t - x);
       case 2:
 	// std::cout << determinant(F) << " " << scalar_product(grad_u,FInv) << std::endl;
-	return -determinant(F)*scalar_product(grad_u,transpose(FInv));//- 1e-11*(100000000*x-40*y)*determinant(F);
+	return -determinant(F)*scalar_product(grad_u,FInv);//- 1e-11*(100000000*x-40*y)*determinant(F);
       default:
 	return 0;
       }
@@ -875,12 +936,12 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     // 
     if (component==0)
       {
-	return x;// + pow(y,2); 
+	return x + pow(y,2); 
 	// return 3*x*t+2*y*pow(t,2);
       }
     else
       {
-	return y;// + x; 
+	return y + x ;// + x; 
 	// return -5*x*y*t+4*x*pow(t,3);
       }
   }

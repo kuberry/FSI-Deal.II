@@ -446,7 +446,9 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
 		  data.cell_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
 					     + fluid_theta * ( 2*physical_properties.viscosity
-							       *0.25*scalar_product(grad_phi_u[i]+transpose(grad_phi_u[i]),grad_phi_u[j]+transpose(grad_phi_u[j])))		   
+							       //*0.25*scalar_product(grad_phi_u[i]+transpose(grad_phi_u[i]),grad_phi_u[j]+transpose(grad_phi_u[j])))
+							       //*0.5*scalar_product(grad_phi_u[i],grad_phi_u[j]+transpose(grad_phi_u[j])))
+							       *scalar_product(grad_phi_u[i],grad_phi_u[j]))
 					     - trace(grad_phi_u[i]) * phi_p[j] // (p,\div v)  momentum
 					     - phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass
 					     - epsilon * phi_p[i] * phi_p[j])
@@ -538,7 +540,9 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		data.cell_rhs(i) += (physical_properties.rho_f/time_step *phi_i_s*old_u
 				     + (1-fluid_theta)
 				     * (-2*physical_properties.viscosity
-					*0.25*scalar_product(grad_u_old[q]+transpose(grad_u_old[q]),grad_phi_i_s+transpose(grad_phi_i_s))
+					//*0.25*scalar_product(grad_u_old[q]+transpose(grad_u_old[q]),grad_phi_i_s+transpose(grad_phi_i_s))
+					//*0.5*scalar_product(grad_u_old[q]+transpose(grad_u_old[q]),grad_phi_i_s)
+					*scalar_product(grad_u_old[q],grad_phi_i_s)
 					//*(-2*physical_properties.viscosity
 					//*(transpose(grad_u_old[q][0][0])*symgrad_phi_i_s[0][0]
 					//+ 0.5*(transpose(grad_u_old[q][1][0]+grad_u_old[q][0][1]))*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
