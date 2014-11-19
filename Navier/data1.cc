@@ -20,12 +20,12 @@ Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   // y_new = y_old + x_new;
   // x_new = x_old + sin(y-t)*.1;
   // y_new = y_old - .2./3*sin(x-t)*.1;
-  F[0][0] = 2;
-  F[1][1] = 2;
+  F[0][0] = 1+cos(t);
+  F[1][1] = 1-pow(t,2);
   if (move_domain)
     {
-      F[0][1] =  2*y;
-      F[1][0] =  1;
+      F[0][1] =  2*sin(t);
+      F[1][0] =  -1;
       // F[0][1] = 3*x*t;
       // F[1][0] = -2./3*cos(x-t)*.1;
     }
@@ -369,8 +369,17 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     Tensor<2,dim> grad_z;
     if (physical_properties.moving_domain)
       {
-	z[0] = 0;//%-cos(y-t)*.5; 
-	z[1] = 0;//%2./3*cos(x-t)*.5;
+
+    // 	return x*cos(t) + 2*y*sin(t); 
+    // 	// return 3*x*t+2*y*pow(t,2);
+    //   }
+    // else
+    //   {
+    // 	return -y*pow(t,2) - x ;// + x; 
+
+
+	z[0] = -x*sin(t) + 2*y*cos(t);//%-cos(y-t)*.5; 
+	z[1] = -2*y*t;//%2./3*cos(x-t)*.5;
 	// z[0] = 3*x; 
 	// z[1] = -5*x*y;
 	grad_z[0][0]=0;
@@ -589,7 +598,8 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     if (physical_properties.navier_stokes)
       result += physical_properties.rho_f*u*(FInv*grad_u); // convection term
     //if (physical_properties.moving_domain && !physical_properties.move_domain) {
-    //result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term, best with transpose
+    result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term, best with transpose
+    //result -= physical_properties.rho_f*z*(FInv*grad_u);
     //result -= physical_properties.rho_f*scalar_product(grad_z,FInv)*u; // (div z)u term
       //}
     result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
@@ -936,12 +946,12 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     // 
     if (component==0)
       {
-	return x + pow(y,2); 
+	return x*cos(t) + 2*y*sin(t); 
 	// return 3*x*t+2*y*pow(t,2);
       }
     else
       {
-	return y + x ;// + x; 
+	return -y*pow(t,2) - x ;// + x; 
 	// return -5*x*y*t+4*x*pow(t,3);
       }
   }
