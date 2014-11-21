@@ -598,11 +598,21 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     if (physical_properties.navier_stokes)
       result += physical_properties.rho_f*u*(FInv*grad_u); // convection term
     //if (physical_properties.moving_domain && !physical_properties.move_domain) {
+    //result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term, best with transpose
     result -= physical_properties.rho_f*z*(transpose(FInv)*grad_u); // z grad u term, best with transpose
     //result -= physical_properties.rho_f*z*(FInv*grad_u);
     //result -= physical_properties.rho_f*scalar_product(grad_z,FInv)*u; // (div z)u term
       //}
-    result -= 2*physical_properties.viscosity*div_deformation; // diffusion term
+    result[0] -= 1./determinant(F)*2*physical_properties.viscosity*(-2*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*pow(1.0/(cos(t) + 1) +
+2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))),
+2) + 2*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*(1.0/(cos(t) + 1) +
+2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) +
+1))))*sin(t - y)/(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)) + 3*((pow(t, 2)
+- 1)*(cos(t) + 1) - 2*sin(t))*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) +
+1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))))*sin(t - x)/((cos(t) +
+							     1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))));
+    result[1] -= 1./determinant(F)*2*physical_properties.viscosity*2*(((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))))/((cos(t) + 1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))) + 4*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*sin(t)*sin(t - y)/((cos(t) + 1)*pow(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1), 2)) - 3*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*sin(t - x)/(pow(cos(t) + 1, 2)*pow(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1), 2)));
+    //result -= 2*physical_properties.viscosity*div_deformation;//div_deformation // diffusion term
     result += 0*FInv*grad_p; // seems it should be FInv*grap_p
     // or at least it messes up nothing else when it is FInv
 
@@ -615,6 +625,14 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
       case 2:
 	// std::cout << determinant(F) << " " << scalar_product(grad_u,FInv) << std::endl;
 	return -determinant(F)*scalar_product(grad_u,FInv);//- 1e-11*(100000000*x-40*y)*determinant(F);
+	//return -3*t*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))/(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)) - (3*t + 2*x)*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)))) - 4*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*sin(t)*cos(t - y)/((cos(t) + 1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))) + 3*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*cos(t - x)/((cos(t) + 1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)));
+	//return -(-1/5*((pow(t,2) - 5)*(cos(t) + 1) - 10*sin(t))*(3*t + 2*x)*
+		 // (1/(cos(t) + 1)+10*sin(t)/((pow(t,2) - 10*sin(t)/(cos(t) + 1) - 5)*
+		 // 			    pow(cos(t) + 1,2))) - 3*((pow(t,2)- 5)*(cos(t) + 1) - 10*sin(t))*t/(pow(t,2) - 10*sin(t)/(cos(t) + 1) - 5) -
+		 // 6*((pow(t,2) - 5)*(cos(t) + 1) - 10*sin(t))*cos(-t + x)*sin(t)/
+		 // ((pow(t,2) - 10*sin(t)/(cos(t) + 1) - 5)*(cos(t) + 1)) + 2*((pow(t,2) - 5)*(cos(t) + 1) -
+		 // 							10*sin(t))*cos(-t + y)/((pow(t,2) - 10*sin(t)/(cos(t) + 1) - 5)*(cos(t) +
+		 // 														    1)));
       default:
 	return 0;
       }
@@ -946,12 +964,12 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     // 
     if (component==0)
       {
-	return x*cos(t) + 2*y*sin(t); 
+	return x*cos(t) + 2*y*sin(t);// x*cos(t) 
 	// return 3*x*t+2*y*pow(t,2);
       }
     else
       {
-	return -y*pow(t,2) - x ;// + x; 
+	return  -y*pow(t,2) - x ;// + x; -.2*y*pow(t,2)
 	// return -5*x*y*t+4*x*pow(t,3);
       }
   }
