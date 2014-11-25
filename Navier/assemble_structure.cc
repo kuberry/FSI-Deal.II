@@ -189,11 +189,12 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		      {
 			structure_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
 									stress_values);
+			// A TRANSPOSE IS TAKING PLACE HERE SINCE Deal.II has transposed gradient
 			Tensor<2,dim> new_stresses;
 			new_stresses[0][0]=stress_values[0][0];
-			new_stresses[1][0]=stress_values[1][0];
+			new_stresses[1][0]=stress_values[0][1];
 			new_stresses[1][1]=stress_values[1][1];
-			new_stresses[0][1]=stress_values[0][1];
+			new_stresses[0][1]=stress_values[1][0];
 			data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
 							new_stresses*scratch.fe_face_values.normal_vector(q) *
 							scratch.fe_face_values.JxW(q));
@@ -204,11 +205,12 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		      {
 			old_structure_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
 									stress_values);
+			// A TRANSPOSE IS TAKING PLACE HERE SINCE Deal.II has transposed gradient
 			Tensor<2,dim> new_stresses;
 			new_stresses[0][0]=stress_values[0][0];
-			new_stresses[1][0]=stress_values[1][0];
+			new_stresses[1][0]=stress_values[0][1];
 			new_stresses[1][1]=stress_values[1][1];
-			new_stresses[0][1]=stress_values[0][1];
+			new_stresses[0][1]=stress_values[1][0];
 			data.cell_rhs(i) += (1-.5)*(scratch.fe_face_values[displacements].value (i, q)*
 							     new_stresses*scratch.fe_face_values.normal_vector(q) *
 							     scratch.fe_face_values.JxW(q));
