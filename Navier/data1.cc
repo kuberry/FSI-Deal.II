@@ -16,27 +16,19 @@ using namespace dealii;
 
 Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   Tensor<2,2> F;
-  // x_new = x_old;
-  // y_new = y_old + x_new;
-  // x_new = x_old + sin(y-t)*.1;
-  // y_new = y_old - .2./3*sin(x-t)*.1;
-  F[0][0] = 1+cos(t);
-  F[1][1] = 1-pow(t,2);
+  // mapping=matrix(SR,2,1,[x*y*cos(t),-x*.2*y*t^2 + x*y])
+  F[0][0] = 1+y*cos(t);
+  F[1][1] = 1-x*.2*pow(t,2)+x;
   if (move_domain)
     {
-      F[0][1] =  2*sin(t);
-      F[1][0] =  -1;
-      // F[0][1] = 3*x*t;
-      // F[1][0] = -2./3*cos(x-t)*.1;
+      F[0][1] =  x*cos(t);
+      F[1][0] =  -.2*y*pow(t,2)+y;
     }
   return F;
 }
 
 Point<2> reference_coord(double x, double y, double t, bool move_domain) {
   Point<2> inverse_coord(x,y);
-  // if (move_domain) {
-    
-  // }
   return inverse_coord;
 }
 
@@ -90,48 +82,7 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
       }
     answer = result[0]*0+result[1]*1;
   } else if (physical_properties.simulation_type==2){
-    // This function can be deleted later. It is just for interpolating g on the boundary
-    /*
-     * u1=2*sin(y-t)+3*x*t;
-     * u2=3*sin(x-t)-3*y*t;
-     * p=100*x;
-     * 2*viscosity*(diff(u1,x)*n1+0.5*(diff(u1,y)+diff(u2,x))*n2)-p*n1*u1
-     * 2*viscosity*(diff(u2,y)*n2+0.5*(diff(u1,y)+diff(u2,x))*n1)-p*n2*u2
-     *
-     */
-    AssertThrow( false, ExcInternalError()); // The unit normal would need to be computed
-    // Tensor<2,dim> grad_u;
-    // Tensor<1,dim> result;
-    // const double t = this->get_time();
-    // const double x = p[0];
-    // const double y = p[1];
-    // grad_u[0][0] = 3*t;
-    // grad_u[1][1] = -3*t;
-    // grad_u[1][0] = 2*cos(y-t);
-    // grad_u[0][1] = 3*cos(x-t);
-    // Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
-    // Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
-    // Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
-    // grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
-    // grad_u *= 2*physical_properties.viscosity;
-    // const double pval = 100*x;
-    // grad_u[0][0]-=pval;
-    // grad_u[1][1]-=pval;
-
-    // switch (component)
-    //   {
-    //   case 0:
-    // 	result[0]=grad_u[0][0];
-    // 	result[1]=grad_u[0][1];
-    // 	break;
-    //   case 1:
-    // 	result[0]=grad_u[1][0];
-    // 	result[1]=grad_u[1][1];
-    // 	break;
-    //   default:
-    // 	result=0;
-    //   }
-    // answer = result[0]*0+result[1]*1;
+    AssertThrow( false, ExcInternalError());
   }
   return answer;
 }
@@ -176,46 +127,49 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
 	return result;
       }
   } else if (physical_properties.simulation_type==2){
-    AssertThrow(false, ExcNotImplemented());
+    //AssertThrow(false, ExcNotImplemented());
     // This function can be deleted later. It is just for interpolating g on the boundary
     /*
      * u1=2*sin(y-t)+3*x*t+x^2;
      * u2=3*sin(x-t)-3*y*t;
-     * p=100*x;
+     * p=100*sin(x)-40*y;
      * 2*viscosity*(diff(u1,x)*n1+0.5*(diff(u1,y)+diff(u2,x))*n2)-p*n1*u1
      * 2*viscosity*(diff(u2,y)*n2+0.5*(diff(u1,y)+diff(u2,x))*n1)-p*n2*u2
      *
      */
-    // Tensor<2,dim> grad_u;
-    // const double t = this->get_time();
-    // const double x = p[0];
-    // const double y = p[1];
-    // grad_u[0][0] = 3*t + 2*x;
-    // grad_u[1][1] = -3*t;
-    // grad_u[1][0] = 2*cos(y-t);
-    // grad_u[0][1] = 3*cos(x-t);
-    // Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
-    // Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
-    // Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
-    // grad_u = .5* (transpose(FInv)*grad_u + transpose(grad_u)*FInv);
-    // grad_u *= 2*physical_properties.viscosity;
-    // const double pval = 0;//100*x-40*y;//100*x;
-    // grad_u[0][0] -= pval;
-    // grad_u[1][1] -= pval;
+    Tensor<2,dim> grad_u;
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
+    double viscosity = physical_properties.viscosity;
 
-    // switch (component)
-    //   {
-    //   case 0:
-    // 	result[0]=grad_u[0][0];
-    // 	result[1]=grad_u[0][1];
-    // 	break;
-    //   case 1:
-    // 	result[0]=grad_u[1][0];
-    // 	result[1]=grad_u[1][1];
-    // 	break;
-    //   default:
-    // 	result=0;
-    //   }
+    grad_u[0][0] = 3*t + 2*x;
+    grad_u[1][1] = -3*t;
+    grad_u[1][0] = 2*cos(y-t);
+    grad_u[0][1] = 3*cos(x-t);
+    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
+    Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
+    Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
+    grad_u = .5*(transpose(FInv)*grad_u + transpose(grad_u)*FInv);
+    grad_u *= 2*physical_properties.viscosity;
+    
+    const double pval = 100*sin(x)-40*y;
+    grad_u[0][0] -= pval;
+    grad_u[1][1] -= pval;
+
+    switch (component)
+      {
+      case 0:
+    	result[0]=grad_u[0][0];
+    	result[1]=grad_u[0][1];
+    	break;
+      case 1:
+    	result[0]=grad_u[1][0];
+    	result[1]=grad_u[1][1];
+    	break;
+      default:
+    	result=0;
+      }
   }
   return result;
 }
@@ -357,7 +311,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 
     /*
        u=matrix(SR,2,1,[2*sin(y-t)+3*x*t, 3*sin(x-t)-3*y*t])
-       p=0
+       p=100*sin(x)-40*y
        mapping=matrix(SR,2,1,[x*cos(t)+2*y*sin(t),-y*t^2-x]))
      */
 
@@ -370,58 +324,450 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     double viscosity = physical_properties.viscosity;
     double rho_f = physical_properties.rho_f;
 
-result[0] =  -rho_f*(3*x - 2*cos(t - y))*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t)) + rho_f*(4*t*y*(-(3*t + 2*x)*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*sin(t)/((cos(t) + 1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)))
-+ ((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*cos(t - y)/(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))) + (-x*sin(t) + 2*y*cos(t))*((3*t + 2*x)*((pow(t,
-2) - 1)*(cos(t) + 1) - 2*sin(t))*(1.0/(cos(t) + 1) +
-2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)))) -
-2*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))*cos(t - y)/((cos(t) +
-1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))))) - 2*viscosity*((pow(t, 2)
-- 1)*(cos(t) + 1) - 2*sin(t))*(-3*(1.0/(cos(t) + 1) +
-2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) +
-1))))*sin(t - x) - 4*sin(t)/((cos(t) + 1)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))))*sin(t)/((cos(t) + 1)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))) + 2*viscosity*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*sin(t - y)/pow(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1), 2) +
-4*(viscosity*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2)
-- 1 - 2*sin(t)/(cos(t) + 1)))) - 25*cos(x))*((pow(t, 2) - 1)*(cos(t) +
-1) - 2*sin(t))*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t,
-2) - 1 - 2*sin(t)/(cos(t) + 1)))) - 4*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*(-viscosity*sin(t - y)/((cos(t) + 1)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))) + 10)/((cos(t) + 1)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))) ;
-result[1] =  3*rho_f*(y + cos(t - x))*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t)) - 3*rho_f*(2*t*y*(t*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))/(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)) + 2*((pow(t, 2) -
-1)*(cos(t) + 1) - 2*sin(t))*sin(t)*cos(t - x)/((cos(t) + 1)*(pow(t, 2) -
-1 - 2*sin(t)/(cos(t) + 1)))) - (-x*sin(t) + 2*y*cos(t))*(t*((pow(t, 2) -
-1)*(cos(t) + 1) - 2*sin(t))/((cos(t) + 1)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))) + ((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) -
-1 - 2*sin(t)/(cos(t) + 1))))*cos(t - x))) - viscosity*((pow(t, 2) -
-1)*(cos(t) + 1) - 2*sin(t))*(-3*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t)
-+ 1, 2)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1))))*sin(t - x) -
-4*sin(t)/((cos(t) + 1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) +
-1))))*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1)))) + 2*viscosity*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*sin(t - y)/((cos(t) + 1)*pow(pow(t, 2) - 1 - 2*sin(t)/(cos(t)
-+ 1), 2)) - 8*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*(-3*viscosity*sin(t)*sin(t - x)/((cos(t) + 1)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))) + 25*cos(x))*sin(t)/((cos(t) + 1)*(pow(t, 2) - 1
-- 2*sin(t)/(cos(t) + 1))) - 40*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))/(pow(t, 2) - 1 - 2*sin(t)/(cos(t) + 1)) ;
-rhs_divergence =  -3*t*((pow(t, 2) - 1)*(cos(t) + 1) - 2*sin(t))/(pow(t,
-2) - 1 - 2*sin(t)/(cos(t) + 1)) - (3*t + 2*x)*((pow(t, 2) - 1)*(cos(t) +
-1) - 2*sin(t))*(1.0/(cos(t) + 1) + 2*sin(t)/(pow(cos(t) + 1, 2)*(pow(t,
-2) - 1 - 2*sin(t)/(cos(t) + 1)))) - 6*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*sin(t)*cos(t - x)/((cos(t) + 1)*(pow(t, 2) - 1 -
-2*sin(t)/(cos(t) + 1))) + 2*((pow(t, 2) - 1)*(cos(t) + 1) -
-2*sin(t))*cos(t - y)/((cos(t) + 1)*(pow(t, 2) - 1 - 2*sin(t)/(cos(t) +
-1))) ;
-
-
+result[0] =  -rho_f*(3*x - 2*cos(t - y))*(x*(-0.2*pow(t, 2)*y +
+y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1)) -
+rho_f*(-0.4*t*x*y*(x*(3*t + 2*x)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 2*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t,
+2)*x + x + 1))*cos(t - y)/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - x*y*((3*t + 2*x)*(x*(-0.2*pow(t,
+2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x +
+1))*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+1/(y*cos(t) + 1)) - 2*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y +
+y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*cos(t -
+y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)))*sin(t)) - viscosity*x*((-0.2*pow(t,
+2) + 1)*(y*cos(t) + 1) - (-0.2*pow(t, 2)*y + y)*cos(t))*(3*t*(0.2*pow(t,
+2)*y - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + 3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x +
+1))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - viscosity*x*(x*(-0.2*pow(t, 2)*y +
+y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(-0.2*pow(t, 2) +
+(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)*(3*t*(0.2*pow(t, 2)*y -
+y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + 3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x +
+1))*cos(t)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) - viscosity*x*(x*(-0.2*pow(t, 2)*y
++ y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x +
+1))*(3*t*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + 1)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) + x*(3*t +
+2*x)*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) +
+1)*cos(t)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) - 2*x*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - (3*t + 2*x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+1/(y*cos(t) + 1))*sin(t - x) + 3*(x*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t,
+2) + (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) +
+1)*cos(t)/(pow(y*cos(t) + 1, 2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) - (0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)))*cos(t - x) - 2*(-0.2*pow(t, 2) +
+(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t -
+y)/pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) - viscosity*(x*(-0.2*pow(t, 2)
++ 1)*cos(t) - (-0.2*pow(t, 2)*x + x + 1)*cos(t))*(3*t*(0.2*pow(t, 2)*y -
+y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + 3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))/(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1) +
+viscosity*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t,
+2)*x + x + 1))*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) -
+x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1,
+2))*(3*t*(0.2*pow(t, 2)*y - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t +
+2*x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 3*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1))*cos(t - x) -
+2*cos(t - y)/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1))/pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2) - viscosity*(x*(-0.2*pow(t,
+2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x +
+1))*(3*t*(0.2*pow(t, 2) - 1)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+3*t*(0.2*pow(t, 2)*y - y)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) -
+x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1, 2))/((y*cos(t)
++ 1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) +
+1) + x + 1, 2)) - 3*t*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - x*(3*t + 2*x)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) -
+x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1,
+2))*cos(t)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) - x*(3*t + 2*x)*pow(cos(t),
+2)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 2*(x*(0.2*pow(t, 2) -
+1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y - y)*pow(cos(t),
+2)/pow(y*cos(t) + 1, 2))*cos(t - y)/pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2) + 3*(x*(0.2*pow(t, 2) -
+1)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - x*(0.2*pow(t, 2)*y -
+y)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y -
+y)*pow(cos(t), 2)/pow(y*cos(t) + 1, 2))*cos(t)/(pow(y*cos(t) + 1,
+2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) - 2*x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/(pow(y*cos(t) +
+1, 3)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1)) + cos(t)/pow(y*cos(t) + 1, 2))*cos(t - x) - 2*sin(t -
+y)/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1) + viscosity*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))*(3*t*(0.2*pow(t, 2)*y - y)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) +
+3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x +
+1))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 2*(0.2*pow(t, 2) -
+1)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x + 1))*(viscosity*((3*t + 2*x)*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1)) - 2*(0.2*pow(t,
+2)*y - y)*cos(t - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))) - 20*y +
+50*sin(x))/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 2*(0.2*pow(t, 2)*y -
+y)*(viscosity*((3*t + 2*x)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(pow(y*cos(t) +
+1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1)) - x*(0.2*pow(t, 2)*y - y)*(x*(0.2*pow(t, 2) -
+1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y - y)*pow(cos(t),
+2)/pow(y*cos(t) + 1, 2))*cos(t)/(pow(y*cos(t) + 1, 2)*pow(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) -
+2*x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/(pow(y*cos(t) + 1,
+3)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + cos(t)/pow(y*cos(t) + 1, 2)) - 2*(0.2*pow(t, 2) - 1)*cos(t -
+y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 2*(0.2*pow(t, 2)*y -
+y)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y -
+y)*pow(cos(t), 2)/pow(y*cos(t) + 1, 2))*cos(t - y)/((y*cos(t) +
+1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) - 2*(0.2*pow(t, 2)*y - y)*sin(t - y)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + 2*(0.2*pow(t, 2)*y - y)*cos(t)*cos(t - y)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 20)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 2*(0.2*pow(t,
+2)*y - y)*(x*(-0.2*pow(t, 2) + 1)*cos(t) - (-0.2*pow(t, 2)*x + x +
+1)*cos(t))*(viscosity*((3*t + 2*x)*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1)) - 2*(0.2*pow(t,
+2)*y - y)*cos(t - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))) - 20*y +
+50*sin(x))/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 2*(0.2*pow(t, 2)*y -
+y)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x + 1))*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t,
+2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1, 2))*(viscosity*((3*t +
+2*x)*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+1/(y*cos(t) + 1)) - 2*(0.2*pow(t, 2)*y - y)*cos(t - y)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 20*y + 50*sin(x))/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) +
+2*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))*(viscosity*((3*t + 2*x)*(x*(0.2*pow(t,
+2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1)) -
+2*(0.2*pow(t, 2)*y - y)*cos(t - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))) - 20*y +
+50*sin(x))*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+2*(viscosity*(-2*x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + (3*t + 2*x)*(x*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t, 2) +
+(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t)/(pow(y*cos(t) +
+1, 2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) +
+1) + x + 1, 2)) - (0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 2*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t - y)/((y*cos(t) + 1)*pow(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) +
+2/(y*cos(t) + 1)) - 50*cos(x))*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1)) - 2*((-0.2*pow(t,
+2) + 1)*(y*cos(t) + 1) - (-0.2*pow(t, 2)*y + y)*cos(t))*(x*(0.2*pow(t,
+2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) +
+1))*(viscosity*((3*t + 2*x)*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1)) - 2*(0.2*pow(t,
+2)*y - y)*cos(t - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))) - 20*y + 50*sin(x)) -
+2*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x + 1))*(x*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t)/(pow(y*cos(t) + 1,
+2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) - (0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)))*(viscosity*((3*t + 2*x)*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1)) - 2*(0.2*pow(t,
+2)*y - y)*cos(t - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))) - 20*y + 50*sin(x)) ;
+result[1] =  3*rho_f*(y + cos(t - x))*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1)) -
+rho_f*(-1.2*t*x*y*(t*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1) + x*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*cos(t)*cos(t - x)/((y*cos(t)
++ 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) +
+x + 1))) - 3*x*y*(t*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y +
+y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + (x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t,
+2)*x + x + 1))*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*cos(t - x))*sin(t)) - viscosity*(0.2*pow(t, 2)
+- 1)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x
++ x + 1))*(3*t*(0.2*pow(t, 2)*y - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t +
+2*x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 3*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1))*cos(t - x) -
+2*cos(t - y)/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1))/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+viscosity*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2) + 1)*cos(t) -
+(-0.2*pow(t, 2)*x + x + 1)*cos(t))*(3*t*(0.2*pow(t, 2)*y - y)/((y*cos(t)
++ 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) +
+x + 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) +
+3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + viscosity*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y + y)*cos(t)
+- (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t, 2) -
+1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y - y)*pow(cos(t),
+2)/pow(y*cos(t) + 1, 2))*(3*t*(0.2*pow(t, 2)*y - y)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) +
+3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))/((y*cos(t) +
+1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) - viscosity*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y +
+y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(3*t*(0.2*pow(t,
+2) - 1)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 3*t*(0.2*pow(t, 2)*y -
+y)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y -
+y)*pow(cos(t), 2)/pow(y*cos(t) + 1, 2))/((y*cos(t) + 1)*pow(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) -
+3*t*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x
++ x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) - x*(3*t +
+2*x)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y -
+y)*pow(cos(t), 2)/pow(y*cos(t) + 1, 2))*cos(t)/((y*cos(t) +
+1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) - x*(3*t + 2*x)*pow(cos(t), 2)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + 2*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t,
+2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1, 2))*cos(t -
+y)/pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2) + 3*(x*(0.2*pow(t, 2) - 1)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - x*(0.2*pow(t, 2)*y - y)*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t)
++ 1) - x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1,
+2))*cos(t)/(pow(y*cos(t) + 1, 2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) - 2*x*(0.2*pow(t, 2)*y -
+y)*pow(cos(t), 2)/(pow(y*cos(t) + 1, 3)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) +
+cos(t)/pow(y*cos(t) + 1, 2))*cos(t - x) - 2*sin(t - y)/(-0.2*pow(t, 2)*x
++ x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + viscosity*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y + y)*cos(t)
+- (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(3*t*(0.2*pow(t, 2)*y -
+y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + 3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x +
+1))*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y
+- y)*cos(t)/(y*cos(t) + 1) + x + 1)) - viscosity*((-0.2*pow(t, 2) +
+1)*(y*cos(t) + 1) - (-0.2*pow(t, 2)*y + y)*cos(t))*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1))*(3*t*(0.2*pow(t,
+2)*y - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t + 2*x)*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + 3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*cos(t - x) - 2*cos(t - y)/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+viscosity*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t,
+2)*x + x + 1))*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*(3*t*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t, 2) +
+(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)/((y*cos(t) +
+1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) + x*(3*t + 2*x)*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t)/((y*cos(t) + 1)*pow(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) -
+2*x*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - (3*t + 2*x)*cos(t)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 3*(x*(0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) - 1/(y*cos(t) + 1))*sin(t - x) + 3*(x*(0.2*pow(t, 2)*y -
+y)*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) +
+1)*cos(t)/(pow(y*cos(t) + 1, 2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) - (0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)))*cos(t - x) - 2*(-0.2*pow(t, 2) +
+(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t -
+y)/pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) - viscosity*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t, 2)
++ (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t)/(pow(y*cos(t)
++ 1, 2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t)
++ 1) + x + 1, 2)) - (0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)))*(3*t*(0.2*pow(t, 2)*y - y)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) + x*(3*t +
+2*x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 3*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1))*cos(t - x) -
+2*cos(t - y)/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 2*x*(3*viscosity*(t*(-0.2*pow(t, 2)
++ (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)/pow(-0.2*pow(t, 2)*x
++ x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2) +
+x*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) +
+1)*cos(t)*cos(t - x)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) - x*sin(t -
+x)*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - cos(t)*cos(t - x)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 50*cos(x))*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x
++ x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+2*x*((-0.2*pow(t, 2) + 1)*(y*cos(t) + 1) - (-0.2*pow(t, 2)*y +
+y)*cos(t))*(3*viscosity*(t/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1) + x*cos(t)*cos(t - x)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 20*y + 50*sin(x))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) -
+2*x*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x
++ x + 1))*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ 1)*(3*viscosity*(t/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1) + x*cos(t)*cos(t - x)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 20*y + 50*sin(x))*cos(t)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) +
+2*(3*viscosity*(t*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) -
+x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1,
+2))/pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2) + x*(x*(0.2*pow(t, 2) - 1)*cos(t)/(y*cos(t) + 1) -
+x*(0.2*pow(t, 2)*y - y)*pow(cos(t), 2)/pow(y*cos(t) + 1,
+2))*cos(t)*cos(t - x)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) +
+x*pow(cos(t), 2)*cos(t - x)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1))) +
+20)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x
++ x + 1))/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) +
+1) + x + 1) - 2*(x*(-0.2*pow(t, 2) + 1)*cos(t) - (-0.2*pow(t, 2)*x + x +
+1)*cos(t))*(3*viscosity*(t/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1) + x*cos(t)*cos(t - x)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 20*y + 50*sin(x))/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1) + 2*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t, 2) -
+1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y - y)*pow(cos(t),
+2)/pow(y*cos(t) + 1, 2))*(3*viscosity*(t/(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1) + x*cos(t)*cos(t
+- x)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1))) - 20*y + 50*sin(x))/pow(-0.2*pow(t,
+2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1, 2) +
+2*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x + 1))*(3*viscosity*(t/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1) + x*cos(t)*cos(t - x)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1))) - 20*y + 50*sin(x))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x +
+x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) ;
+rhs_divergence =  3*t*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1) + 3*x*(t*y + sin(t - x))*((-0.2*pow(t,
+2) + 1)*(y*cos(t) + 1) - (-0.2*pow(t, 2)*y +
+y)*cos(t))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y
+- y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 3*x*(t*y + sin(t -
+x))*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x
++ x + 1))*(-0.2*pow(t, 2) + (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ 1)*cos(t)/((y*cos(t) + 1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1, 2)) + 3*x*(x*(-0.2*pow(t, 2)*y +
+y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*cos(t)*cos(t -
+x)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + (3*t + 2*x)*(x*(-0.2*pow(t, 2)*y +
+y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t,
+2)*y - y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1)) -
+(0.2*pow(t, 2) - 1)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))*(3*t*x + pow(x, 2) - 2*sin(t -
+y))/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) + 3*(t*y + sin(t -
+x))*(x*(-0.2*pow(t, 2) + 1)*cos(t) - (-0.2*pow(t, 2)*x + x +
+1)*cos(t))/(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t)
++ 1) + x + 1) - 3*(t*y + sin(t - x))*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t, 2) -
+1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y - y)*pow(cos(t),
+2)/pow(y*cos(t) + 1, 2))/pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1, 2) - 3*(t*y + sin(t -
+x))*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) + 1)*(-0.2*pow(t, 2)*x
++ x + 1))*cos(t)/((y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y
+- y)*cos(t)/(y*cos(t) + 1) + x + 1)) - (0.2*pow(t, 2)*y -
+y)*(x*(-0.2*pow(t, 2) + 1)*cos(t) - (-0.2*pow(t, 2)*x + x +
+1)*cos(t))*(3*t*x + pow(x, 2) - 2*sin(t - y))/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + (0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t, 2) -
+1)*cos(t)/(y*cos(t) + 1) - x*(0.2*pow(t, 2)*y - y)*pow(cos(t),
+2)/pow(y*cos(t) + 1, 2))*(3*t*x + pow(x, 2) - 2*sin(t - y))/((y*cos(t) +
+1)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1)
++ x + 1, 2)) - 2*(0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y + y)*cos(t)
+- (y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*cos(t - y)/((y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)) + (0.2*pow(t, 2)*y - y)*(x*(-0.2*pow(t, 2)*y + y)*cos(t) -
+(y*cos(t) + 1)*(-0.2*pow(t, 2)*x + x + 1))*(3*t*x + pow(x, 2) - 2*sin(t
+- y))*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t,
+2)*y - y)*cos(t)/(y*cos(t) + 1) + x + 1)) - ((-0.2*pow(t, 2) +
+1)*(y*cos(t) + 1) - (-0.2*pow(t, 2)*y + y)*cos(t))*(x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(pow(y*cos(t) + 1, 2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y -
+y)*cos(t)/(y*cos(t) + 1) + x + 1)) - 1/(y*cos(t) + 1))*(3*t*x + pow(x,
+2) - 2*sin(t - y)) - (x*(-0.2*pow(t, 2)*y + y)*cos(t) - (y*cos(t) +
+1)*(-0.2*pow(t, 2)*x + x + 1))*(x*(0.2*pow(t, 2)*y - y)*(-0.2*pow(t, 2)
++ (0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + 1)*cos(t)/(pow(y*cos(t)
++ 1, 2)*pow(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t)
++ 1) + x + 1, 2)) - (0.2*pow(t, 2)*y - y)*cos(t)/(pow(y*cos(t) + 1,
+2)*(-0.2*pow(t, 2)*x + x*(0.2*pow(t, 2)*y - y)*cos(t)/(y*cos(t) + 1) + x
++ 1)))*(3*t*x + pow(x, 2) - 2*sin(t - y)) ;
 
     switch (component)
       {
@@ -533,7 +879,7 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
     /*
      * u1=2*sin(y-t)+3*x*t + x^2;
      * u2=3*sin(x-t)-3*y*t;
-     * p=100*x;
+     * p=100*sin(x)-40*y;
      */
     const double t = this->get_time();
     const double x = p[0];
@@ -545,7 +891,7 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
       case 1:
 	return 3*sin(x-t)-3*y*t;
       case 2:
-	return 0;//100*x; // pval
+	return 100*sin(x)-40*y;// pval
       default:
 	return 0;
       }    
@@ -604,10 +950,7 @@ Tensor<1,dim> FluidBoundaryValues<dim>::gradient (const dealii::Point<dim>   &p,
     Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
     Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
-    //grad_u = transpose(FInv)*grad_u;
-    //grad_u = FInv*grad_u;
-    //grad_u = transpose(grad_u);
-    // grad_u *= determinant(F); The domain has returned to the reference domain when the error calculation that uses this is called
+    // The domain has returned to the reference domain when the error calculation that uses this is called
 
     switch (component)
       {
@@ -757,21 +1100,15 @@ double AleBoundaryValues<dim>::value (const Point<dim> &p,
     const double x = p[0];
     const double y = p[1];
 
-    //
-    // 
     if (component==0)
       {
-	return x*cos(t) + 2*y*sin(t);// x*cos(t) 
-	// return 3*x*t+2*y*pow(t,2);
+	return x*y*cos(t);
       }
     else
       {
-	return  -y*pow(t,2) - x ;// + x; -.2*y*pow(t,2)
-	// return -5*x*y*t+4*x*pow(t,3);
+	return  -x*.2*y*pow(t,2) + x*y;
       }
   }
-  // x_new = x_old + sin(y-t)*.1;
-  // y_new = y_old - .2./3*sin(x-t)*.1;
   return 0;
 }
 
