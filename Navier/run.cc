@@ -158,37 +158,61 @@ void FSIProblem<dim>::run ()
 	      mesh_velocity.block(0)*=1./time_step;
 	    }
 
-	  Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
-	  Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
-	  s_assembly.join();
-	  dirichlet_boundaries((System)1,state);
-	  Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, state_solver[1], system_matrix.block(1,1));
-	  s_factor.join();
-	  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
-	  s_solve.join();
-	  f_assembly.join();
+	  // Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
+	  
+	  // s_assembly.join();
+	  // dirichlet_boundaries((System)1,state);
+	  // Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, state_solver[1], system_matrix.block(1,1));
+	  // s_factor.join();
+	  // Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
+	  // s_solve.join();
+
 	  // std::cout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
 	  // As timestep decreases, this makes it increasing difficult to get within some tolerance on the interface error
 	  // This really only becomes noticeable using the first order finite difference in the objective
 
 	  timer.leave_subsection();
 
-	  solution_star=1;
-	  bool not_first_newton=false;
-	  while (solution_star.l2_norm()>1e-8)
+
+	  // Get the first assembly started ahead of time
+	  //Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
+
+	  // STRUCTURE SOLVER ITERATIONS
+	  std::cout <<"Before structure"<<std::endl;
+	  solution_star.block(1)=1;
+	  while (solution_star.block(1).l2_norm()>1e-8)
 	    {
-	      solution_star=solution;
-	      if (not_first_newton)
-		{
-		  timer.enter_subsection ("Assemble");
-		  assemble_fluid(state, true);
-		  timer.leave_subsection();
-		}
-	      else
+	      solution_star.block(1)=solution.block(1);
+	      timer.enter_subsection ("Assemble");
+	      assemble_structure(state, true);
+	      timer.leave_subsection();
+	      dirichlet_boundaries((System)1,state);
+	      timer.enter_subsection ("State Solve"); 
+	      if (timestep_number==1)
 	      	{
-	      	  // this really only needs done once
-	      	  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0);
+	      	  state_solver[1].initialize(system_matrix.block(1,1));
 	      	}
+	      state_solver[1].factorize(system_matrix.block(1,1));
+	      solve(state_solver[1],1,state);
+	      timer.leave_subsection ();
+	      solution_star.block(1)-=solution.block(1);
+	      ++total_solves;
+	      std::cout << solution_star.block(1).l2_norm() << std::endl;
+	    }
+	  solution_star.block(1) = solution.block(1); 
+
+
+
+	  //f_assembly.join();
+	  // FLUID SOLVER ITERATIONS
+	  solution_star.block(0)=1;
+	  bool not_first_newton=false;
+	  while (solution_star.block(0).l2_norm()>1e-8)
+	    {
+	      solution_star.block(0)=solution.block(0);
+	      timer.enter_subsection ("Assemble");
+	      assemble_fluid(state, true);
+	      timer.leave_subsection();
 	      dirichlet_boundaries((System)0,state);
 	      timer.enter_subsection ("State Solve"); 
 	      if (timestep_number==1)
@@ -198,7 +222,7 @@ void FSIProblem<dim>::run ()
 	      state_solver[0].factorize(system_matrix.block(0,0));
 	      solve(state_solver[0],0,state);
 	      timer.leave_subsection ();
-	      solution_star-=solution;
+	      solution_star.block(0)-=solution.block(0);
 	      ++total_solves;
 	      if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes)
 	      	{
@@ -206,11 +230,15 @@ void FSIProblem<dim>::run ()
 	      	}
 	      else
 	      	{
-	      	  std::cout << solution_star.l2_norm() << std::endl;
+	      	  std::cout << solution_star.block(0).l2_norm() << std::endl;
 	      	}
 	      not_first_newton=true;
 	    }
-	  solution_star = solution; 
+	  solution_star.block(0) = solution.block(0); 
+
+
+
+
 	  build_adjoint_rhs();
 
 	  velocity_jump_old = velocity_jump;
