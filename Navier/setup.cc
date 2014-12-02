@@ -227,7 +227,7 @@ void FSIProblem<dim>::setup_system ()
 	  else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	} else { // simulation_type ==2
-	  if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	  if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	}
       }
