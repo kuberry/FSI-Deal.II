@@ -60,7 +60,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
       // THESE TERMS ARE DEAL.II gradients, so they are transposed. However, we want the transpose of them,
       // so we keep them AS IS.
       scratch.fe_values[displacements].get_function_gradients(old_solution.block(1),grad_n_old);
-      scratch.fe_values[displacements].get_function_gradients(solution_star.block(0),grad_n_star);
+      std::cout << grad_n_old[0] << std::endl;
+      scratch.fe_values[displacements].get_function_gradients(solution_star.block(1),grad_n_star);
       
       //timer.leave_subsection ();
       for (unsigned int q=0; q<scratch.n_q_points;
@@ -69,12 +70,22 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	  //timer.enter_subsection ("Preload Gradients");
 
 	  //timer.leave_subsection ();
-	  bool linear_formulation = true;
+	  bool linear_formulation = false;
 	  
 	  Tensor<2,dim> F_star = Identity + grad_n_star[q];
 	  Tensor<2,dim> E_star = .5 * (transpose(F_star)*F_star - Identity);
 	  Tensor<2,dim> S_star = physical_properties.lambda*trace(E_star)*Identity + 2*physical_properties.mu*E_star;
 
+	  Tensor<2,dim> F_old = Identity + grad_n_old[q];
+	  Tensor<2,dim> E_old;
+	  if (linear_formulation) {
+	    E_old = .5 * (transpose(F_old)*F_old - Identity - transpose(grad_n_old[q])*grad_n_old[q]);
+	    F_old = Identity;
+	  } else {
+	    E_old = .5 * (transpose(F_old)*F_old - Identity);
+	  }
+	  Tensor<2,dim> S_old = physical_properties.lambda*trace(E_old)*Identity + 2*physical_properties.mu*E_old;
+	  
 	  for (unsigned int k=0; k<structure_fe.dofs_per_cell; ++k)
 	    {
 	      phi_n[k]	       = scratch.fe_values[displacements].value (k, q);
@@ -82,7 +93,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      grad_phi_n[k]    = scratch.fe_values[displacements].gradient (k, q);
 	      div_phi_n[k]     = scratch.fe_values[displacements].divergence (k, q);
 	      phi_v[k]         = scratch.fe_values[velocities].value (k, q);
-	      F[k]             = Identity + grad_phi_n[k];
+	      //F[k]             = Identity + grad_phi_n[k];
 	      if (linear_formulation) {
 		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // definition of linear stress
 		F_star = Identity;
@@ -116,12 +127,15 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			      //std::cout << S_star * transpose(F[j]) << std::endl;
 			      // std::cout << transpose(F_star) << std::endl;
 			      if (linear_formulation) {
-				data.cell_matrix(i,j)+= .5 * scalar_product(S[j] * transpose(F_star), .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+				data.cell_matrix(i,j)+= .5 * scalar_product(S[j], .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
 				  *scratch.fe_values.JxW(q);
 			      } else {
 				// If we do this, the Identity where F[j] is multiplies all these terms should go to the RHS
 				// F = I + 
-				data.cell_matrix(i,j)+= .5 * scalar_product(S_star * transpose(grad_phi_n[j]), .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+				data.cell_matrix(i,j)+= (.5 * scalar_product(grad_phi_n[j]*(.5*S_star+.5*S_old)  , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+							 //+ scalar_product(.5*S[j],.5*(grad_phi_n[i]+transpose(grad_phi_n[i])))
+							 )
+
 				  *scratch.fe_values.JxW(q);
 			      }
 			      // data.cell_matrix(i,j)+= scalar_product(S[j], grad_phi_n[i])
@@ -194,27 +208,22 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		  const Tensor<2,dim> grad_phi_i_eta 	= scratch.fe_values[displacements].gradient (i, q);
 		  // const double div_phi_i_eta 			= scratch.fe_values[displacements].divergence (i, q);
 		  const Tensor<1,dim> phi_i_eta_dot  	= scratch.fe_values[velocities].value (i, q);
-		  Tensor<2,dim> F_old = Identity + grad_n_old[q];
-		  Tensor<2,dim> E_old;
-		  if (linear_formulation) {
-		    E_old = .5 * (transpose(F_old)*F_old - Identity - transpose(grad_n_old[q])*grad_n_old[q]);
-		    F_old = Identity;
-		  } else {
-		    E_old = .5 * (transpose(F_old)*F_old - Identity);
-		  }
-		  Tensor<2,dim> S_old = physical_properties.lambda*trace(E_old)*Identity + 2*physical_properties.mu*E_old;
+
 
 		  if (component_i<dim)
 		    {
-		      data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
+		      if (linear_formulation) {
+			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
 					   // +0.5*(-2*physical_properties.mu*(scalar_product(.5*(grad_n_old[q]+transpose(grad_n_old[q])),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
 					   // 	 -physical_properties.lambda*((grad_n_old[q][0][0]+grad_n_old[q][1][1])*div_phi_i_eta))
-					   +0.5*(-scalar_product(S_old* transpose(F_old),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
-				       )
-			* scratch.fe_values.JxW(q);
-		      // THERE MAY HAVE TO BE SOME EXTRA N_STAR TERMS SUBTRACTED HERE
-		      if (!linear_formulation) {
-			data.cell_rhs(i) -= 0.5*(scalar_product(S_star*Identity,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
+					     -0.5*(scalar_product(S_old* transpose(F_old),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
+					     )
+			  * scratch.fe_values.JxW(q);
+		      } else {
+			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
+					     - 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
+					     - scalar_product(.5*S_old+.5*S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
+					     )
 			  * scratch.fe_values.JxW(q);
 		      }
 		    }

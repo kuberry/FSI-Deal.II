@@ -249,6 +249,9 @@ Tensor<1,dim> StructureStressValues<dim>::gradient (const Point<dim>  &p,
 	result=0;
 	return result;
       }
+  } else if (physical_properties.simulation_type==2){
+    AssertThrow(false, ExcNotImplemented());
+    // First we will just get this working with Dirichlet bcs
   }
   return result;
 }
@@ -376,6 +379,31 @@ double StructureRightHandSide<dim>::value (const Point<dim>  &p,
 	return physical_properties.rho_s*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y)) + 2*physical_properties.mu*sin(t + x)*sin(t + y);
       case 1:
 	return 2*physical_properties.mu*cos(t + x)*cos(t + y) - physical_properties.rho_s*(2*cos(t + x)*cos(t + y) - 2*sin(t + x)*sin(t + y));
+      default:
+	return 0;
+      }
+  } else if (physical_properties.simulation_type==2){
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
+    const double lam = physical_properties.lambda;
+    const double mu = physical_properties.mu;
+    const double rho_s = physical_properties.rho_s;
+
+    Tensor<1,dim> result(2);
+
+result[0]= -lam*(pow(3*t - 1, 2) + pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) + 4*pow(cos(t - y), 2) - 2) - 2*mu*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y))*cos(t - y) - 2*mu*pow(3*t + 2*x + 1, 2)*sin(t - y) - 2*mu*(pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) - 1) + 2*rho_s*sin(t - y) + (lam*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2) + 2*mu*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2))*(3*t + 2*x + 1) - (lam*(pow(3*t - 1, 2) + pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) + 4*pow(cos(t - y), 2) - 2) + 2*mu*(pow(3*t - 1, 2) + 4*pow(cos(t - y), 2) - 1))*sin(t - y) + 8*(-lam*sin(t - y)*cos(t - y) - 2*mu*sin(t - y)*cos(t - y))*cos(t - y) ;
+result[1]= mu*(3*t - 1)*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y)) - 6*mu*(3*t + 2*x + 1)*sin(t - y)*cos(t - x) + 3*rho_s*sin(t - x) - 4*(3*t - 1)*(-lam*sin(t - y)*cos(t - y) - 2*mu*sin(t - y)*cos(t - y)) + 3*(lam*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2) + 2*mu*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2))*cos(t - x) - 3.0L/2.0L*(lam*(pow(3*t - 1, 2) + pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) + 4*pow(cos(t - y), 2) - 2) + 2*mu*(pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) - 1))*sin(t - x) ;
+
+// result[0]= -lam*(pow(3*t - 1, 2) + pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) + 4*pow(cos(t - y), 2) - 2) - 12*lam*sin(t - y)*cos(t - x)*cos(t - y) + 2*mu*(3*t - 1)*(3*t + 2*x + 1)*sin(t - y) - 2*mu*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y))*cos(t - y) - 2*mu*(pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) - 1) + 2*rho_s*sin(t - y) + (lam*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2) + 2*mu*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2))*(3*t + 2*x + 1) ;
+// result[1]= 2*lam*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2)*cos(t - y) - mu*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y))*(3*t + 2*x + 1) + 2*mu*(3*(3*t - 1)*cos(t - x) - 2*(3*t + 2*x + 1)*cos(t - y)) - 6*mu*(3*t + 2*x + 1)*sin(t - y)*cos(t - x) + 3*rho_s*sin(t - x) - 4*(3*t - 1)*(-lam*sin(t - y)*cos(t - y) - 2*mu*sin(t - y)*cos(t - y)) ;
+
+    switch (component)
+      {
+      case 0:
+	return result[0];
+      case 1:
+	return result[1];
       default:
 	return 0;
       }
@@ -571,7 +599,27 @@ double StructureBoundaryValues<dim>::value (const Point<dim> &p,
 	return 0;
       }
   } else if (physical_properties.simulation_type==2) {
-    return 1; // just a placeholder since log(0) causes errors for python script
+    /*
+      u=matrix(SR,2,1,[2*sin(y-t)+3*x*t+pow(x,2),3*sin(x-t)-3*y*t])
+     */
+    Assert (component < 4, ExcInternalError());
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
+    switch (component)
+      {
+      case 0:
+	return 2*sin(y-t)+3*x*t+pow(x,2);
+      case 1:
+	return 3*sin(x-t)-3*y*t;
+      case 2:
+	return 3*x - 2*cos(-t + y);
+      case 3:
+	return -3*y - 3*cos(-t + x);
+      default:
+	Assert(false,ExcDimensionMismatch(5,4));
+	return 0;
+      }    
   }
   return 0;
 }
@@ -620,7 +668,32 @@ Tensor<1,dim> StructureBoundaryValues<dim>::gradient (const Point<dim>   &p,
 	return result;//
       }
   } else if (physical_properties.simulation_type==2) {
-    result[0]=1;result[1]=1; // just a placeholder since log(0) causes errors for python script
+    /*
+      u=matrix(SR,2,1,[2*sin(y-t)+3*x*t+pow(x,2),3*sin(x-t)-3*y*t])
+    */
+
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
+    const double n1_x = 3*t + 2*x;
+    const double n2_y = -3*t;
+    const double n1_y = 2*cos(-t + y);
+    const double n2_x = 3*cos(-t + x);
+
+    switch (component)
+      {
+      case 0:
+	result[0]=n1_x;
+	result[1]=n1_y;
+	return result;
+      case 1:
+	result[0]=n2_x;
+	result[1]=n2_y;
+	return result;
+      default:
+	result=0;
+	return result;//
+      }
   }
   return result;
 }
