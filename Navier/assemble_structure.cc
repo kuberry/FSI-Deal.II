@@ -93,11 +93,12 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      grad_phi_n[k]    = scratch.fe_values[displacements].gradient (k, q);
 	      div_phi_n[k]     = scratch.fe_values[displacements].divergence (k, q);
 	      phi_v[k]         = scratch.fe_values[velocities].value (k, q);
-	      //F[k]             = Identity + grad_phi_n[k];
-	      if (linear_formulation) {
-		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // definition of linear stress
-		F_star = Identity;
-	      }
+	      F[k]             = Identity + grad_phi_n[k];
+	      //if (linear_formulation) {
+	      E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // definition of linear stress
+	      E[k]            += .5 * transpose(grad_n_star[q])*grad_phi_n[k];
+		//F_star = Identity;
+		//}
 	      // else {
 	      // 	E[k]             = .5 * (transpose(F[k])*F_star - Identity - transpose(grad_n_star[q])*grad_n_star[q]);
 	      // }
@@ -127,12 +128,15 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			      //std::cout << S_star * transpose(F[j]) << std::endl;
 			      // std::cout << transpose(F_star) << std::endl;
 			      if (linear_formulation) {
-				data.cell_matrix(i,j)+= .5 * scalar_product(S[j], .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+				data.cell_matrix(i,j)+= (.5+.5) * scalar_product(S[j], .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
 				  *scratch.fe_values.JxW(q);
 			      } else {
 				// If we do this, the Identity where F[j] is multiplies all these terms should go to the RHS
 				// F = I + 
-				data.cell_matrix(i,j)+= (.5 * scalar_product(grad_phi_n[j]*(.5*S_star+.5*S_old) , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+				data.cell_matrix(i,j)+= (// scalar_product((S_star)*transpose(grad_phi_n[j]) , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+							 // scalar_product((S_star)*transpose(grad_phi_n[j]) , transpose(grad_phi_n[i]))
+							 //scalar_product(S[j]*transpose(F_star) , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+							 scalar_product(F_star*S[j] , transpose(grad_phi_n[i]))
 							 //+ scalar_product(.5*S[j],.5*(grad_phi_n[i]+transpose(grad_phi_n[i])))
 							 )
 
@@ -155,7 +159,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			    }
 			  else
 			    {
-			      data.cell_matrix(i,j)+=(0.5*phi_v[i]*phi_v[j])
+			      data.cell_matrix(i,j)+=(phi_v[i]*phi_v[j])
 				*scratch.fe_values.JxW(q);
 			    }
 			}
@@ -216,7 +220,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
 					   // +0.5*(-2*physical_properties.mu*(scalar_product(.5*(grad_n_old[q]+transpose(grad_n_old[q])),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
 					   // 	 -physical_properties.lambda*((grad_n_old[q][0][0]+grad_n_old[q][1][1])*div_phi_i_eta))
-					     -0.5*(scalar_product(S_old* transpose(F_old),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
+					   //  -0.5*(scalar_product(S_old* transpose(F_old),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
 					     )
 			  * scratch.fe_values.JxW(q);
 		      } else {
@@ -226,15 +230,15 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			// 		     )
 			//   * scratch.fe_values.JxW(q);
 			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
-					     - 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
-					     - scalar_product(.5*S_old+.5*S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
+					     //- 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
+					     //- scalar_product(S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
 					     )
 			  * scratch.fe_values.JxW(q);
 		      }
 		    }
 		  else
 		    {
-		      data.cell_rhs(i) += (-0.5*phi_i_eta_dot*old_v
+		      data.cell_rhs(i) += (-(0.5-0.5)*phi_i_eta_dot*old_v
 				       -1./time_step*phi_i_eta_dot*old_n
 				       )
 			* scratch.fe_values.JxW(q);
@@ -270,7 +274,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			new_stresses[1][0]=stress_values[0][1];
 			new_stresses[1][1]=stress_values[1][1];
 			new_stresses[0][1]=stress_values[1][0];
-			data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
+			data.cell_rhs(i) += (.5+.5)*(scratch.fe_face_values[displacements].value (i, q)*
 							new_stresses*scratch.fe_face_values.normal_vector(q) *
 							scratch.fe_face_values.JxW(q));
 		      }
@@ -286,7 +290,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			new_stresses[1][0]=stress_values[0][1];
 			new_stresses[1][1]=stress_values[1][1];
 			new_stresses[0][1]=stress_values[1][0];
-			data.cell_rhs(i) += (1-.5)*(scratch.fe_face_values[displacements].value (i, q)*
+			data.cell_rhs(i) += (1-.5-.5)*(scratch.fe_face_values[displacements].value (i, q)*
 							     new_stresses*scratch.fe_face_values.normal_vector(q) *
 							     scratch.fe_face_values.JxW(q));
 		      }
@@ -305,7 +309,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
+			  data.cell_rhs(i) += (.5+.5)*(scratch.fe_face_values[displacements].value (i, q)*
 							       (-g_stress) * scratch.fe_face_values.JxW(q));
 			}
 		    }
@@ -317,7 +321,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += .5*(scratch.fe_face_values[displacements].value (i, q)*
+			  data.cell_rhs(i) += (.5-.5)*(scratch.fe_face_values[displacements].value (i, q)*
 								   (-g_stress) * scratch.fe_face_values.JxW(q));
 			}
 		    }
@@ -466,13 +470,13 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
 					  rhs_function,
 					  tmp);
       forcing_terms = tmp;
-      forcing_terms *= 0.5;
-      rhs_function.set_time(time - time_step);
-      VectorTools::create_right_hand_side(structure_dof_handler,
-					  QGauss<dim>(structure_fe.degree+2),
-					  rhs_function,
-					  tmp);
-      forcing_terms.add(0.5, tmp);
+      // forcing_terms *= 0.5;
+      // rhs_function.set_time(time - time_step);
+      // VectorTools::create_right_hand_side(structure_dof_handler,
+      // 					  QGauss<dim>(structure_fe.degree+2),
+      // 					  rhs_function,
+      // 					  tmp);
+      // forcing_terms.add(0.5, tmp);
       *structure_rhs += forcing_terms;
     }
 
