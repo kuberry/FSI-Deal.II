@@ -1,5 +1,5 @@
 #include "FSI_Project.h"
-
+#include <deal.II/grid/grid_in.h>
 
 template <int dim>
 void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
@@ -262,6 +262,31 @@ void FSIProblem<dim>::setup_system ()
     // Structure sits on top of fluid
     AssertThrow(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
     AssertThrow(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
+
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==1) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
+	else if (i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+      }
+
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+      }
+    for (unsigned int i=0; i<4; ++i)
+      {
+	if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+      }
+  } else if (physical_properties.simulation_type == 3) {
+    GridIn<2> gridin;
+    gridin.attach_triangulation(fluid_triangulation);
+    std::ifstream f("HronTurek-Fluid.msh");
+    gridin.read_msh(f);
 
     for (unsigned int i=0; i<4; ++i)
       {

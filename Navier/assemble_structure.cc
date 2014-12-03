@@ -190,9 +190,9 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		  for (unsigned int d=0; d<dim; ++d)
 		    old_v[d] = old_solution_values[q](d+dim);
 		  const Tensor<1,dim> phi_i_eta      	= scratch.fe_values[displacements].value (i, q);
-		  const Tensor<2,dim> symgrad_phi_i_eta 	= scratch.fe_values[displacements].symmetric_gradient (i, q);
+		  // const Tensor<2,dim> symgrad_phi_i_eta 	= scratch.fe_values[displacements].symmetric_gradient (i, q);
 		  const Tensor<2,dim> grad_phi_i_eta 	= scratch.fe_values[displacements].gradient (i, q);
-		  const double div_phi_i_eta 			= scratch.fe_values[displacements].divergence (i, q);
+		  // const double div_phi_i_eta 			= scratch.fe_values[displacements].divergence (i, q);
 		  const Tensor<1,dim> phi_i_eta_dot  	= scratch.fe_values[velocities].value (i, q);
 		  Tensor<2,dim> F_old = Identity + grad_n_old[q];
 		  Tensor<2,dim> E_old;

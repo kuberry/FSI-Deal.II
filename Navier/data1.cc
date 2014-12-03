@@ -141,7 +141,6 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    double viscosity = physical_properties.viscosity;
 
     grad_u[0][0] = 3*t + 2*x;
     grad_u[1][1] = -3*t;
@@ -508,9 +507,6 @@ Tensor<1,dim> FluidBoundaryValues<dim>::gradient (const dealii::Point<dim>   &p,
     grad_u[1][1] = -3*t;
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
-    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
-    Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
-    Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
     // The domain has returned to the reference domain when the error calculation that uses this is called
 
     switch (component)

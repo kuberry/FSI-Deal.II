@@ -206,7 +206,6 @@ void FSIProblem<dim>::run ()
 	  //f_assembly.join();
 	  // FLUID SOLVER ITERATIONS
 	  solution_star.block(0)=1;
-	  bool not_first_newton=false;
 	  while (solution_star.block(0).l2_norm()>1e-8)
 	    {
 	      solution_star.block(0)=solution.block(0);
@@ -232,7 +231,6 @@ void FSIProblem<dim>::run ()
 	      	{
 	      	  std::cout << solution_star.block(0).l2_norm() << std::endl;
 	      	}
-	      not_first_newton=true;
 	    }
 	  solution_star.block(0) = solution.block(0); 
 
