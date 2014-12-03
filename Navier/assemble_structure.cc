@@ -9,7 +9,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 {
   unsigned int state=0, adjoint=1, linear=2;
 
-  //ConditionalOStream pcout(std::cout,Threads::this_thread_id()==scratch.master_thread); 
+  ConditionalOStream pcout(std::cout,Threads::this_thread_id()==master_thread); 
   //TimerOutput timer (pcout, TimerOutput::summary,
   //		     TimerOutput::wall_times); 
   //timer.enter_subsection ("Beginning");
@@ -60,7 +60,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
       // THESE TERMS ARE DEAL.II gradients, so they are transposed. However, we want the transpose of them,
       // so we keep them AS IS.
       scratch.fe_values[displacements].get_function_gradients(old_solution.block(1),grad_n_old);
-      std::cout << grad_n_old[0] << std::endl;
+      //std::cout << grad_n_old[0] << std::endl;
       scratch.fe_values[displacements].get_function_gradients(solution_star.block(1),grad_n_star);
       
       //timer.leave_subsection ();
@@ -132,7 +132,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			      } else {
 				// If we do this, the Identity where F[j] is multiplies all these terms should go to the RHS
 				// F = I + 
-				data.cell_matrix(i,j)+= (.5 * scalar_product(grad_phi_n[j]*(.5*S_star+.5*S_old)  , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+				data.cell_matrix(i,j)+= (.5 * scalar_product(grad_phi_n[j]*(.5*S_star+.5*S_old) , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
 							 //+ scalar_product(.5*S[j],.5*(grad_phi_n[i]+transpose(grad_phi_n[i])))
 							 )
 
@@ -220,6 +220,11 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 					     )
 			  * scratch.fe_values.JxW(q);
 		      } else {
+			// data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
+			// 		     - 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
+			// 		     - scalar_product(.5*S_old+.5*S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
+			// 		     )
+			//   * scratch.fe_values.JxW(q);
 			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
 					     - 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
 					     - scalar_product(.5*S_old+.5*S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
