@@ -93,10 +93,13 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      grad_phi_n[k]    = scratch.fe_values[displacements].gradient (k, q);
 	      div_phi_n[k]     = scratch.fe_values[displacements].divergence (k, q);
 	      phi_v[k]         = scratch.fe_values[velocities].value (k, q);
-	      //F[k]             = Identity + grad_phi_n[k];
+	      F[k]             = Identity + grad_phi_n[k];
 	      if (linear_formulation) {
 		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // definition of linear stress
 		F_star = Identity;
+	      } else {
+		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // definition of linear stress
+		E[k]            += .5 * transpose(grad_n_star[q])*grad_phi_n[k];
 	      }
 	      // else {
 	      // 	E[k]             = .5 * (transpose(F[k])*F_star - Identity - transpose(grad_n_star[q])*grad_n_star[q]);
@@ -132,8 +135,11 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			      } else {
 				// If we do this, the Identity where F[j] is multiplies all these terms should go to the RHS
 				// F = I + 
-				data.cell_matrix(i,j)+= (.5 * scalar_product(grad_phi_n[j]*(.5*S_star+.5*S_old) , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
+				data.cell_matrix(i,j)+= (//.5 * scalar_product(grad_phi_n[j]*(.5*S_star+.5*S_old) , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
 							 //+ scalar_product(.5*S[j],.5*(grad_phi_n[i]+transpose(grad_phi_n[i])))
+							   scalar_product(.5*grad_phi_n[j]*(.5*S_star+.5*S_old), grad_phi_n[i])
+							 + scalar_product(.5*S[j], grad_phi_n[i])
+							 + scalar_product(.5*F_old*.5*S[j], grad_phi_n[i])
 							 )
 
 				  *scratch.fe_values.JxW(q);
@@ -226,8 +232,10 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			// 		     )
 			//   * scratch.fe_values.JxW(q);
 			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
-					     - 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
-					     - scalar_product(.5*S_old+.5*S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
+					     // - 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
+					     // - scalar_product(.5*S_old+.5*S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
+					     - scalar_product(.5*F_old*.5*S_old, grad_phi_i_eta)
+					     - scalar_product(.5*S_old, grad_phi_i_eta)
 					     )
 			  * scratch.fe_values.JxW(q);
 		      }

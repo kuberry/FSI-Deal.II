@@ -200,7 +200,7 @@ void FSIProblem<dim>::run ()
 	      solution_star.block(1)-=solution.block(1);
 	      ++total_solves;
 	      std::cout << solution_star.block(1).l2_norm() << std::endl;
-	    } while (solution_star.block(1).l2_norm()>1e-8);
+	  } while (solution_star.block(1).l2_norm()>1e-8);
 	  solution_star.block(1) = solution.block(1); 
 
 
