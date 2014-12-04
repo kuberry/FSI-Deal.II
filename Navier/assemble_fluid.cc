@@ -449,10 +449,17 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		  data.cell_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
 					     + fluid_theta * ( 2*physical_properties.viscosity
 							       // In the case of the Laplacian, the gradients in the scalar_product should be transposed, but
-							       // it is cheaper not to transpose both terms (and it is equivalent).                  
-							       *0.25*scalar_product(grad_phi_u[i]+transpose(grad_phi_u[i]),grad_phi_u[j]+transpose(grad_phi_u[j])))
-							       //*0.5*scalar_product(grad_phi_u[i],grad_phi_u[j]+transpose(grad_phi_u[j])))
-					     //*scalar_product(grad_phi_u[i],grad_phi_u[j]))
+							       // it is cheaper not to transpose both terms (and it is equivalent). 
+							       
+							       // For the symmetric tensor, it is okay to use the deformation tensor of test functions
+							       *0.25*scalar_product(grad_phi_u[j]+transpose(grad_phi_u[j]),grad_phi_u[i]+transpose(grad_phi_u[i])))
+							       
+							       // Using a nonsymmetric tensor, it can be observed that the deformation tensor of the test
+							       // functions drives the solution towards another solution
+							       //*0.5*scalar_product(transpose(grad_phi_u[j]),.5*(grad_phi_u[i]+transpose(grad_phi_u[i]))))
+
+							       // Only the gradient of the test functions can be used for a nonsymmetric tensor
+							       //*0.5*scalar_product(grad_phi_u[j],grad_phi_u[i]))
 					     // same is true here about not transposing since its effect is lost (equivalent)
 					     - trace(grad_phi_u[i]) * phi_p[j] // (p,\div v)  momentum
 					     - phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass
