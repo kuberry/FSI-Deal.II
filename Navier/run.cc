@@ -70,7 +70,8 @@ void FSIProblem<dim>::run ()
 	  ale_boundary_values.set_time(fem_properties.t0);
 	  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
 			       ale_boundary_values,
-			       mesh_displacement_star.block(0)); // move directly to fluid block 
+			       mesh_displacement_star.block(2)); // move directly to fluid block 
+	  transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
 	}
       else
 	{
@@ -149,8 +150,9 @@ void FSIProblem<dim>::run ()
 		  ale_boundary_values.set_time(time);
 		  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
 				       ale_boundary_values,
-				       mesh_displacement_star.block(0)); // move directly to fluid block 
-		}
+				       mesh_displacement_star.block(2)); // move directly to fluid block 
+		  transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+	    	}
 	      mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
 
 	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
