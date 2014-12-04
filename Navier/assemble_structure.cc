@@ -137,9 +137,15 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 				// F = I + 
 				data.cell_matrix(i,j)+= (//.5 * scalar_product(grad_phi_n[j]*(.5*S_star+.5*S_old) , .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
 							 //+ scalar_product(.5*S[j],.5*(grad_phi_n[i]+transpose(grad_phi_n[i])))
-							   scalar_product(.5*grad_phi_n[j]*(.5*S_star+.5*S_old), grad_phi_n[i])
+							 
+							 scalar_product(grad_phi_n[j]*.5*(S_old+S_star), grad_phi_n[i])
+							 // or
+							 //scalar_product(.5*grad_phi_n[j]*.5*S_old, grad_phi_n[i])
+							 //+ scalar_product(.5*grad_n_star[q]*.5*S[j], grad_phi_n[i])
+
+
 							 + scalar_product(.5*S[j], grad_phi_n[i])
-							 + scalar_product(.5*F_old*.5*S[j], grad_phi_n[i])
+							 //+ scalar_product(.5*F_old*.5*S[j], grad_phi_n[i]) - good
 							 )
 
 				  *scratch.fe_values.JxW(q);
@@ -234,7 +240,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
 					     // - 0.5*(scalar_product(F_old*(.5*S_old+.5*S_star),.5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
 					     // - scalar_product(.5*S_old+.5*S_star,.5*(grad_phi_i_eta+transpose(grad_phi_i_eta)))
-					     - scalar_product(.5*F_old*.5*S_old, grad_phi_i_eta)
+
+					     //- scalar_product(.5*F_old*.5*S_old, grad_phi_i_eta) - good
 					     - scalar_product(.5*S_old, grad_phi_i_eta)
 					     )
 			  * scratch.fe_values.JxW(q);
