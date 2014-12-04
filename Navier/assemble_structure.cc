@@ -119,15 +119,15 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 				  *scratch.fe_values.JxW(q);
 			      } else {
 				data.cell_matrix(i,j)+= (
-							 // Formulation 1:
+							 // Formulation 1: (worst)
 							 // scalar_product(.5*F_star*S[j], grad_phi_n[i])
 							 // or
-							 // Formulation 2:
+							 // Formulation 2: (medium)
 							 // scalar_product(.5*grad_phi_n[j]*S_star, grad_phi_n[i])
 							 // or
-							 // Formulation 3:
-							 scalar_product(.5*grad_phi_n[j]*S_star, grad_phi_n[i])
-							 + scalar_product(.5*S[j], grad_phi_n[i])
+							 // Formulation 3: (best)
+							 scalar_product(.5*S_star*transpose(grad_phi_n[j]), transpose(grad_phi_n[i]))
+							 + scalar_product(.5*S[j], transpose(grad_phi_n[i]))
 
 							 )
 
@@ -220,7 +220,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 					     // - scalar_product(.5*S_star, grad_phi_i_eta)
 					     // or
 					     // Formulation 3:
-					     - scalar_product(.5*F_old*S_old, grad_phi_i_eta)
+					     - scalar_product(.5*S_old*transpose(F_old), transpose(grad_phi_i_eta))
 
 					     )
 			  * scratch.fe_values.JxW(q);
