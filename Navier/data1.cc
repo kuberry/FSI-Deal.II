@@ -250,8 +250,42 @@ Tensor<1,dim> StructureStressValues<dim>::gradient (const Point<dim>  &p,
 	return result;
       }
   } else if (physical_properties.simulation_type==2){
-    AssertThrow(false, ExcNotImplemented());
-    // First we will just get this working with Dirichlet bcs
+    /*
+      u=matrix(SR,2,1,[2*sin(y-t)+3*x*t+pow(x,2),3*sin(x-t)-3*y*t])
+    */
+
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
+    Tensor<2,dim> Identity;
+    for (unsigned int i=0; i<dim; ++i)
+      Identity[i][i]=1;
+    Tensor<2,dim> F;
+    F[0][0]=3*t + 2*x + 1;
+    F[0][1]=2*cos(-t + y);
+    F[1][0]=3*cos(-t + x);
+    F[1][1]=-3*t + 1;
+    Tensor<2,dim> E;
+    E=.5*(transpose(F)*F-Identity);
+    Tensor<2,dim> S;
+    S=physical_properties.lambda*trace(E)*Identity + 2*physical_properties.mu*E;
+    Tensor<2,dim> First_Piola_Stress;
+    First_Piola_Stress = F*S;
+
+    switch (component)
+      {
+      case 0:
+	result[0]=First_Piola_Stress[0][0];
+	result[1]=First_Piola_Stress[1][0];
+	return result;
+      case 1:
+	result[0]=First_Piola_Stress[0][1];
+	result[1]=First_Piola_Stress[1][1];
+	return result;
+      default:
+	result=0;
+	return result;
+      }
   }
   return result;
 }
