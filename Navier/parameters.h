@@ -77,6 +77,7 @@ namespace Parameters
     int			n_fourier_coeffs;
     bool                navier_stokes;
     bool                stability_terms;
+    bool                nonlinear_elasticity;
   };
 
   template <int dim>
@@ -143,6 +144,8 @@ namespace Parameters
 			  	  "should the convective term be added.");
 	  prm.declare_entry("stability terms", "true", Patterns::Bool(),
 			  	  "should the stability terms used in the papers be added.");
+	  prm.declare_entry("nonlinear elasticity", "false", Patterns::Bool(),
+			  	  "should St. Venant-Kirchhoff tensor be used.");
 
 	  // Output Parameters
 	  prm.declare_entry("make plots", "true", Patterns::Bool(),

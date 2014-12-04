@@ -253,6 +253,7 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   physical_properties.nu		= prm_.get_double("nu");
   physical_properties.navier_stokes     = prm_.get_bool("navier stokes");
   physical_properties.stability_terms   = prm_.get_bool("stability terms");
+  physical_properties.nonlinear_elasticity = prm_.get_bool("nonlinear elasticity");
   if (std::fabs(physical_properties.lambda)<1e-13) // Lambda is to be computed
     {
       physical_properties.lambda	= 2*physical_properties.mu*physical_properties.nu/(1-2*physical_properties.nu);

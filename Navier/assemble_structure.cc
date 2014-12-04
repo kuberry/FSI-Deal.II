@@ -65,16 +65,14 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
       //timer.leave_subsection ();
       for (unsigned int q=0; q<scratch.n_q_points;
 	   ++q)
-	{
-	  bool linear_formulation = false;
-	  
+	{ 
 	  Tensor<2,dim> F_star = Identity + grad_n_star[q];
 	  Tensor<2,dim> E_star = .5 * (transpose(F_star)*F_star - Identity);
 	  Tensor<2,dim> S_star = physical_properties.lambda*trace(E_star)*Identity + 2*physical_properties.mu*E_star;
 
 	  Tensor<2,dim> F_old = Identity + grad_n_old[q];
 	  Tensor<2,dim> E_old;
-	  if (linear_formulation) {
+	  if (!physical_properties.nonlinear_elasticity) {
 	    E_old = .5 * (transpose(F_old)*F_old - Identity - transpose(grad_n_old[q])*grad_n_old[q]);
 	    F_old = Identity;
 	  } else {
@@ -90,7 +88,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      div_phi_n[k]     = scratch.fe_values[displacements].divergence (k, q);
 	      phi_v[k]         = scratch.fe_values[velocities].value (k, q);
 	      F[k]             = Identity + grad_phi_n[k];
-	      if (linear_formulation) {
+	      if (!physical_properties.nonlinear_elasticity) {
 		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // definition of linear stress
 		F_star = Identity;
 	      } else {
@@ -116,7 +114,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			{
 			  if (component_j<dim)
 			    {
-			      if (linear_formulation) {
+			      if (!physical_properties.nonlinear_elasticity) {
 				data.cell_matrix(i,j)+= .5 * scalar_product(S[j], .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
 				  *scratch.fe_values.JxW(q);
 			      } else {
@@ -207,7 +205,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 
 		  if (component_i<dim)
 		    {
-		      if (linear_formulation) {
+		      if (!physical_properties.nonlinear_elasticity) {
 			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
 					     -0.5*(scalar_product(S_old, .5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
 					     )
