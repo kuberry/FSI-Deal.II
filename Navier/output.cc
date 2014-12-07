@@ -52,10 +52,10 @@ void FSIProblem<dim>::output_results () const
   fluid_data_out.build_patches (fem_properties.fluid_degree-1);
   structure_data_out.build_patches (fem_properties.structure_degree+1);
   const std::string fluid_filename = "fluid-" +
-    Utilities::int_to_string (timestep_number, 3) +
+    Utilities::int_to_string (timestep_number, 4) +
     ".vtk";
   const std::string structure_filename = "structure-" +
-    Utilities::int_to_string (timestep_number, 3) +
+    Utilities::int_to_string (timestep_number, 4) +
     ".vtk";
   std::ofstream fluid_output (fluid_filename.c_str());
   std::ofstream structure_output (structure_filename.c_str());
