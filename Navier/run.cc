@@ -18,8 +18,9 @@ void FSIProblem<dim>::run ()
   timer.enter_subsection ("Setup dof system");
 
   setup_system();
-  Threads::Task<void>
-    task = Threads::new_task (&FSIProblem<dim>::build_dof_mapping,*this);
+  //Threads::Task<void>
+  //  task = Threads::new_task (&FSIProblem<dim>::build_dof_mapping,*this);
+  build_dof_mapping();
 
   timer.leave_subsection();
 
@@ -56,7 +57,7 @@ void FSIProblem<dim>::run ()
 			   fluid_boundary_stress,
 			   old_stress.block(0));
     }
-  task.join();
+  //task.join();
   transfer_interface_dofs(old_stress,old_stress,0,1);
   stress=old_stress;
   // Note to self: On a moving domain, predotting stress tensor with unit normal requires extra work (pull backs)
@@ -104,6 +105,8 @@ void FSIProblem<dim>::run ()
       //unsigned int total_relrecord=0;
 
       unsigned int count = 0;
+      update_domain = true;
+
       rhs_for_adjoint=1;
 
       double alpha = fem_properties.steepest_descent_alpha;
