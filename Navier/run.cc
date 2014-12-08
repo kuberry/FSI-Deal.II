@@ -470,17 +470,17 @@ void FSIProblem<dim>::run ()
 	      if (timestep_number==1) {
 		linear_solver[0].initialize(linear_matrix.block(0,0));
 		linear_solver[1].initialize(linear_matrix.block(1,1));
-		Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
-		Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+		Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+		Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
 		f_solve.join();
 		s_solve.join();
 	      } else {
 		Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
 		Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
 		f_factor.join();
-		Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+		Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
 		s_factor.join();
-		Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+		Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
 		f_solve.join();
 		s_solve.join();
 	      }
@@ -541,17 +541,17 @@ void FSIProblem<dim>::run ()
 	      if (timestep_number==1) {
 		adjoint_solver[0].initialize(adjoint_matrix.block(0,0));
 		adjoint_solver[1].initialize(adjoint_matrix.block(1,1));
-		f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[1],1,adjoint);
-		s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[0],0,adjoint);				
+		Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[0],0,adjoint);
+		Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[1],1,adjoint);				
 		f_solve.join();
 		s_solve.join();
 	      } else {
-		f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[0], adjoint_matrix.block(0,0));
-		s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[1], adjoint_matrix.block(1,1));
+		Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[0], adjoint_matrix.block(0,0));
+		Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, adjoint_solver[1], adjoint_matrix.block(1,1));
 		f_factor.join();
-		f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[1],1,adjoint);
+		Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[0],0,adjoint);
 		s_factor.join();
-		s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[0],0,adjoint);				
+		Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[1],1,adjoint);				
 		f_solve.join();
 		s_solve.join();
 	      }
@@ -560,7 +560,7 @@ void FSIProblem<dim>::run ()
 	      
   	      //fluid_constraints.distribute(
   	      // apply preconditioner
-  	      //std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
+  	      // std::cout << solution.block(0).size() << " " << system_matrix.block(0,0).m() << std::endl; 
   	      // for (unsigned int i=0; i<solution.block(0).size(); ++i)
   	      //   adjoint_solution.block(0)[i] *= system_matrix.block(0,0).diag_element(i);
   	      // for (unsigned int i=0; i<solution.block(1).size(); ++i)
@@ -598,6 +598,7 @@ void FSIProblem<dim>::run ()
 
   	      //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
   	      premultiplier.block(0)=rhs_for_adjoint.block(0); // premult
+
   	      double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
   	      //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
   	      //std::cout <<  p_n_norm_square << std::endl;
@@ -619,8 +620,8 @@ void FSIProblem<dim>::run ()
   		  timer.leave_subsection ();
 
   		  timer.enter_subsection ("Linear Solve");
-  		  Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
-  		  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+  		  Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+  		  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
   		  f_solve.join();
   		  s_solve.join();
   		  timer.leave_subsection ();
@@ -679,8 +680,8 @@ void FSIProblem<dim>::run ()
   		  timer.leave_subsection ();
 	      
   		  timer.enter_subsection ("Linear Solve");	      
-  		  f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[1],1,adjoint);
-  		  s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[0],0,adjoint);				
+  		  f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[0],0,adjoint);
+  		  s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,adjoint_solver[1],1,adjoint);				
   		  f_solve.join();
   		  s_solve.join();
   		  timer.leave_subsection ();		
