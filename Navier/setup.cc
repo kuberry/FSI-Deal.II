@@ -19,7 +19,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)
 		{
-		  if (physical_properties.simulation_type==0 || physical_properties.simulation_type==2)
+		  if (physical_properties.simulation_type==0 || physical_properties.simulation_type==2 || physical_properties.simulation_type==3)
 		    {
 		      VectorTools::interpolate_boundary_values (fluid_dof_handler,
 								i,
@@ -283,122 +283,178 @@ void FSIProblem<dim>::setup_system ()
 	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
       }
   } else if (physical_properties.simulation_type == 3) {
-    GridIn<2> gridin;
-    gridin.attach_triangulation(fluid_triangulation);
-    std::ifstream f("HronTurek-Fluid.msh");
-    gridin.read_msh(f);
+    GridIn<2> gridin_fluid;
+    gridin_fluid.attach_triangulation(fluid_triangulation);
+    std::ifstream f_fluid("HronTurek-Fluid.msh");
+    gridin_fluid.read_msh(f_fluid);
 
-    for (unsigned int i=0; i<4; ++i)
+    GridIn<2> gridin_structure;
+    gridin_structure.attach_triangulation(structure_triangulation);
+    std::ifstream f_structure("HronTurek-Structure.msh");
+    gridin_structure.read_msh(f_structure);
+
+    for (unsigned int i=1; i<=8; ++i)
       {
-	if (i==1) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
-	else if (i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	// 1- bottom, 3- top, 4- left, 8- circle
+	if (i==1 || i==3 || i==4 || i==8) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	// 2- right
+	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
+	else if (i>=5 || i<=7) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
       }
 
-    for (unsigned int i=0; i<4; ++i)
+    for (unsigned int i=1; i<=4; ++i)
       {
-	if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
-	else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	// 1- bottom, 2- right, 3- top
+	if (i>=1 && i<=3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	// 4- left (against cylinder)
+	else if (i==4) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
       }
-    for (unsigned int i=0; i<4; ++i)
+    for (unsigned int i=1; i<=8; ++i)
       {
-	if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	if (i>=5 || i<=7) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else if (i>=1 && i<=8) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
       }
   } else {
     AssertThrow(false,ExcNotImplemented());
   }
-  // we need to track cells, faces, and temporarily the centers for the faces
-  // also, we will initially have a temp_* vectors that we will rearrange to match the order of the fluid
-  std::vector<Point<dim> > fluid_face_centers, temp_structure_face_centers(structure_triangulation.n_active_cells());
-  std::vector<bool> temp_structure_interface_cells(structure_triangulation.n_active_cells());
-  std::vector<unsigned int> temp_structure_interface_faces(structure_triangulation.n_active_cells());
-  std::vector<bool> quadrature_orientation; // 1 means q increases on fluid means q increases on the structure, -1 if the opposite
 
-  unsigned int ind=0;
-  for (typename Triangulation<dim>::active_cell_iterator
-         cell = fluid_triangulation.begin_active();
-       cell != fluid_triangulation.end(); ++cell)
-    {
-      for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-	if (cell->face(f)->at_boundary())
-          {
-	    if (std::fabs(cell->face(f)->center()[1])<1e-5*(1./fem_properties.ny_f))
-              { // BOTTOM OF FLUID BOUNDARY
-              	cell->face(f)->set_all_boundary_indicators(0);
-              }
-	    else if (std::fabs(cell->face(f)->center()[0])<1e-5*(1./fem_properties.nx_f))
-              { // LEFT SIDE OF FLUID BOUNDARY
-              	cell->face(f)->set_all_boundary_indicators(3);
-              }
-	    else if (std::fabs(cell->face(f)->center()[0]-fem_properties.fluid_width)<1e-5*(1./fem_properties.nx_f))
-              { // RIGHT SIDE OF FLUID BOUNDARY
-              	cell->face(f)->set_all_boundary_indicators(1);
-              }
-	    else if (std::fabs(cell->face(f)->center()[1]-fem_properties.fluid_height)<1e-5*1./fem_properties.ny_f)
-              { // ON THE INTERFACE
-            	cell->face(f)->set_all_boundary_indicators(2);
-            	fluid_interface_cells.push_back(ind);
-            	fluid_interface_faces.push_back(f);
-            	fluid_face_centers.push_back(cell->face(f)->center());
-              }
-          }
-      ++ind;
-    }
+  // std::vector<Point<dim> > fluid_face_centers, temp_structure_face_centers(structure_triangulation.n_active_cells());
+  // std::vector<bool> temp_structure_interface_cells(structure_triangulation.n_active_cells());
+  // std::vector<unsigned int> temp_structure_interface_faces(structure_triangulation.n_active_cells());
+  // std::vector<Point<dim> > structure_face_centers(fluid_interface_faces.size());
 
-  structure_interface_cells.resize(fluid_interface_cells.size());
-  structure_interface_faces.resize(fluid_interface_cells.size());
-  std::vector<Point<dim> > structure_face_centers(fluid_interface_faces.size());
-  ind=0;
-  for (typename Triangulation<dim>::active_cell_iterator
-         cell = structure_triangulation.begin_active();
-       cell != structure_triangulation.end(); ++cell)
-    {
-      for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-	if (cell->face(f)->at_boundary())
-          {
-	    if (std::fabs(cell->face(f)->center()[1]-(fem_properties.fluid_height+fem_properties.structure_height))<1e-5*(1./fem_properties.ny_s))
-              { // TOP OF STRUCTURE BOUNDARY
-              	cell->face(f)->set_all_boundary_indicators(2);
-              }
-	    else if (std::fabs(cell->face(f)->center()[0])<1e-5*(1./fem_properties.nx_s))
-              { // LEFT SIDE OF STRUCTURE BOUNDARY
-              	cell->face(f)->set_all_boundary_indicators(3);
-              }
-	    else if (std::fabs(cell->face(f)->center()[0]-fem_properties.structure_width)<1e-5*(1./fem_properties.nx_s))
-              { // RIGHT SIDE OF STRUCTURE BOUNDARY
-              	cell->face(f)->set_all_boundary_indicators(1);
-              }
-	    else if (std::fabs(cell->face(f)->center()[1]-fem_properties.fluid_height)<1e-5*1./fem_properties.ny_s)
-              { // INTERFACE BOUNDARY
-              	cell->face(f)->set_all_boundary_indicators(0);
-              	temp_structure_interface_cells[ind]=true;
-              	temp_structure_interface_faces[ind]=f;
-              	temp_structure_face_centers[ind]=cell->face(f)->center();
-              }
-          }
-      ++ind;
-    }
+  if (physical_properties.simulation_type < 3) {
+    // All of these cases have the idea of the fluid placed below the structure and both as rectangles
 
-  // find the matching cells and edges between the two subproblems
-  for (unsigned int i=0; i < fluid_interface_cells.size(); ++i)
-    {
-      unsigned int j=0;
-      for (typename Triangulation<dim>::active_cell_iterator
-             cell = structure_triangulation.begin_active();
-	   cell != structure_triangulation.end(); ++cell)
-        {
-	  if (temp_structure_interface_cells[j] && fluid_face_centers[i].distance(temp_structure_face_centers[j])<1e-13)
+    // we need to track cells, faces, and temporarily the centers for the faces
+    // also, we will initially have a temp_* vectors that we will rearrange to match the order of the fluid
+
+    //unsigned int ind=0;
+    for (typename Triangulation<dim>::active_cell_iterator
+	   cell = fluid_triangulation.begin_active(); cell != fluid_triangulation.end(); ++cell)
+      {
+	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
+	  if (cell->face(f)->at_boundary())
 	    {
-	      structure_interface_cells[i]=j;
-	      structure_interface_faces[i]=temp_structure_interface_faces[j];
-	      structure_face_centers[i]=temp_structure_face_centers[j];
+	      if (std::fabs(cell->face(f)->center()[1])<1e-5*(1./fem_properties.ny_f))
+		{ // BOTTOM OF FLUID BOUNDARY
+		  cell->face(f)->set_all_boundary_indicators(0);
+		}
+	      else if (std::fabs(cell->face(f)->center()[0])<1e-5*(1./fem_properties.nx_f))
+		{ // LEFT SIDE OF FLUID BOUNDARY
+		  cell->face(f)->set_all_boundary_indicators(3);
+		}
+	      else if (std::fabs(cell->face(f)->center()[0]-fem_properties.fluid_width)<1e-5*(1./fem_properties.nx_f))
+		{ // RIGHT SIDE OF FLUID BOUNDARY
+		  cell->face(f)->set_all_boundary_indicators(1);
+		}
+	      else if (std::fabs(cell->face(f)->center()[1]-fem_properties.fluid_height)<1e-5*1./fem_properties.ny_f)
+		{ // ON THE INTERFACE
+		  cell->face(f)->set_all_boundary_indicators(2);
+		  // fluid_interface_cells.push_back(ind);
+		  // fluid_interface_faces.push_back(f);
+		  // fluid_face_centers.push_back(cell->face(f)->center());
+		}
 	    }
-	  ++j;
-        }
-    }
+	// ++ind;
+      }
+
+    // ind=0;
+    for (typename Triangulation<dim>::active_cell_iterator
+	   cell = structure_triangulation.begin_active(); cell != structure_triangulation.end(); ++cell)
+      {
+	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
+	  if (cell->face(f)->at_boundary())
+	    {
+	      if (std::fabs(cell->face(f)->center()[1]-(fem_properties.fluid_height+fem_properties.structure_height))<1e-5*(1./fem_properties.ny_s))
+		{ // TOP OF STRUCTURE BOUNDARY
+		  cell->face(f)->set_all_boundary_indicators(2);
+		}
+	      else if (std::fabs(cell->face(f)->center()[0])<1e-5*(1./fem_properties.nx_s))
+		{ // LEFT SIDE OF STRUCTURE BOUNDARY
+		  cell->face(f)->set_all_boundary_indicators(3);
+		}
+	      else if (std::fabs(cell->face(f)->center()[0]-fem_properties.structure_width)<1e-5*(1./fem_properties.nx_s))
+		{ // RIGHT SIDE OF STRUCTURE BOUNDARY
+		  cell->face(f)->set_all_boundary_indicators(1);
+		}
+	      else if (std::fabs(cell->face(f)->center()[1]-fem_properties.fluid_height)<1e-5*1./fem_properties.ny_s)
+		{ // INTERFACE BOUNDARY
+		  cell->face(f)->set_all_boundary_indicators(0);
+		  // temp_structure_interface_cells[ind]=true;
+		  // temp_structure_interface_faces[ind]=f;
+		  // temp_structure_face_centers[ind]=cell->face(f)->center();
+		}
+	    }
+	// ++ind;
+      }
+
+  } else if (physical_properties.simulation_type == 3) {
+    // unsigned int ind=0;
+    // for (typename Triangulation<dim>::active_cell_iterator
+    // 	   cell = fluid_triangulation.begin_active(); cell != fluid_triangulation.end(); ++cell)
+    //   {
+    // 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
+    // 	  if (cell->face(f)->at_boundary())
+    // 	    {
+    // 	      if (cell->face(f)->boundary_indicator()>=5 || cell->face(f)->boundary_indicator()<=7) {
+    // 		fluid_interface_cells.push_back(ind);
+    // 		fluid_interface_faces.push_back(f);
+    // 		fluid_face_centers.push_back(cell->face(f)->center());
+    // 	      }
+    // 	    }
+    // 	++ind;
+    //   }
+
+    // ind=0;
+    // for (typename Triangulation<dim>::active_cell_iterator
+    // 	   cell = structure_triangulation.begin_active(); cell != structure_triangulation.end(); ++cell)
+    //   {
+    // 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
+    // 	  if (cell->face(f)->at_boundary())
+    // 	    {
+    // 	      if (cell->face(f)->boundary_indicator()<=3) {
+    // 		temp_structure_interface_cells[ind]=true;
+    // 		temp_structure_interface_faces[ind]=f;
+    // 		temp_structure_face_centers[ind]=cell->face(f)->center();
+    // 	      }
+    // 	    }
+    // 	++ind;
+    //   }
+  } else {
+    AssertThrow(false, ExcNotImplemented());
+  }
+
+  // for (unsigned int i=0; i<temp_structure_face_centers.size(); ++i)
+  //   std::cout << temp_structure_face_centers[i] << ",";
+  // std::cout << std::endl;
+  // //std::cout << fluid_face_centers.size() << std::endl;
+  // std::cout << "Made it to matching " << std::endl;
+  // find the matching cells and edges between the two subproblems
+
+  // structure_interface_cells.resize(fluid_interface_cells.size());
+  // structure_interface_faces.resize(fluid_interface_cells.size());
+
+  // for (unsigned int i=0; i < fluid_interface_cells.size(); ++i)
+  //   {
+  //     unsigned int j=0;
+  //     for (typename Triangulation<dim>::active_cell_iterator
+  //            cell = structure_triangulation.begin_active();
+  // 	   cell != structure_triangulation.end(); ++cell)
+  //       {
+  // 	  std::cout << temp_structure_face_centers[j] << std::endl;
+  // 	  if (temp_structure_interface_cells[j] && fluid_face_centers[i].distance(temp_structure_face_centers[j])<1e-13)
+  // 	    {
+  // 	      structure_interface_cells[i]=j;
+  // 	      structure_interface_faces[i]=temp_structure_interface_faces[j];
+  // 	      structure_face_centers[i]=temp_structure_face_centers[j];
+  // 	    }
+  // 	  ++j;
+  //       }
+  //   }
 
   std::cout << "Number of active cells: "
 	    << "fluid: " << fluid_triangulation.n_active_cells()
@@ -445,7 +501,7 @@ void FSIProblem<dim>::setup_system ()
 	    << '+' << dofs_per_block[2] << '+' << dofs_per_block[3] << '+' << dofs_per_block[4] << ')'
 	    << std::endl;
 
-  BlockCompressedSparsityPattern csp_alt (n_big_blocks,n_big_blocks);
+  //BlockCompressedSparsityPattern csp_alt (n_big_blocks,n_big_blocks);
   BlockCompressedSimpleSparsityPattern csp (n_big_blocks,n_big_blocks);
 
   dofs_per_big_block.push_back(dofs_per_block[0]+dofs_per_block[1]);
