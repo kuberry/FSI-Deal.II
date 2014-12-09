@@ -7,7 +7,7 @@ void FSIProblem<dim>::run ()
   unsigned int total_timesteps = (double)(fem_properties.T-fem_properties.t0)/time_step;
 
   std::ofstream file_out;
-  if (physical_properties.simulation_type==1)
+  if (physical_properties.simulation_type==1 || physical_properties.simulation_type==3)
     {
       file_out.open("interface.txt");
     }
@@ -422,6 +422,18 @@ void FSIProblem<dim>::run ()
   	      file_out << time << " " << fe_function.value(p1,1) << " " << fe_function.value(p2,1) << " " << fe_function.value(p3,1) << std::endl; 
   	    }
   	}
+      else if (physical_properties.simulation_type==3)
+	{
+ 	  // if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0)
+  	  //   {
+  	      dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
+  	      Point<dim> p1(0.6,0.2);
+  	      // Point<dim> p2(3,1);
+  	      // Point<dim> p3(4.5,1);
+  	      file_out << time << " " << fe_function.value(p1,0) << " " << fe_function.value(p1,1) << std::endl; 
+		//" " << fe_function.value(p2,1) << " " << fe_function.value(p3,1) << std::endl; 
+  	    // }
+	}
     }
   timer.leave_subsection ();
 }
