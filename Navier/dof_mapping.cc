@@ -35,7 +35,7 @@ void FSIProblem<dim>::build_dof_mapping()
 	    }
 	}
 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-	  if (cell->face(f)->boundary_indicator()==2)
+	  if (fluid_interface_boundaries.count(cell->face(f)->boundary_indicator())!=0)
 	    {
 	      std::vector<unsigned int> temp(2*fluid_dof_handler.get_fe()[0].dofs_per_vertex + fluid_dof_handler.get_fe()[0].dofs_per_line);
 	      cell->face(f)->get_dof_indices(temp);
@@ -69,7 +69,7 @@ void FSIProblem<dim>::build_dof_mapping()
     for (; cell!=endc; ++cell)
       {
 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-	  if (cell->face(f)->boundary_indicator()==0)
+	  if (structure_interface_boundaries.count(cell->face(f)->boundary_indicator())!=0)
 	    {
 	      std::vector<unsigned int> temp(2*structure_dof_handler.get_fe()[0].dofs_per_vertex + structure_dof_handler.get_fe()[0].dofs_per_line);
 	      cell->face(f)->get_dof_indices(temp);
@@ -123,7 +123,7 @@ void FSIProblem<dim>::build_dof_mapping()
 	    }
 	}
 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-	  if (cell->face(f)->boundary_indicator()==2)
+	  if (fluid_interface_boundaries.count(cell->face(f)->boundary_indicator())!=0)
 	    {
 	      std::vector<unsigned int> temp(2*ale_dof_handler.get_fe()[0].dofs_per_vertex + ale_dof_handler.get_fe()[0].dofs_per_line);
 	      cell->face(f)->get_dof_indices(temp);

@@ -46,6 +46,7 @@
 #include <fstream>
 #include <iostream>
 #include <boost/timer.hpp>
+#include <set>
 
 #include "parameters.h"
 #include "small_classes.h"
@@ -177,8 +178,8 @@ class FSIProblem
   std::vector<unsigned int> dofs_per_big_block;
   Parameters::SimulationProperties fem_properties;
   Parameters::PhysicalProperties physical_properties;
-  std::vector<unsigned int> fluid_interface_cells, fluid_interface_faces;
-  std::vector<unsigned int> structure_interface_cells, structure_interface_faces;
+  std::set<unsigned int> fluid_interface_boundaries;
+  std::set<unsigned int> structure_interface_boundaries;
   std::map<unsigned int, unsigned int> f2n, n2f, f2v, v2f, n2a, a2n, a2v, v2a, a2f, f2a, n2v, v2n, a2f_all, f2a_all;
   std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
   std::vector<SparseDirectUMFPACK > state_solver,  adjoint_solver,  linear_solver;
