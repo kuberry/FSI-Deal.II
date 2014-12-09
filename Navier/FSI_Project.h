@@ -115,6 +115,9 @@ class FSIProblem
 					PerTaskData<dim> &data);
   void copy_local_ale_to_global (const PerTaskData<dim> &data);
 
+  unsigned int optimization_CG(unsigned int total_solves);
+  unsigned int optimization_BICGSTAB(unsigned int total_solves);
+
   void build_adjoint_rhs();
   double interface_error();
   double interface_norm(Vector<double>   &values);
@@ -145,6 +148,7 @@ class FSIProblem
   BlockVector<double>		rhs_for_linear;
   BlockVector<double>		rhs_for_linear_h;
   BlockVector<double>		rhs_for_linear_p;
+  BlockVector<double>		rhs_for_linear_Ap;
   BlockVector<double>		rhs_for_linear_Ap_s;
   BlockVector<double>		premultiplier;
   BlockVector<double>		adjoint_solution;

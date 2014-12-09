@@ -12,6 +12,8 @@ SET(TARGET_SRC
   assemble_structure.cc
   data1.cc
   dof_mapping.cc
+  CG.cc
+  BICGSTAB.cc
   output.cc
   run.cc
   setup.cc

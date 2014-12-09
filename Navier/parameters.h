@@ -169,7 +169,7 @@ namespace Parameters
 			    "maximum number of optimization iterations per time step.");
 	  prm.declare_entry("true control","false", Patterns::Bool(),
 			    "Use the true stress as the initial control at each time step.");
-	  prm.declare_entry("optimization method","CG", Patterns::Selection("CG|Gradient"),
+	  prm.declare_entry("optimization method","CG", Patterns::Selection("CG|BICG|Gradient"),
 			    "optimization method choices {CG,Gradient}.");
 	  prm.declare_entry("adjoint type","1", Patterns::Integer(1),
 			    "adjoint displacement (1) or velocity (2) used in objective function.");

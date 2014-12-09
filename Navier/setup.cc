@@ -553,6 +553,7 @@ void FSIProblem<dim>::setup_system ()
   rhs_for_linear.reinit(n_big_blocks);
   rhs_for_linear_h.reinit(n_big_blocks);
   rhs_for_linear_p.reinit(n_big_blocks);
+  rhs_for_linear_Ap.reinit(n_big_blocks);
   rhs_for_linear_Ap_s.reinit(n_big_blocks);
   premultiplier.reinit(n_big_blocks);
   adjoint_solution.reinit (n_big_blocks);
@@ -579,6 +580,7 @@ void FSIProblem<dim>::setup_system ()
       rhs_for_linear.block(i).reinit(dofs_per_big_block[i]);
       rhs_for_linear_h.block(i).reinit(dofs_per_big_block[i]);
       rhs_for_linear_p.block(i).reinit(dofs_per_big_block[i]);
+      rhs_for_linear_Ap.block(i).reinit(dofs_per_big_block[i]);
       rhs_for_linear_Ap_s.block(i).reinit(dofs_per_big_block[i]);
       premultiplier.block(i).reinit(dofs_per_big_block[i]);
       adjoint_solution.block(i).reinit (dofs_per_big_block[i]);
@@ -604,6 +606,7 @@ void FSIProblem<dim>::setup_system ()
   rhs_for_linear.collect_sizes ();
   rhs_for_linear_h.collect_sizes ();
   rhs_for_linear_p.collect_sizes ();
+  rhs_for_linear_Ap.collect_sizes ();
   rhs_for_linear_Ap_s.collect_sizes ();
   premultiplier.collect_sizes ();
   adjoint_solution.collect_sizes ();

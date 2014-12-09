@@ -101,7 +101,7 @@ set navier stokes         = true
 
 set true control          = false
 
-set optimization method   = Gradient
+set optimization method   = BICG
 set cg tolerance          = 1e-9
 set stability terms       = false
 set adjoint type          = 2
