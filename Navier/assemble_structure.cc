@@ -101,7 +101,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // remove nonlinear contribution
 		E[k]            +=  .5 * transpose(grad_n_star[q])*grad_phi_n[k];
 		if (fem_properties.newton) {
-		  E2[k]          = E[k] + + .5 * transpose(grad_phi_n[k])*grad_n_star[q]; // add nonlinear contribution back in
+		  E2[k]          = E[k] + .5 * transpose(grad_phi_n[k])*grad_n_star[q]; // add nonlinear contribution back in
 		} 
 	      }
 	      S[k]             = physical_properties.lambda*trace(E[k])*Identity + 2*physical_properties.mu*E[k];
