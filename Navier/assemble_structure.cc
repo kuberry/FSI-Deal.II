@@ -39,6 +39,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   std::vector<Tensor<2,dim> > 	        F (structure_fe.dofs_per_cell);
   std::vector<Tensor<2,dim> > 	        E (structure_fe.dofs_per_cell);
   std::vector<Tensor<2,dim> > 	        S (structure_fe.dofs_per_cell);
+  std::vector<Tensor<2,dim> > 	        E2 (structure_fe.dofs_per_cell);
+  std::vector<Tensor<2,dim> > 	        S2 (structure_fe.dofs_per_cell);
   
   std::vector<Tensor<1,dim> > grad_known_stress_now (scratch.n_face_q_points,Tensor<1,dim>(2*dim));
   std::vector<Tensor<1,dim> > grad_known_stress_old (scratch.n_face_q_points,Tensor<1,dim>(2*dim));
@@ -66,6 +68,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
       for (unsigned int q=0; q<scratch.n_q_points;
 	   ++q)
 	{ 
+	  // All terms trailed by 2 represent the extra term from linearization
+	  
 	  Tensor<2,dim> F_star = Identity + grad_n_star[q];
 	  Tensor<2,dim> E_star = .5 * (transpose(F_star)*F_star - Identity);
 	  Tensor<2,dim> E_star2 = E_star + .5 * transpose(grad_n_star[q])*grad_n_star[q]; 
@@ -94,15 +98,14 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // definition of linear stress
 		F_star = Identity;
 	      } else {
+		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // remove nonlinear contribution
+		E[k]            +=  .5 * transpose(grad_n_star[q])*grad_phi_n[k];
 		if (fem_properties.newton) {
-		  E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // remove nonlinear contribution
-		  E[k]            += .5 * transpose(grad_n_star[q])*grad_phi_n[k] + .5 * transpose(grad_phi_n[k])*grad_n_star[q]; // add nonlinear contribution back in
-		} else {
-		  E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // remove nonlinear contribution
-		  E[k]            += .5 * transpose(grad_n_star[q])*grad_phi_n[k]; // add nonlinear contribution back in
-		}
+		  E2[k]          = E[k] + + .5 * transpose(grad_phi_n[k])*grad_n_star[q]; // add nonlinear contribution back in
+		} 
 	      }
 	      S[k]             = physical_properties.lambda*trace(E[k])*Identity + 2*physical_properties.mu*E[k];
+	      S2[k]            = physical_properties.lambda*trace(E2[k])*Identity + 2*physical_properties.mu*E2[k];
 	    }
 
 	  for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
@@ -128,16 +131,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 				if (fem_properties.newton) {
 				  data.cell_matrix(i,j)+= (
 							   scalar_product(.5*S_star*transpose(grad_phi_n[j]), transpose(grad_phi_n[i]))
-							   + scalar_product(.5*S[j]*transpose(F_star), transpose(grad_phi_n[i]))
-							 // Formulation 1: (worst)
-							 // scalar_product(.5*F_star*S[j], grad_phi_n[i])
-							 // or
-							 // Formulation 2: (medium)
-							 // scalar_product(.5*grad_phi_n[j]*S_star, grad_phi_n[i])
-							 // or
-							 // Formulation 3: (best)
-							 // scalar_product(.5*S_star*transpose(grad_phi_n[j]), transpose(grad_phi_n[i]))
-							 // + scalar_product(.5*S[j], transpose(grad_phi_n[i]))
+							   + scalar_product(.5*S2[j]*transpose(F_star), transpose(grad_phi_n[i]))
 							 )*scratch.fe_values.JxW(q);
 				} else {
 				  data.cell_matrix(i,j)+= (
@@ -179,7 +173,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			{
 			  if (component_j<dim)
 			    {
-			      data.cell_matrix(i,j)+=(.5*	( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
+			      data.cell_matrix(i,j)+=(.5*( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
 							  + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
 				*scratch.fe_values.JxW(q);
 			    }
@@ -244,15 +238,9 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 
 					     )* scratch.fe_values.JxW(q);
 			if (fem_properties.newton) {
-			  data.cell_rhs(i) += ( -2*scalar_product(.5*S_star, transpose(grad_phi_i_eta))
-						+  scalar_product(.5*S_star2*transpose(F_star), transpose(grad_phi_i_eta))
-						//+  scalar_product(.5*(transpose(grad_n_star[q])*grad_n_star[q])*transpose(F_star), transpose(grad_phi_i_eta))
-			  // 			 // - scalar_product(.5*F_old*S_old, grad_phi_i_eta)
-			  // 			 // - scalar_product(.5*S_star, grad_phi_i_eta)
-			  // 			 // or
-			  // 			 // Formulation 3:
-			  // 			 - scalar_product(.5*S_old*transpose(F_old), transpose(grad_phi_i_eta))
-			  			 )* scratch.fe_values.JxW(q);
+			  data.cell_rhs(i) += ( -scalar_product(.5*S_star, transpose(grad_phi_i_eta))
+						 +  scalar_product(.5*S_star2*transpose(F_star), transpose(grad_phi_i_eta))
+						)* scratch.fe_values.JxW(q);
 			}
 		      }
 		    }
