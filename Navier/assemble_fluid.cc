@@ -686,7 +686,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		{
 		  if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
 		    {
-		      if (physical_properties.simulation_type == 0 || physical_properties.simulation_type == 2)
+		      if (physical_properties.simulation_type != 1)
 			{
 			  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 			    {
@@ -724,30 +724,31 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			}
 		      else
-			{
-			  fluid_boundary_values_function.set_time(time - (1-fluid_theta)*time_step);
-			  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
-			    {
-			      Tensor<1,dim> u_true_side;
-			      if (physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2) 
-				{
-				  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
-									      u_true_side_values);
-				  for (unsigned int d=0; d<dim; ++d)
-				    {
-				      u_true_side[d] = u_true_side_values(d);
-				    }
-				}
+		      	{
+			  // This gives sigma *dot normal boundary condition data from the function u_true_side_values
+		      	  fluid_boundary_values_function.set_time(time - (1-fluid_theta)*time_step);
+		      	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+		      	    {
+		      	      Tensor<1,dim> u_true_side;
+		      	      if (physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2) 
+		      		{
+		      		  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
+		      							      u_true_side_values);
+		      		  for (unsigned int d=0; d<dim; ++d)
+		      		    {
+		      		      u_true_side[d] = u_true_side_values(d);
+		      		    }
+		      		}
 		      
-			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
-				{
-				  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
-				    *(
-				      u_true_side*scratch.fe_face_values[velocities].value (i, q)
-				      ) * scratch.fe_face_values.JxW(q);
-				}
-			    }
-			}
+		      	      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+		      		{
+		      		  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+		      		    *(
+		      		      u_true_side*scratch.fe_face_values[velocities].value (i, q)
+		      		      ) * scratch.fe_face_values.JxW(q);
+		      		}
+		      	    }
+		      	}
 		    }
 		}
 	    }
