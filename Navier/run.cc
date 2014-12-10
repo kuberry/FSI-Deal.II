@@ -85,6 +85,13 @@ void FSIProblem<dim>::run ()
 	}
     }
 
+  std::vector<std::vector<double> > min_max_mean(2); // spatial dimension is 2 
+  if (physical_properties.simulation_type==3) {
+    std::vector<double> zero(3);
+    min_max_mean[0] = zero;
+    min_max_mean[1] = zero;
+  }
+
   double total_time = 0;
 
   // direct_solver.initialize (system_matrix.block(block_num,block_num));
@@ -424,18 +431,25 @@ void FSIProblem<dim>::run ()
   	}
       else if (physical_properties.simulation_type==3)
 	{
- 	  // if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0)
-  	  //   {
-  	      dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
-  	      Point<dim> p1(0.6,0.2);
-  	      // Point<dim> p2(3,1);
-  	      // Point<dim> p3(4.5,1);
-  	      file_out << time << " " << fe_function.value(p1,0) << " " << fe_function.value(p1,1) << std::endl; 
-		//" " << fe_function.value(p2,1) << " " << fe_function.value(p3,1) << std::endl; 
-  	    // }
+	  dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
+	  Point<dim> p1(0.6,0.2);
+	  double x_displ = fe_function.value(p1,0);
+	  double y_displ = fe_function.value(p1,1);
+	  file_out << time << " " << x_displ << " " << y_displ << std::endl; 
+	  if (x_displ < min_max_mean[0][0]) min_max_mean[0][0]=x_displ;
+	  if (x_displ > min_max_mean[0][1]) min_max_mean[0][1]=x_displ;
+	  min_max_mean[0][2] += x_displ;
+	  if (y_displ < min_max_mean[1][0]) min_max_mean[1][0]=y_displ;
+	  if (y_displ > min_max_mean[1][1]) min_max_mean[1][1]=y_displ;
+	  min_max_mean[1][2] += y_displ;
 	}
     }
   timer.leave_subsection ();
+  if (physical_properties.simulation_type==3) {
+    min_max_mean[0][2] /= total_timesteps;
+    min_max_mean[1][2] /= total_timesteps;
+    std::cout << "horizontal: " << .5*(min_max_mean[0][0]+min_max_mean[0][1]) << "+/-" << .5*(min_max_mean[0][1]-min_max_mean[0][0]) << ", vertical: " << .5*(min_max_mean[1][0]+min_max_mean[1][1]) << "+/-" << .5*(min_max_mean[1][1]-min_max_mean[1][0]) << std::endl;
+  }
 }
 
 

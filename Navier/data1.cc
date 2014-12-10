@@ -383,6 +383,18 @@ result[1] +=  -9*(t*y + sin(t - x))*(rho_f*t*(x*(-0.2*pow(t, 2)*y + y)*cos(t) - 
       default:
 	return 0;
       }
+  } else if (physical_properties.simulation_type==3) {
+    switch (component)
+      {
+      case 0:
+	return 0;
+      case 1:
+	return 0;
+      case 2:
+	return 0;
+      default:
+	return 0;
+      }
   }
   return 0;
 }
@@ -422,7 +434,7 @@ double StructureRightHandSide<dim>::value (const Point<dim>  &p,
       default:
 	return 0;
       }
-  } else if (physical_properties.simulation_type==2){
+  } else if (physical_properties.simulation_type==2) {
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -444,6 +456,16 @@ result[1]= mu*(3*t - 1)*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y)) - 6*mu*(3*t + 2
 	return result[0];
       case 1:
 	return result[1];
+      default:
+	return 0;
+      }
+  } else if (physical_properties.simulation_type==3) {
+        switch (component)
+      {
+      case 0:
+	return 0;
+      case 1:
+	return -2;
       default:
 	return 0;
       }
