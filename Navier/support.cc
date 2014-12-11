@@ -37,6 +37,105 @@ void FSIProblem<dim>::build_adjoint_rhs()
 }
 
 template <int dim>
+Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
+{
+  AssertThrow(physical_properties.simulation_type==3, ExcNotImplemented());
+  const FEValuesExtractors::Vector velocities (0);
+
+  QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
+  FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
+				    update_values    | update_normal_vectors | update_gradients |
+				    update_quadrature_points  | update_JxW_values);
+  const unsigned int   n_face_q_points = face_quadrature_formula.size();
+
+  std::vector<Tensor<2,dim> > grad_u(n_face_q_points);
+
+  Tensor<1,dim> functional;
+
+  typename DoFHandler<dim>::active_cell_iterator
+    cell = fluid_dof_handler.begin_active(),
+    endc = fluid_dof_handler.end();
+  for (; cell!=endc; ++cell)
+    {
+      for (unsigned int face_no=0;
+	   face_no<GeometryInfo<dim>::faces_per_cell;
+	   ++face_no)
+	{
+	  if (cell->at_boundary(face_no))
+	    {
+	      if (cell->face(face_no)->boundary_indicator()>=5 /* circle + interface */) // <---- For fluid tests
+		//if (cell->face(face_no)->boundary_indicator()==8 /* circle + interface */) // <---- The good one
+		//if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+		{
+		  fe_face_values.reinit (cell, face_no);
+		  fe_face_values[velocities].get_function_gradients(solution.block(0),grad_u);
+		  for (unsigned int q=0; q<n_face_q_points; ++q)
+		    {
+		      functional = ( .5*(transpose(grad_u[q]) + grad_u[q]) * fe_face_values.normal_vector(q)) * fe_face_values.JxW(q); 
+		    }
+		}
+	    }
+	}
+    }
+  return functional;
+}
+
+template <int dim>
+Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
+{
+  AssertThrow(physical_properties.simulation_type==3, ExcNotImplemented());
+  const FEValuesExtractors::Vector displacements (0);
+
+  QGauss<dim-1> face_quadrature_formula(fem_properties.structure_degree+2);
+  FEFaceValues<dim> fe_face_values (structure_fe, face_quadrature_formula,
+				    update_values    | update_normal_vectors |
+				    update_quadrature_points  | update_JxW_values);
+  const unsigned int   n_face_q_points = face_quadrature_formula.size();
+
+  std::vector<Tensor<2,dim> > grad_n(n_face_q_points);
+  std::vector<Tensor<2,dim> > F(n_face_q_points);
+  std::vector<Tensor<2,dim> > E(n_face_q_points);
+  
+
+  Tensor<1,dim> functional;
+
+  typename DoFHandler<dim>::active_cell_iterator
+    cell = structure_dof_handler.begin_active(),
+    endc = structure_dof_handler.end();
+  for (; cell!=endc; ++cell)
+    {
+      for (unsigned int face_no=0;
+	   face_no<GeometryInfo<dim>::faces_per_cell;
+	   ++face_no)
+	{
+	  if (cell->at_boundary(face_no))
+	    {
+	      if (cell->face(face_no)->boundary_indicator()>=1 && cell->face(face_no)->boundary_indicator()<=4 /* interface */)
+		{
+		  fe_face_values.reinit (cell, face_no);
+		  fe_face_values[displacements].get_function_gradients(solution.block(1),grad_n);
+
+		  for (unsigned int q=0; q<n_face_q_points; ++q)
+		    {
+		      Tensor<2,dim> F = grad_n[q];
+		      Tensor<2,dim> Identity;
+		      for (unsigned int k=0; k<dim; ++k) {
+			Identity[k][k] = 1;
+		      }
+		      F += Identity;
+		      Tensor<2,dim> E = .5*(transpose(F)*F - Identity);
+		      Tensor<2,dim> S = physical_properties.lambda*trace(E)*Identity + 2*physical_properties.mu*E;
+
+		      functional = (F*S) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
+		    }
+		}
+	    }
+	}
+    }
+  return functional;
+}
+
+template <int dim>
 double FSIProblem<dim>::interface_error()
 {
   QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
@@ -138,5 +237,7 @@ double FSIProblem<dim>::interface_norm(Vector<double>   &values)
 
 
 template void FSIProblem<2>::build_adjoint_rhs();
+template Tensor<1,2> FSIProblem<2>::lift_and_drag_fluid();
+template Tensor<1,2> FSIProblem<2>::lift_and_drag_structure();
 template double FSIProblem<2>::interface_error();
 template double FSIProblem<2>::interface_norm(Vector<double>   &values);

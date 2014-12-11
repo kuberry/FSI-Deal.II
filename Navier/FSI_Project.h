@@ -120,6 +120,8 @@ class FSIProblem
   unsigned int optimization_BICGSTAB(unsigned int total_solves);
 
   void build_adjoint_rhs();
+  Tensor<1,dim> lift_and_drag_fluid();
+  Tensor<1,dim> lift_and_drag_structure();
   double interface_error();
   double interface_norm(Vector<double>   &values);
   void dirichlet_boundaries(System system, Mode enum_);
@@ -186,6 +188,7 @@ class FSIProblem
 
   unsigned int master_thread;
   bool update_domain;
+  bool time_dependent;
 };
 
 
@@ -217,6 +220,7 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   fem_properties.structure_degree	= prm_.get_integer("structure degree");
   fem_properties.ale_degree		= prm_.get_integer("ale degree");
   // Time Parameters
+  fem_properties.time_dependent         = prm_.get_bool("time dependent");
   fem_properties.t0                     = prm_.get_double("t0");
   fem_properties.T			= prm_.get_double("T");
   fem_properties.n_time_steps		= prm_.get_integer("number of time steps");

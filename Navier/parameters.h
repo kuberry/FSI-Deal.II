@@ -30,6 +30,7 @@ namespace Parameters
     unsigned int ale_degree;
 
     // Time Parameters
+    bool        time_dependent;
     double      t0;
     double	T;
     unsigned int	n_time_steps;
@@ -94,6 +95,8 @@ namespace Parameters
 			  "order of the finite element to use for the ALE mesh update.");
 
 	  // Time Parameters
+	  prm.declare_entry("time dependent", "true", Patterns::Bool(),
+			  	  "are the simulations time dependent.");
 	  prm.declare_entry("t0", "0.0", Patterns::Double(0),
 	  			  "time to run the simulation from.");
 	  prm.declare_entry("T", "1.0", Patterns::Double(0),
