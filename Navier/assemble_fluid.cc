@@ -460,12 +460,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 							       // Using a nonsymmetric tensor, it can be observed that the deformation tensor of the test
 							       // functions drives the solution towards another solution
 							       //*0.5*scalar_product(transpose(grad_phi_u[j]),.5*(grad_phi_u[i]+transpose(grad_phi_u[i]))))
-
+					     //+ scalar_product(grad_phi_u[j],grad_phi_u[i])
 							       // Only the gradient of the test functions can be used for a nonsymmetric tensor
 							       //*0.5*scalar_product(grad_phi_u[j],grad_phi_u[i]))
 					     // same is true here about not transposing since its effect is lost (equivalent)
-					     - trace(grad_phi_u[i]) * phi_p[j] // (p,\div v)  momentum
-					     - phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass
+					     - physical_properties.rho_f*trace(grad_phi_u[i]) * phi_p[j] // (p,\div v)  momentum  -- Multiplier by physical_properties.rho_f is just for conditioning.
+					     - physical_properties.rho_f*phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass         It must be scaled back after the solve 
 					     - epsilon * phi_p[i] * phi_p[j])
 		    * scratch.fe_values.JxW(q);
 		}
@@ -556,6 +556,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				     + (1-fluid_theta)
 				     * (-2*physical_properties.viscosity
 					*0.25*scalar_product(grad_u_old[q]+transpose(grad_u_old[q]),grad_phi_i_s+transpose(grad_phi_i_s))
+
+					//+ scalar_product(grad_u_star[q],grad_phi_i_s)
 					//*0.5*scalar_product(grad_u_old[q]+transpose(grad_u_old[q]),grad_phi_i_s)
 					//*scalar_product(grad_u_old[q],grad_phi_i_s)
 					//*(-2*physical_properties.viscosity

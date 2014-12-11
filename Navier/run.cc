@@ -231,7 +231,7 @@ void FSIProblem<dim>::run ()
   	  // FLUID SOLVER ITERATIONS
   	  solution_star.block(0)=1;
 	  bool newton = fem_properties.newton;
-	  unsigned int picard_iterations = 3;
+	  unsigned int picard_iterations = 7;
 	  unsigned int loop_count = 0;
   	  while (solution_star.block(0).l2_norm()>1e-8)
   	    {
@@ -251,6 +251,19 @@ void FSIProblem<dim>::run ()
 		state_solver[0].factorize(system_matrix.block(0,0));
 	      }
   	      solve(state_solver[0],0,state);
+	      
+	      // Pressure needs rescaled, since it was scaled/balanced against rho_f  in the operator
+	      tmp = 0; tmp2 = 0;
+	      transfer_all_dofs(solution, tmp, 0, 2);
+	      transfer_all_dofs(tmp2, solution, 2, 0);
+	      solution.block(0) *= physical_properties.rho_f;
+	      transfer_all_dofs(tmp, solution, 2, 0);
+	      // This is done by:
+	      // copying out all except pressure
+	      // copying in zeros over all but pressure
+	      // scaling the pressure
+	      // copying the other values back in
+
   	      timer.leave_subsection ();
   	      solution_star.block(0)-=solution.block(0);
   	      ++total_solves;
