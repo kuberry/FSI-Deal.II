@@ -56,7 +56,7 @@ class StructureRightHandSide : public dealii::Function<dim>
   StructureRightHandSide (const Parameters::PhysicalProperties & physical_properties_) : dealii::Function<dim>(2*dim), physical_properties(physical_properties_) {}
 
   virtual double value (const dealii::Point<dim>   &p,
-			const unsigned int  component = 0) const;
+  			const unsigned int  component) const;
 };
 
 
