@@ -8,6 +8,9 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
   const FEValuesExtractors::Vector displacements (0);
   const FEValuesExtractors::Vector ale_displacement (0);
 
+  unsigned int min_index=0;
+  if (physical_properties.simulation_type==3) min_index=1;
+
   if (enum_==state)
     {
       if (system==Fluid)
@@ -15,7 +18,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	  FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties);
 	  fluid_boundary_values_function.set_time (time);
 	  std::map<types::global_dof_index,double> fluid_boundary_values;
-	  for (unsigned int i=0; i<4; ++i)
+	  for (unsigned int i=min_index; i<fluid_boundaries.size()+min_index; ++i)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)
 		{
@@ -48,7 +51,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	  StructureBoundaryValues<dim> structure_boundary_values_function(physical_properties);
 	  structure_boundary_values_function.set_time (time);
 	  std::map<types::global_dof_index,double> structure_boundary_values;
-	  for (unsigned int i=0; i<4; ++i)
+	  for (unsigned int i=min_index; i<structure_boundaries.size()+min_index; ++i)
 	    {
 	      if (structure_boundaries[i]==Dirichlet)
 		{
@@ -67,14 +70,14 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	{
 	  std::map<types::global_dof_index,double> ale_dirichlet_boundary_values;
 	  std::map<types::global_dof_index,double> ale_interface_boundary_values;
-	  for (unsigned int i=0; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
+	  for (unsigned int i=min_index; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
 	    {
 	      if (a2n.count(i)) // lookup key for certain ale dof
 		{
 		  ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2n[i]]));
 		}
 	    }
-	  for (unsigned int i=0; i<4; ++i)
+	  for (unsigned int i=min_index; i<ale_boundaries.size()+min_index; ++i)
 	    {
 	      if (ale_boundaries[i]==Dirichlet)
 		{
@@ -100,7 +103,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
       if (system==Fluid)
 	{
 	  std::map<types::global_dof_index,double> fluid_boundary_values;
-	  for (unsigned int i=0; i<4; ++i)
+	  for (unsigned int i=min_index; i<fluid_boundaries.size()+min_index; ++i)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)// non interface or Neumann sides
 		{
@@ -129,7 +132,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
       else if (system==Structure)
 	{
 	  std::map<types::global_dof_index,double> structure_boundary_values;
-	  for (unsigned int i=0; i<4; ++i)
+	  for (unsigned int i=min_index; i<structure_boundaries.size()+min_index; ++i)
 	    {
 	      if (structure_boundaries[i]==Dirichlet)// non interface or Neumann sides
 		{
@@ -158,7 +161,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
       else
 	{
 	  std::map<types::global_dof_index,double> ale_boundary_values;
-	  for (unsigned int i=0; i<4; ++i)
+	  for (unsigned int i=min_index; i<ale_boundaries.size()+min_index; ++i)
 	    {
 	      if (ale_boundaries[i]==Dirichlet || ale_boundaries[i]==Interface)// non interface or Neumann sides
 		{
@@ -309,7 +312,7 @@ void FSIProblem<dim>::setup_system ()
     for (unsigned int i=1; i<=4; ++i)
       {
 	// 1- bottom, 2- right, 3- top
-	if (i>=1 && i<=3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet)); // Interface
+	if (i>=1 && i<=3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann)); // Interface
 	// 4- left (against cylinder)
 	else if (i==4) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
