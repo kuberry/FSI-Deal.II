@@ -460,12 +460,12 @@ result[1]= mu*(3*t - 1)*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y)) - 6*mu*(3*t + 2
 	return 0;
       }
   } else if (physical_properties.simulation_type==3) {
-        switch (component)
+    switch (component)
       {
       case 0:
 	return 0;
       case 1:
-	return -2;
+	return -2*physical_properties.rho_s;
       default:
 	return 0;
       }
@@ -542,6 +542,36 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
 	return 3*sin(x-t)-3*y*t;
       case 2:
 	return 100*sin(x)-40*y;// pval
+      default:
+	return 0;
+      }    
+  } else if (physical_properties.simulation_type==3) {
+    Assert (component < 3, ExcInternalError());
+    /*
+     * u1=
+     */
+    const double t = this->get_time();
+    const double x = p[0];
+    const double y = p[1];
+    double pi =  3.14159265358979323846;
+    double u_bar = 2.0;
+    double v_bar = 1.5*u_bar*(4./0.1681)*y*(.41 - y);
+    switch (component)
+      {
+      case 0:
+	if (std::abs(x)<1e-16) {
+	  if (t<2.0) {
+	    return v_bar*0.5*(1-std::cos(.5*pi*t));
+	  } else {
+	    return v_bar;
+	  }
+	} else { 
+	  return 0;
+	}
+      case 1:
+	return 0;
+      case 2:
+	return 0;// pval
       default:
 	return 0;
       }    
