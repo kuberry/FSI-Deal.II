@@ -204,8 +204,10 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				{
 				  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
 				    (
-				     phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
-				     - phi_u[j]*transpose(grad_phi_u[i])*u_star
+				     // phi_u[j]*transpose(grad_u_star[q])*phi_u[i] <-- Ineffective way
+				     // - phi_u[j]*transpose(grad_phi_u[i])*u_star
+				     u_star*transpose(grad_phi_u[j])*phi_u[i]
+				     - u_star*transpose(grad_phi_u[i])*phi_u[j]
 				     ) * scratch.fe_values.JxW(q);
 				}
 			      data.cell_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
@@ -335,7 +337,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    {
 				      data.cell_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
 					(
-					 phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
+					 //phi_u[j]*transpose(grad_u_star[q])*phi_u[i] <- This way is ineffective
+					 u_star*transpose(grad_phi_u[j])*phi_u[i]
 					 ) * scratch.fe_values.JxW(q);
 				    }
 				  data.cell_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
