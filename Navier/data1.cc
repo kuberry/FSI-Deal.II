@@ -554,19 +554,24 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
     const double x = p[0];
     const double y = p[1];
     double pi =  3.14159265358979323846;
-    double u_bar = 2.0;
-    double v_bar = 1.5*u_bar*(4./0.1681)*y*(.41 - y);
+    // double u_bar = 2.0;
+    // double v_bar = 1.5*u_bar*(4./0.1681)*y*(.41 - y);
     switch (component)
       {
       case 0:
-	if (y==0) return 1;
-	else return 0;
+	//return 0;
+	// if (y==0) return 1;
+	// else return 0;
 	
 	// Make sure we are on the left boundary
-	// if (std::abs(x)<1e-16) {
-	//   double u_bar = 0.2;
-	//   double v_bar = 1.5*u_bar*(4./0.1681)*y*(.41 - y);
-	//   return v_bar;
+	if (std::abs(x)<1e-16) {
+	  double u_bar = 1.0;
+	  double v_bar = 1.5*u_bar*y*(.41 - y)/std::pow(.5*.41,2);
+	  //double v_bar = 1.5*u_bar*(4./0.1681)*y*(.41 - y);
+	  return v_bar;
+	} else {
+	  return 0;
+	}
 
 	//   // CFD Case 3
 
