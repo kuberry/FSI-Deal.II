@@ -53,6 +53,7 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
   std::vector<double> p(n_face_q_points);
 
   Tensor<1,dim> functional;
+    Tensor<1,dim> temp_functional;
   Tensor<2,dim> Identity;
   AssertThrow(dim==2,ExcNotImplemented());
   for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
@@ -68,8 +69,13 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
 	{
 	  if (cell->at_boundary(face_no))
 	    {
-	      std::cout << cell->face(face_no)->boundary_indicator() << std::endl;
-	      if (cell->face(face_no)->boundary_indicator()>=5 /* circle + interface */) // <---- For fluid tests
+	      // std::cout << (unsigned int)(cell->face(face_no)->boundary_indicator()) << std::endl;
+	      // std::cout << cell->face(face_no)->center() << std::endl;
+
+	      double multiplier=1;
+	      unsigned int bc = (unsigned int)(cell->face(face_no)->boundary_indicator());
+	      //if (bc<8) multiplier *= -1;
+	      if ((unsigned int)(cell->face(face_no)->boundary_indicator())>=5 /* circle + interface */) // <---- For fluid tests
 		//if (cell->face(face_no)->boundary_indicator()==8 /* circle + interface */) // <---- The good one
 		//if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 		{
@@ -78,7 +84,16 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
 		  fe_face_values[pressure].get_function_values(solution.block(0),p);
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
-		      functional = (physical_properties.viscosity*.5*(transpose(grad_u[q]) + grad_u[q]) - p[q]*Identity) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
+		      // std::cout << physical_properties.viscosity << std::endl;
+		      // std::cout << "grad_u[q] " << grad_u[q] << std::endl;
+		      // std::cout << "p[q] " << p[q] << std::endl;
+		      temp_functional = multiplier * (2*physical_properties.viscosity*.5*(transpose(grad_u[q]) + grad_u[q]) - p[q]*Identity) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
+		      // std::cout << "normal: " << fe_face_values.normal_vector(q) << std::endl;
+		      // std::cout << "center " <<  cell->face(face_no)->center() << std::endl;
+		      // std::cout << (unsigned int)(cell->face(face_no)->boundary_indicator()) << std::endl;
+		      // temp_functional[0]=std::abs(temp_functional[0]);
+		      // temp_functional[1]=std::abs(temp_functional[1]);
+		      functional += temp_functional;
 		    }
 		}
 	    }
@@ -133,7 +148,7 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
 		      Tensor<2,dim> E = .5*(transpose(F)*F - Identity);
 		      Tensor<2,dim> S = physical_properties.lambda*trace(E)*Identity + 2*physical_properties.mu*E;
 
-		      functional = (F*S) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
+		      functional += (F*S) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
 		    }
 		}
 	    }
