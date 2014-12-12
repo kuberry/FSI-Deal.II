@@ -41,6 +41,7 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
 {
   AssertThrow(physical_properties.simulation_type==3, ExcNotImplemented());
   const FEValuesExtractors::Vector velocities (0);
+  const FEValuesExtractors::Scalar pressure (dim);
 
   QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
   FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
@@ -49,8 +50,12 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
   const unsigned int   n_face_q_points = face_quadrature_formula.size();
 
   std::vector<Tensor<2,dim> > grad_u(n_face_q_points);
+  std::vector<double> p(n_face_q_points);
 
   Tensor<1,dim> functional;
+  Tensor<2,dim> Identity;
+  AssertThrow(dim==2,ExcNotImplemented());
+  for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
 
   typename DoFHandler<dim>::active_cell_iterator
     cell = fluid_dof_handler.begin_active(),
@@ -63,15 +68,17 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
 	{
 	  if (cell->at_boundary(face_no))
 	    {
+	      std::cout << cell->face(face_no)->boundary_indicator() << std::endl;
 	      if (cell->face(face_no)->boundary_indicator()>=5 /* circle + interface */) // <---- For fluid tests
 		//if (cell->face(face_no)->boundary_indicator()==8 /* circle + interface */) // <---- The good one
 		//if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 		{
 		  fe_face_values.reinit (cell, face_no);
 		  fe_face_values[velocities].get_function_gradients(solution.block(0),grad_u);
+		  fe_face_values[pressure].get_function_values(solution.block(0),p);
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
-		      functional = ( .5*(transpose(grad_u[q]) + grad_u[q]) * fe_face_values.normal_vector(q)) * fe_face_values.JxW(q); 
+		      functional = (physical_properties.viscosity*.5*(transpose(grad_u[q]) + grad_u[q]) - p[q]*Identity) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
 		    }
 		}
 	    }
