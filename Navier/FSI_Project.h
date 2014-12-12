@@ -171,8 +171,6 @@ class FSIProblem
 
   double time, time_step;
   unsigned int timestep_number;
-  const double fluid_theta;
-  const double structure_theta;
   Parameters::ComputationData errors;
   const unsigned int n_blocks;
   const unsigned int n_big_blocks;
@@ -205,8 +203,6 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   structure_dof_handler (structure_triangulation),
   ale_dof_handler (fluid_triangulation),
   time_step ((prm_.get_double("T")-prm_.get_double("t0"))/prm_.get_integer("number of time steps")),
-     fluid_theta(prm_.get_double("fluid theta")),
-  structure_theta(prm_.get_double("structure theta")),
   errors(),
   n_blocks(5),
   n_big_blocks(3),
