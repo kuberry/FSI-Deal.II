@@ -217,6 +217,7 @@ void FSIProblem<dim>::setup_system ()
 	  if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	  else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	  else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	  fluid_interface_boundaries.insert(2);
 	} else { // simulation_type ==2
 	  if (i==0) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	  else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
@@ -229,6 +230,7 @@ void FSIProblem<dim>::setup_system ()
 	  if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	  else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	  structure_interface_boundaries.insert(0);
 	} else { // simulation_type ==2
 	  if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
