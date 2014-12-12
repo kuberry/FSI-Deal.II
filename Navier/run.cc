@@ -5,6 +5,13 @@ template <int dim>
 void FSIProblem<dim>::run ()
 {
   unsigned int total_timesteps = (double)(fem_properties.T-fem_properties.t0)/time_step;
+  master_thread = Threads::this_thread_id();
+  ConditionalOStream pcout(std::cout,Threads::this_thread_id()==master_thread); 
+
+  if (!fem_properties.time_dependent) {
+    pcout << "STATIONARY Problem Selected. structure_theta set to 1.0, rho_s set to 0.0." << std::endl; 
+    fem_properties.structure_theta = 1.0;
+  }
 
   std::ofstream structure_file_out;
   std::ofstream fluid_file_out;
@@ -14,7 +21,7 @@ void FSIProblem<dim>::run ()
       fluid_file_out.open("fluid_output.txt");
     }
  
-  TimerOutput timer (std::cout, TimerOutput::summary,
+  TimerOutput timer (pcout, TimerOutput::summary,
   		     TimerOutput::wall_times);
   timer.enter_subsection ("Everything");
   timer.enter_subsection ("Setup dof system");
@@ -108,8 +115,8 @@ void FSIProblem<dim>::run ()
       }
       boost::timer t;
       time = fem_properties.t0 + timestep_number*time_step;
-      std::cout << std::endl << "----------------------------------------" << std::endl;
-      std::cout << "Time step " << timestep_number
+      pcout << std::endl << "----------------------------------------" << std::endl;
+      pcout << "Time step " << timestep_number
   		<< " at t=" << time
   		<< std::endl;
 
@@ -187,7 +194,7 @@ void FSIProblem<dim>::run ()
   	  // Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
   	  // s_solve.join();
 
-  	  // std::cout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
+  	  // pcout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
   	  // As timestep decreases, this makes it increasing difficult to get within some tolerance on the interface error
   	  // This really only becomes noticeable using the first order finite difference in the objective
 
@@ -199,7 +206,7 @@ void FSIProblem<dim>::run ()
   	  //Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
 
   	  // STRUCTURE SOLVER ITERATIONS
-  	  std::cout <<"Before structure"<<std::endl;
+  	  pcout <<"Before structure"<<std::endl;
   	  //solution_star.block(1)=1;
   	  solution_star.block(1) = solution.block(1); 
   	  do {
@@ -221,7 +228,7 @@ void FSIProblem<dim>::run ()
   	      timer.leave_subsection ();
   	      solution_star.block(1)-=solution.block(1);
   	      ++total_solves;
-  	      std::cout << solution_star.block(1).l2_norm() << std::endl;
+  	      pcout << solution_star.block(1).l2_norm() << std::endl;
   	  } while (solution_star.block(1).l2_norm()>1e-8);
   	  solution_star.block(1) = solution.block(1); 
 
@@ -270,7 +277,7 @@ void FSIProblem<dim>::run ()
   	      if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes) {
 		break;
 	      } else {
-		std::cout << solution_star.block(0).l2_norm() << std::endl;
+		pcout << solution_star.block(0).l2_norm() << std::endl;
 	      }
 	      
 	      loop_count++;
@@ -285,7 +292,7 @@ void FSIProblem<dim>::run ()
   	  velocity_jump_old = velocity_jump;
   	  velocity_jump=interface_error();
 
-  	  if (count%1==0) std::cout << "Jump Error: " << velocity_jump << std::endl;
+  	  if (count%1==0) pcout << "Jump Error: " << velocity_jump << std::endl;
   	  if (physical_properties.moving_domain && fem_properties.optimization_method.compare("Gradient")==0)
   	    {
   	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance)
@@ -355,22 +362,22 @@ void FSIProblem<dim>::run ()
   	      if (velocity_jump>velocity_jump_old)
   		{
   		  ++imprecord;
-  		  //std::cout << "Bad Move." << std::endl;
+  		  //pcout << "Bad Move." << std::endl;
   		  consecutiverelrecord = 0;
   		}
   	      else if ((velocity_jump/velocity_jump_old)>=0.995) 
   		{
   		  ++relrecord;
   		  ++consecutiverelrecord;
-  		  //std::cout << "Rel. Bad Move." << std::endl;
-  		  //std::cout << consecutiverelrecord << std::endl;
+  		  //pcout << "Rel. Bad Move." << std::endl;
+  		  //pcout << consecutiverelrecord << std::endl;
   		}
   	      else
   		{
   		  imprecord = 0;
   		  relrecord = 0;
   		  alpha *= 1.01;
-  		  //std::cout << "Good Move." << std::endl;
+  		  //pcout << "Good Move." << std::endl;
   		  consecutiverelrecord = 0;
   		}
 
@@ -387,7 +394,7 @@ void FSIProblem<dim>::run ()
 	    
   	      if (consecutiverelrecord>50)
   		{
-  		  std::cout << "Break!" << std::endl;
+  		  pcout << "Break!" << std::endl;
   		  //break;
   		}
 
@@ -408,14 +415,14 @@ void FSIProblem<dim>::run ()
 
   	      tmp.block(0).add(-fem_properties.fluid_theta,adjoint_solution.block(0));
 
-  	      //std::cout << "L2 " << tmp.block(0).l2_norm() << std::endl;
+  	      //pcout << "L2 " << tmp.block(0).l2_norm() << std::endl;
 
   	      // not negated since tmp has reverse of proper negation
   	      double multiplier = float(alpha)/fem_properties.penalty_epsilon;
             
   	      stress.block(0).add(multiplier,tmp.block(0));
 
-  	      //std::cout << "STRESS: " << stress.block(0).l2_norm() << std::endl;
+  	      //pcout << "STRESS: " << stress.block(0).l2_norm() << std::endl;
 
   	      tmp=0;
   	      transfer_interface_dofs(stress,tmp,0,0);
@@ -423,13 +430,13 @@ void FSIProblem<dim>::run ()
   	      transfer_interface_dofs(tmp,stress,0,0);
 
   	      transfer_interface_dofs(stress,stress,0,1,Displacement);
-  	      //if (count%50==0) std::cout << "alpha: " << alpha << std::endl;
+  	      //if (count%50==0) pcout << "alpha: " << alpha << std::endl;
   	    }
   	  else if (fem_properties.optimization_method.compare("CG")==0) total_solves = optimization_CG(total_solves);
 	  else total_solves = optimization_BICGSTAB(total_solves);
 
   	}
-      std::cout << "Total Solves: " << total_solves << std::endl;
+      pcout << "Total Solves: " << total_solves << std::endl;
       if (fem_properties.make_plots) output_results ();
       if (fem_properties.richardson) 
   	{
@@ -438,9 +445,9 @@ void FSIProblem<dim>::run ()
       old_solution = solution;
       old_stress = stress;
       if (fem_properties.print_error) compute_error();
-      std::cout << "Comp. Time: " << t.elapsed() << std::endl;
+      pcout << "Comp. Time: " << t.elapsed() << std::endl;
       total_time += t.elapsed();
-      std::cout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
+      pcout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
       t.restart();
       if (physical_properties.simulation_type==1)
   	{
@@ -483,11 +490,11 @@ void FSIProblem<dim>::run ()
     }
   timer.leave_subsection ();
   if (physical_properties.simulation_type==3) {
-    std::cout << "STRUCTURE: " << std::endl;
-    std::cout << "horizontal: " << .5*(displacement_min_max_mean[0][0]+displacement_min_max_mean[0][1]) << "+/-" << .5*(displacement_min_max_mean[0][1]-displacement_min_max_mean[0][0]) << ", vertical: " << .5*(displacement_min_max_mean[1][0]+displacement_min_max_mean[1][1]) << "+/-" << .5*(displacement_min_max_mean[1][1]-displacement_min_max_mean[1][0]) << std::endl;
-    std::cout << "last step: horizontal: " << last_displacements[0] << ", vertical: " << last_displacements[1] << std::endl;
-    std::cout << std::endl << "FLUID: " << std::endl;
-    std::cout << "drag: " << .5*(drag_min_max[0]+drag_min_max[1]) << "+/-" << .5*(drag_min_max[1]-drag_min_max[0]) << ", lift: " << .5*(lift_min_max[0]+lift_min_max[1]) << "+/-" << .5*(lift_min_max[1]-lift_min_max[0]) << std::endl;
+    pcout << "STRUCTURE: " << std::endl;
+    pcout << "horizontal: " << .5*(displacement_min_max_mean[0][0]+displacement_min_max_mean[0][1]) << "+/-" << .5*(displacement_min_max_mean[0][1]-displacement_min_max_mean[0][0]) << ", vertical: " << .5*(displacement_min_max_mean[1][0]+displacement_min_max_mean[1][1]) << "+/-" << .5*(displacement_min_max_mean[1][1]-displacement_min_max_mean[1][0]) << std::endl;
+    pcout << "last step: horizontal: " << last_displacements[0] << ", vertical: " << last_displacements[1] << std::endl;
+    pcout << std::endl << "FLUID: " << std::endl;
+    pcout << "drag: " << .5*(drag_min_max[0]+drag_min_max[1]) << "+/-" << .5*(drag_min_max[1]-drag_min_max[0]) << ", lift: " << .5*(lift_min_max[0]+lift_min_max[1]) << "+/-" << .5*(lift_min_max[1]-lift_min_max[0]) << std::endl;
   }
 }
 
