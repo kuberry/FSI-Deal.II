@@ -182,9 +182,11 @@ void FSIProblem<dim>::run ()
   	    	}
   	      mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
 
-  	      mesh_velocity.block(0)=mesh_displacement_star.block(0);
-  	      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
-  	      mesh_velocity.block(0)*=1./time_step;
+	      if (fem_properties.time_dependent) {
+		mesh_velocity.block(0)=mesh_displacement_star.block(0);
+		mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+		mesh_velocity.block(0)*=1./time_step;
+	      }
   	    }
 
   	  // Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
