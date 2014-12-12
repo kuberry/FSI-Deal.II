@@ -9,8 +9,9 @@ void FSIProblem<dim>::run ()
   ConditionalOStream pcout(std::cout,Threads::this_thread_id()==master_thread); 
 
   if (!fem_properties.time_dependent) {
-    pcout << "STATIONARY Problem Selected. structure_theta set to 1.0, rho_s set to 0.0." << std::endl; 
+    pcout << "STATIONARY Problem Selected. structure_theta, fluid_theta set to 1.0." << std::endl; 
     fem_properties.structure_theta = 1.0;
+    fem_properties.fluid_theta = 1.0;
   }
 
   std::ofstream structure_file_out;
@@ -98,6 +99,7 @@ void FSIProblem<dim>::run ()
   std::vector<double> lift_min_max(dim); 
   std::vector<double> drag_min_max(dim); 
   std::vector<double> last_displacements(2);
+  std::vector<double> last_lift_drag(2);
   if (physical_properties.simulation_type==3) {
     std::vector<double> zero(3);
     displacement_min_max_mean[0] = zero;
@@ -260,11 +262,13 @@ void FSIProblem<dim>::run ()
   	      solve(state_solver[0],0,state);
 	      
 	      // Pressure needs rescaled, since it was scaled/balanced against rho_f  in the operator
-	      tmp = 0; tmp2 = 0;
-	      transfer_all_dofs(solution, tmp, 0, 2);
-	      transfer_all_dofs(tmp2, solution, 2, 0);
-	      solution.block(0) *= physical_properties.rho_f;
-	      transfer_all_dofs(tmp, solution, 2, 0);
+	      // tmp = 0; tmp2 = 0;
+	      // transfer_all_dofs(solution, tmp, 0, 2);
+	      // transfer_all_dofs(tmp2, solution, 2, 0);
+	      // solution.block(0) *= physical_properties.rho_f;
+	      // transfer_all_dofs(tmp, solution, 2, 0);
+
+
 	      // This is done by:
 	      // copying out all except pressure
 	      // copying in zeros over all but pressure
@@ -486,6 +490,8 @@ void FSIProblem<dim>::run ()
 	  drag_min_max[1] = std::max(drag_min_max[1],lift_drag[0]);
 	  lift_min_max[0] = std::min(lift_min_max[0],lift_drag[1]);
 	  lift_min_max[1] = std::max(lift_min_max[1],lift_drag[1]);
+	  last_lift_drag[0] = lift_drag[0];
+	  last_lift_drag[1] = lift_drag[1];
 	}
     }
   timer.leave_subsection ();
@@ -495,6 +501,7 @@ void FSIProblem<dim>::run ()
     pcout << "last step: horizontal: " << last_displacements[0] << ", vertical: " << last_displacements[1] << std::endl;
     pcout << std::endl << "FLUID: " << std::endl;
     pcout << "drag: " << .5*(drag_min_max[0]+drag_min_max[1]) << "+/-" << .5*(drag_min_max[1]-drag_min_max[0]) << ", lift: " << .5*(lift_min_max[0]+lift_min_max[1]) << "+/-" << .5*(lift_min_max[1]-lift_min_max[0]) << std::endl;
+    pcout << "last step: drag: " << last_lift_drag[0] << ", lift: " << last_lift_drag[1] << std::endl;
   }
 }
 

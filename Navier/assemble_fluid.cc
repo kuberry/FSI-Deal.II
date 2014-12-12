@@ -446,26 +446,27 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			}
 		    }
 
-
-
-
-		  data.cell_matrix(i,j) += ( physical_properties.rho_f/time_step*phi_u[i]*phi_u[j]
-					     + fluid_theta * ( 2*physical_properties.viscosity
-							       // In the case of the Laplacian, the gradients in the scalar_product should be transposed, but
-							       // it is cheaper not to transpose both terms (and it is equivalent). 
+		  if (fem_properties.time_dependent) {
+		    data.cell_matrix(i,j) +=  physical_properties.rho_f/time_step*phi_u[i]*phi_u[j] * scratch.fe_values.JxW(q);
+		  }
+		  data.cell_matrix(i,j) += ( fluid_theta * ( 2*physical_properties.viscosity
+							     // In the case of the Laplacian, the gradients in the scalar_product should be transposed, but
+							     // it is cheaper not to transpose both terms (and it is equivalent). 
 							       
-							       // For the symmetric tensor, it is okay to use the deformation tensor of test functions
-							       *0.25*scalar_product(grad_phi_u[j]+transpose(grad_phi_u[j]),grad_phi_u[i]+transpose(grad_phi_u[i])))
+							     // For the symmetric tensor, it is okay to use the deformation tensor of test functions
+							     *0.25*scalar_product(grad_phi_u[j]+transpose(grad_phi_u[j]),grad_phi_u[i]+transpose(grad_phi_u[i])))
 							       
-							       // Using a nonsymmetric tensor, it can be observed that the deformation tensor of the test
-							       // functions drives the solution towards another solution
-							       //*0.5*scalar_product(transpose(grad_phi_u[j]),.5*(grad_phi_u[i]+transpose(grad_phi_u[i]))))
+					     // Using a nonsymmetric tensor, it can be observed that the deformation tensor of the test
+					     // functions drives the solution towards another solution
+					     //*0.5*scalar_product(transpose(grad_phi_u[j]),.5*(grad_phi_u[i]+transpose(grad_phi_u[i]))))
 					     //+ scalar_product(grad_phi_u[j],grad_phi_u[i])
-							       // Only the gradient of the test functions can be used for a nonsymmetric tensor
-							       //*0.5*scalar_product(grad_phi_u[j],grad_phi_u[i]))
+					     // Only the gradient of the test functions can be used for a nonsymmetric tensor
+					     //*0.5*scalar_product(grad_phi_u[j],grad_phi_u[i]))
 					     // same is true here about not transposing since its effect is lost (equivalent)
-					     - physical_properties.rho_f*trace(grad_phi_u[i]) * phi_p[j] // (p,\div v)  momentum  -- Multiplier by physical_properties.rho_f is just for conditioning.
-					     - physical_properties.rho_f*phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass         It must be scaled back after the solve 
+					     // - physical_properties.rho_f*trace(grad_phi_u[i]) * phi_p[j] // (p,\div v)  momentum  -- Multiplier by physical_properties.rho_f is just for conditioning.
+					     // - physical_properties.rho_f*phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass         It must be scaled back after the solve 
+					     - trace(grad_phi_u[i]) * phi_p[j] // (p,\div v)  momentum  -- Multiplier by physical_properties.rho_f is just for conditioning.
+					     - phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass         It must be scaled back after the solve 
 					     - epsilon * phi_p[i] * phi_p[j])
 		    * scratch.fe_values.JxW(q);
 		}
@@ -551,10 +552,10 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			     ) * scratch.fe_values.JxW(q);
 		      }
 		  }
-
-		data.cell_rhs(i) += (physical_properties.rho_f/time_step *phi_i_s*old_u
-				     + (1-fluid_theta)
-				     * (-2*physical_properties.viscosity
+		if (fem_properties.time_dependent) {
+		  data.cell_rhs(i) += physical_properties.rho_f/time_step *phi_i_s*old_u * scratch.fe_values.JxW(q);
+		}
+		data.cell_rhs(i) += ((1-fluid_theta) * (-2*physical_properties.viscosity
 					*0.25*scalar_product(grad_u_old[q]+transpose(grad_u_old[q]),grad_phi_i_s+transpose(grad_phi_i_s))
 
 					//+ scalar_product(grad_u_star[q],grad_phi_i_s)
@@ -565,8 +566,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 					//+ 0.5*(transpose(grad_u_old[q][1][0]+grad_u_old[q][0][1]))*(symgrad_phi_i_s[1][0]+symgrad_phi_i_s[0][1])
 					//+ transpose(grad_u_old[q][1][1])*symgrad_phi_i_s[1][1]
 					)
-				     )
-		  * scratch.fe_values.JxW(q);
+				     ) * scratch.fe_values.JxW(q);
 			  
 	      }
 	}
