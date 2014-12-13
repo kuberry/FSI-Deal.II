@@ -24,8 +24,13 @@ int main (int argc, char *argv[])
       {
     	  std::cerr << "Couldn't read filename: " << argv[1] << std::endl;
       }
-      FSIProblem<2> fsi_solver(prm);
-      fsi_solver.run();
+      if (argc == 2) {
+	FSIProblem<2> fsi_solver(prm);
+	fsi_solver.run();
+      } else if (argc == 3) {
+	FSIProblem<2> fsi_solver(prm, std::stoi(argv[2]));
+	fsi_solver.run();	
+      }
     }
   catch (std::exception &exc)
     {

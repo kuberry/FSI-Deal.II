@@ -60,7 +60,7 @@ class FSIProblem
  public:
   //static void
   //declare_parameters (ParameterHandler & prm);
-  FSIProblem (ParameterHandler & prm);
+  FSIProblem (ParameterHandler & prm, unsigned int timestep_number_=1);
   void run ();
 
   ~FSIProblem ();
@@ -195,7 +195,7 @@ class FSIProblem
 
 
 template <int dim>
-FSIProblem<dim>::FSIProblem (ParameterHandler & prm_) :
+FSIProblem<dim>::FSIProblem (ParameterHandler & prm_, unsigned int timestep_number_) :
 fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
 	  FE_Q<dim>(prm_.get_integer("fluid pressure degree")), 1),
   structure_fe (FE_Q<dim>(prm_.get_integer("structure degree")), dim,
@@ -205,7 +205,8 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   structure_dof_handler (structure_triangulation),
   ale_dof_handler (fluid_triangulation),
   time_step ((prm_.get_double("T")-prm_.get_double("t0"))/prm_.get_integer("number of time steps")),
-     fluid_theta(prm_.get_double("fluid theta")),
+  timestep_number(timestep_number_),
+  fluid_theta(prm_.get_double("fluid theta")),
   structure_theta(prm_.get_double("structure theta")),
   errors(),
   n_blocks(5),

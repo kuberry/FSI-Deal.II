@@ -108,9 +108,8 @@ void FSIProblem<dim>::run ()
 
   double total_time = 0;
 
-  // direct_solver.initialize (system_matrix.block(block_num,block_num));
-  for (timestep_number=1, time=fem_properties.t0+time_step;
-       timestep_number<=total_timesteps;++timestep_number)
+  // timestep_number = 1 by default, is something else if given as 2nd command line argument to FSI_Project
+  for (; timestep_number<=total_timesteps; ++timestep_number)
     {
       if (!fem_properties.time_dependent) {
 	timestep_number=total_timesteps;
