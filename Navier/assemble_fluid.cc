@@ -192,7 +192,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			      // assumes not (fem_properties.richardson && !fem_properties.newton && physical_properties.stability_terms)
 			      if (fem_properties.newton)
 				{
-				  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    ( 
 				     phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
 				     - phi_u[j]*transpose(grad_phi_u[i])*u_star
@@ -202,7 +202,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				}
 			      else
 				{
-				  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    (
 				     // phi_u[j]*transpose(grad_u_star[q])*phi_u[i] <-- Ineffective way
 				     // - phi_u[j]*transpose(grad_phi_u[i])*u_star
@@ -210,7 +210,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				     - u_star*transpose(grad_phi_u[i])*phi_u[j]
 				     ) * scratch.fe_values.JxW(q);
 				}
-			      data.cell_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+			      data.cell_matrix(i,j) += 0.5 * (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				(
 				 phi_u[j]*transpose(grad_u_old[q])*phi_u[i]
 				 - phi_u[j]*transpose(grad_phi_u[i])*u_old
@@ -220,7 +220,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			  if (physical_properties.moving_domain)
 			    {
-			      data.cell_matrix(i,j) += 0.5 * fluid_theta * physical_properties.rho_f *
+			      data.cell_matrix(i,j) += 0.5 * fem_properties.fluid_theta * physical_properties.rho_f *
 			  	(- (meshvelocity*transpose(grad_phi_u[j]))*phi_u[i]
 				 + (meshvelocity*transpose(grad_phi_u[i]))*phi_u[j]
 				 - trace(grad_z[q]) * phi_u[j] * phi_u[i]
@@ -233,7 +233,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      if (fem_properties.newton)
 				{
-				  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    ( 
 				     phi_u[i]*transpose(grad_u_star[q])*phi_u[j]
 				     - phi_u[i]*transpose(grad_phi_u[j])*u_star
@@ -243,7 +243,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				}
 			      else
 				{
-				  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    (
 				     phi_u[i]*transpose(grad_u_star[q])*phi_u[j]
 				     - phi_u[i]*transpose(grad_phi_u[j])*u_star
@@ -251,7 +251,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				     - u_star*transpose(grad_phi_u[j])*phi_u[i]
 				     ) * scratch.fe_values.JxW(q);
 				}
-			      data.cell_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+			      data.cell_matrix(i,j) += 0.5 * (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				(
 				 phi_u[i]*transpose(grad_u_old[q])*phi_u[j]
 				 - phi_u[i]*transpose(grad_phi_u[j])*u_old
@@ -261,7 +261,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			  if (physical_properties.moving_domain)
 			    {
-			      data.cell_matrix(i,j) += 0.5 * fluid_theta * physical_properties.rho_f *
+			      data.cell_matrix(i,j) += 0.5 * fem_properties.fluid_theta * physical_properties.rho_f *
 			  	(- (meshvelocity*transpose(grad_phi_u[i]))*phi_u[j]
 				 + (meshvelocity*transpose(grad_phi_u[j]))*phi_u[i]
 				 - trace(grad_z[q]) * phi_u[i] * phi_u[j]
@@ -274,7 +274,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      if (fem_properties.newton)
 				{
-				  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    ( 
 				     phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
 				     - phi_u[j]*transpose(grad_phi_u[i])*u_star
@@ -284,7 +284,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				}
 			      else
 				{
-				  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    (
 				     phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
 				     - phi_u[j]*transpose(grad_phi_u[i])*u_star
@@ -292,7 +292,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				     - u_star*transpose(grad_phi_u[i])*phi_u[j]
 				     ) * scratch.fe_values.JxW(q);
 				}
-			      data.cell_matrix(i,j) += 0.5 * (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+			      data.cell_matrix(i,j) += 0.5 * (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				(
 				 phi_u[j]*transpose(grad_u_old[q])*phi_u[i]
 				 - phi_u[j]*transpose(grad_phi_u[i])*u_old
@@ -302,7 +302,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			  if (physical_properties.moving_domain)
 			    {
-			      data.cell_matrix(i,j) += 0.5 * fluid_theta * physical_properties.rho_f *
+			      data.cell_matrix(i,j) += 0.5 * fem_properties.fluid_theta * physical_properties.rho_f *
 			  	(- meshvelocity*transpose(grad_phi_u[j])*phi_u[i]
 				 + meshvelocity*transpose(grad_phi_u[i])*phi_u[j]
 				 - trace(grad_z[q]) * phi_u[j] * phi_u[i]
@@ -318,7 +318,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      if (fem_properties.richardson && !fem_properties.newton)
 				{
-				  data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
 				     (1.5*u_old-.5*u_old_old)*transpose(grad_phi_u[j])*phi_u[i]
 				     ) * scratch.fe_values.JxW(q);
@@ -327,7 +327,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				{
 				  if (fem_properties.newton)
 				    {
-				      data.cell_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					( 
 					 phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
 					 + u_star*transpose(grad_phi_u[j])*phi_u[i]
@@ -335,13 +335,13 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    }
 				  else
 				    {
-				      data.cell_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
 					 //phi_u[j]*transpose(grad_u_star[q])*phi_u[i] <- This way is ineffective
 					 u_star*transpose(grad_phi_u[j])*phi_u[i]
 					 ) * scratch.fe_values.JxW(q);
 				    }
-				  data.cell_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
 				     phi_u[j]*transpose(grad_u_old[q])*phi_u[i]
 				     +u_old*transpose(grad_phi_u[j])*phi_u[i]
@@ -350,7 +350,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			  if (physical_properties.moving_domain)
 			    {
-			      data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f *
+			      data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f *
 			  	(- (meshvelocity*transpose(grad_phi_u[j]))*phi_u[i]
 				 //- trace(grad_z[q]) * phi_u[j] * phi_u[i]
 			  	 )* scratch.fe_values.JxW(q);
@@ -362,7 +362,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      if (fem_properties.richardson && !fem_properties.newton)
 				{
-				  data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
 				     (1.5*u_old-.5*u_old_old)*transpose(grad_phi_u[i])*phi_u[j]
 				     ) * scratch.fe_values.JxW(q);
@@ -371,7 +371,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				{
 				  if (fem_properties.newton)
 				    {
-				      data.cell_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
 					 phi_u[i]*transpose(grad_u_star[q])*phi_u[j]
 					 + u_star*transpose(grad_phi_u[i])*phi_u[j]
@@ -379,13 +379,13 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    }
 				  else 
 				    {
-				      data.cell_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
 					 phi_u[i]*transpose(grad_u_star[q])*phi_u[j]
 					 + u_star*transpose(grad_phi_u[i])*phi_u[j]
 					 ) * scratch.fe_values.JxW(q);
 				    }
-				  data.cell_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
 				     phi_u[i]*transpose(grad_u_old[q])*phi_u[j]
 				     +u_old*transpose(grad_phi_u[i])*phi_u[j]
@@ -394,7 +394,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			  if (physical_properties.moving_domain)
 			    {
-			      data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f *
+			      data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f *
 			  	(- meshvelocity*transpose(grad_phi_u[i])*phi_u[j]
 				 //- trace(grad_z[q]) * phi_u[i] * phi_u[j]
 			  	 )* scratch.fe_values.JxW(q);
@@ -406,7 +406,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      if (fem_properties.richardson && !fem_properties.newton)
 				{
-				  data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
 				     (1.5*u_old-.5*u_old_old)*transpose(grad_phi_u[j])*phi_u[i]
 				     ) * scratch.fe_values.JxW(q);
@@ -415,7 +415,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				{
 				  if (fem_properties.newton)
 				    {
-				      data.cell_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
 					 phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
 					 + u_star*transpose(grad_phi_u[j])*phi_u[i]
@@ -423,13 +423,13 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    }
 				  else
 				    {
-				      data.cell_matrix(i,j) += pow(fluid_theta,2) * physical_properties.rho_f * 
+				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
 					 phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
 					 + u_star*transpose(grad_phi_u[j])*phi_u[i]
 					 ) * scratch.fe_values.JxW(q);
 				    }
-				  data.cell_matrix(i,j) += (1-fluid_theta)*fluid_theta * physical_properties.rho_f * 
+				  data.cell_matrix(i,j) += (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
 				     phi_u[j]*transpose(grad_u_old[q])*phi_u[i]
 				     +u_old*transpose(grad_phi_u[j])*phi_u[i]
@@ -438,7 +438,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    }
 			  if (physical_properties.moving_domain)
 			    {
-			      data.cell_matrix(i,j) += fluid_theta * physical_properties.rho_f *
+			      data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f *
 			  	(- meshvelocity*transpose(grad_phi_u[j])*phi_u[i]
 				 //- trace(grad_z[q]) * phi_u[j] * phi_u[i]
 			  	 )* scratch.fe_values.JxW(q);
@@ -449,7 +449,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		  if (fem_properties.time_dependent) {
 		    data.cell_matrix(i,j) +=  physical_properties.rho_f/time_step*phi_u[i]*phi_u[j] * scratch.fe_values.JxW(q);
 		  }
-		  data.cell_matrix(i,j) += ( fluid_theta * ( 2*physical_properties.viscosity
+		  data.cell_matrix(i,j) += ( fem_properties.fluid_theta * ( 2*physical_properties.viscosity
 							     // In the case of the Laplacian, the gradients in the scalar_product should be transposed, but
 							     // it is cheaper not to transpose both terms (and it is equivalent). 
 							       
@@ -493,7 +493,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		    if (fem_properties.richardson && !fem_properties.newton)
 		      {
 		        // assumes not (fem_properties.richardson && !fem_properties.newton && physical_properties.stability_terms)
-			data.cell_rhs(i) -= (1-fluid_theta) * physical_properties.rho_f * 
+			data.cell_rhs(i) -= (1-fem_properties.fluid_theta) * physical_properties.rho_f * 
 			  (
 			   (1.5*u_old-.5*u_old_old)*transpose(grad_u_old[q])*phi_i_s
 			   ) * scratch.fe_values.JxW(q);
@@ -504,7 +504,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			  {
 			    if (physical_properties.stability_terms)
 			      {
-				data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				data.cell_rhs(i) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				  * (
 				     u_star*transpose(grad_u_star[q])*phi_i_s
 				     - u_star*transpose(grad_phi_i_s)*u_star
@@ -512,7 +512,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			      }
 			    else
 			      {
-				data.cell_rhs(i) += pow(fluid_theta,2) * physical_properties.rho_f 
+				data.cell_rhs(i) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				  * (
 				     u_star*transpose(grad_u_star[q])*phi_i_s
 				     ) * scratch.fe_values.JxW(q);
@@ -520,14 +520,14 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			  }
 			if (physical_properties.stability_terms)
 			  {
-			    data.cell_rhs(i) -= 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+			    data.cell_rhs(i) -= 0.5 * pow(1-fem_properties.fluid_theta,2) * physical_properties.rho_f 
 			      *( u_old*transpose(grad_u_old[q])*phi_i_s 
 				 - u_old*transpose(grad_phi_i_s)*u_old 
 				 )* scratch.fe_values.JxW(q);
 			  }
 			else
 			  {
-			    data.cell_rhs(i) -= pow(1-fluid_theta,2) * physical_properties.rho_f 
+			    data.cell_rhs(i) -= pow(1-fem_properties.fluid_theta,2) * physical_properties.rho_f 
 			      * u_old*transpose(grad_u_old[q])*phi_i_s * scratch.fe_values.JxW(q);
 			  }
 		      }
@@ -536,7 +536,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		  {
 		    if (physical_properties.stability_terms)
 		      {
-			data.cell_rhs(i) -= 0.5 * (1 - fluid_theta) * physical_properties.rho_f 
+			data.cell_rhs(i) -= 0.5 * (1 - fem_properties.fluid_theta) * physical_properties.rho_f 
 			  * (
 			     - meshvelocity*transpose(grad_u_old[q])*phi_i_s
 			     + meshvelocity*transpose(grad_phi_i_s)*u_old
@@ -545,7 +545,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      }
 		    else
 		      {
-			data.cell_rhs(i) -= (1 - fluid_theta) * physical_properties.rho_f 
+			data.cell_rhs(i) -= (1 - fem_properties.fluid_theta) * physical_properties.rho_f 
 			  * (
 			     - meshvelocity*transpose(grad_u_old[q])*phi_i_s
 			     //- trace(grad_z[q]) * u_old * phi_i_s
@@ -555,7 +555,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		if (fem_properties.time_dependent) {
 		  data.cell_rhs(i) += physical_properties.rho_f/time_step *phi_i_s*old_u * scratch.fe_values.JxW(q);
 		}
-		data.cell_rhs(i) += ((1-fluid_theta) * (-2*physical_properties.viscosity
+		data.cell_rhs(i) += ((1-fem_properties.fluid_theta) * (-2*physical_properties.viscosity
 					*0.25*scalar_product(grad_u_old[q]+transpose(grad_u_old[q]),grad_phi_i_s+transpose(grad_phi_i_s))
 
 					//+ scalar_product(grad_u_star[q],grad_phi_i_s)
@@ -624,7 +624,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      			{
 				  if (fem_properties.newton)
 				    {
-				      data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				      data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 					*( 
 					  (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (i, q))
 					  +(u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
@@ -632,12 +632,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    }
 				  else
 				    {
-				      data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				      data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 					*( 
 					  (u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 					   ) * scratch.fe_face_values.JxW(q);
 				    }
-				  data.cell_matrix(i,j) += 0.5 * (1 - fluid_theta) * fluid_theta * physical_properties.rho_f 
+				  data.cell_matrix(i,j) += 0.5 * (1 - fem_properties.fluid_theta) * fem_properties.fluid_theta * physical_properties.rho_f 
 				    *( 
 				      (u_old_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 				      + (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (i, q))
@@ -645,12 +645,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      			}
 	      		      else if (scratch.mode_type==adjoint) 
 	      			{
-	      			  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+	      			  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 	      			    *( 
 	      			      (scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (j, q))
 	      			      +(u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values[velocities].value (j, q))
 	      			       ) * scratch.fe_face_values.JxW(q);
-				  data.cell_matrix(i,j) += 0.5 * (1 - fluid_theta) * fluid_theta * physical_properties.rho_f 
+				  data.cell_matrix(i,j) += 0.5 * (1 - fem_properties.fluid_theta) * fem_properties.fluid_theta * physical_properties.rho_f 
 				    *( 
 				      (u_old_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values[velocities].value (j, q))
 				      + (scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (j, q))
@@ -658,12 +658,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      			}
 	      		      else // scratch.mode_type==linear
 	      			{
-	      			  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+	      			  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 	      			    *( 
 	      			      (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (i, q))
 	      			      +(u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 	      			       ) * scratch.fe_face_values.JxW(q);
-				  data.cell_matrix(i,j) += 0.5 * (1 - fluid_theta) * fluid_theta * physical_properties.rho_f 
+				  data.cell_matrix(i,j) += 0.5 * (1 - fem_properties.fluid_theta) * fem_properties.fluid_theta * physical_properties.rho_f 
 				    *( 
 				      (u_old_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 				      + (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (i, q))
@@ -674,12 +674,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      if (fem_properties.newton) 
 				{
-				  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				  data.cell_rhs(i) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				    *(
 				      (u_star_side*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (i, q))
 				      ) * scratch.fe_face_values.JxW(q);
 				}
-			      data.cell_rhs(i) -= 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+			      data.cell_rhs(i) -= 0.5 * pow(1-fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				*( 
 				  (u_old_side*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (i, q))
 				   ) * scratch.fe_face_values.JxW(q);
@@ -707,7 +707,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				  new_stresses[1][1]=stress_values[1][1];
 				  new_stresses[0][1]=stress_values[1][0];
 
-				  data.cell_rhs(i) += fluid_theta*(new_stresses*scratch.fe_face_values.normal_vector(q) *
+				  data.cell_rhs(i) += fem_properties.fluid_theta*(new_stresses*scratch.fe_face_values.normal_vector(q) *
 								   scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.JxW(q));
 				}
 			      fluid_stress_values.set_time(time-time_step);
@@ -720,10 +720,10 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				  new_stresses[1][0]=stress_values[1][0];
 				  new_stresses[1][1]=stress_values[1][1];
 				  new_stresses[0][1]=stress_values[0][1];
-				  // data.cell_rhs(i) += (1-fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
+				  // data.cell_rhs(i) += (1-fem_properties.fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
 				  // 				       new_stresses*scratch.fe_face_values.normal_vector(q) *
 				  // 				       scratch.fe_face_values.JxW(q));
-				  data.cell_rhs(i) += (1-fluid_theta)*(new_stresses*scratch.fe_face_values.normal_vector(q) *
+				  data.cell_rhs(i) += (1-fem_properties.fluid_theta)*(new_stresses*scratch.fe_face_values.normal_vector(q) *
 								       scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.JxW(q));
 				}
 			    }
@@ -731,7 +731,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      else
 		      	{
 			  // This gives sigma *dot normal boundary condition data from the function u_true_side_values
-		      	  fluid_boundary_values_function.set_time(time - (1-fluid_theta)*time_step);
+		      	  fluid_boundary_values_function.set_time(time - (1-fem_properties.fluid_theta)*time_step);
 		      	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		      	    {
 		      	      Tensor<1,dim> u_true_side;
@@ -747,7 +747,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      
 		      	      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 		      		{
-		      		  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+		      		  data.cell_rhs(i) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 		      		    *(
 		      		      u_true_side*scratch.fe_face_values[velocities].value (i, q)
 		      		      ) * scratch.fe_face_values.JxW(q);
@@ -783,7 +783,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      			{
 				  if (fem_properties.newton)
 				    {
-				      data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				      data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 					*( 
 					  (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (i, q))
 					  +(u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
@@ -791,12 +791,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    }
 				  else
 				    {
-				      data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				      data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 					*( 
 					  (u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 					   ) * scratch.fe_face_values.JxW(q);
 				    }
-				  data.cell_matrix(i,j) += 0.5 * (1 - fluid_theta) * fluid_theta * physical_properties.rho_f 
+				  data.cell_matrix(i,j) += 0.5 * (1 - fem_properties.fluid_theta) * fem_properties.fluid_theta * physical_properties.rho_f 
 				    *( 
 				      (u_old_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 				      + (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (i, q))
@@ -804,12 +804,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      			}
 	      		      else if (scratch.mode_type==adjoint) 
 	      			{
-	      			  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+	      			  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 	      			    *( 
 	      			      (scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (j, q))
 	      			      +(u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values[velocities].value (j, q))
 	      			       ) * scratch.fe_face_values.JxW(q);
-				  data.cell_matrix(i,j) += 0.5 * (1 - fluid_theta) * fluid_theta * physical_properties.rho_f 
+				  data.cell_matrix(i,j) += 0.5 * (1 - fem_properties.fluid_theta) * fem_properties.fluid_theta * physical_properties.rho_f 
 				    *( 
 				      (u_old_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values[velocities].value (j, q))
 				      + (scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (j, q))
@@ -817,12 +817,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      			}
 	      		      else // scratch.mode_type==linear
 	      			{
-	      			  data.cell_matrix(i,j) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+	      			  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 	      			    *( 
 	      			      (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (i, q))
 	      			      +(u_star_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 	      			       ) * scratch.fe_face_values.JxW(q);
-				  data.cell_matrix(i,j) += 0.5 * (1 - fluid_theta) * fluid_theta * physical_properties.rho_f 
+				  data.cell_matrix(i,j) += 0.5 * (1 - fem_properties.fluid_theta) * fem_properties.fluid_theta * physical_properties.rho_f 
 				    *( 
 				      (u_old_side*scratch.fe_face_values.normal_vector(q))*(scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values[velocities].value (i, q))
 				      + (scratch.fe_face_values[velocities].value (j, q)*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (i, q))
@@ -833,12 +833,12 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			    {
 			      if (fem_properties.newton) 
 				{
-				  data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+				  data.cell_rhs(i) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				    *(
 				      (u_star_side*scratch.fe_face_values.normal_vector(q))*(u_star_side*scratch.fe_face_values[velocities].value (i, q))
 				      ) * scratch.fe_face_values.JxW(q);
 				}
-			      data.cell_rhs(i) -= 0.5 * pow(1-fluid_theta,2) * physical_properties.rho_f 
+			      data.cell_rhs(i) -= 0.5 * pow(1-fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				*( 
 				  (u_old_side*scratch.fe_face_values.normal_vector(q))*(u_old_side*scratch.fe_face_values[velocities].value (i, q))
 				   ) * scratch.fe_face_values.JxW(q);
@@ -857,7 +857,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
+			  data.cell_rhs(i) += fem_properties.fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
 						       g_stress * scratch.fe_face_values.JxW(q));
 			}
 		    }
@@ -870,7 +870,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += (1-fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
+			  data.cell_rhs(i) += (1-fem_properties.fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
 							   g_stress * scratch.fe_face_values.JxW(q));
 			}
 		    }
@@ -887,7 +887,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			r[d] = adjoint_rhs_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
+			  data.cell_rhs(i) += fem_properties.fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
 						       r * scratch.fe_face_values.JxW(q));
 			}
 		    }
@@ -904,7 +904,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			h[d] = linear_rhs_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			{
-			  data.cell_rhs(i) += fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
+			  data.cell_rhs(i) += fem_properties.fluid_theta*(scratch.fe_face_values[velocities].value (i, q)*
 						       h * scratch.fe_face_values.JxW(q));
 			}
 		    }
@@ -934,7 +934,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      
 			  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 			    {
-			      data.cell_rhs(i) += 0.5 * pow(fluid_theta,2) * physical_properties.rho_f 
+			      data.cell_rhs(i) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				*(
 				  (u_true_side*scratch.fe_face_values.normal_vector(q))*(u_true_side*scratch.fe_face_values[velocities].value (i, q))
 				  ) * scratch.fe_face_values.JxW(q);
@@ -1064,13 +1064,13 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 					  rhs_function,
 					  tmp);
       forcing_terms = tmp;
-      forcing_terms *= fluid_theta;
+      forcing_terms *= fem_properties.fluid_theta;
       rhs_function.set_time(time - time_step);
       VectorTools::create_right_hand_side(fluid_dof_handler,
 					  QGauss<dim>(fluid_fe.degree+2),
 					  rhs_function,
 					  tmp);
-      forcing_terms.add((1 - fluid_theta), tmp);
+      forcing_terms.add((1 - fem_properties.fluid_theta), tmp);
       *fluid_rhs += forcing_terms;
     }
 

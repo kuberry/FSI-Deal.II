@@ -5,6 +5,7 @@
 set simulation type       = 3
 
 # time to run the simulation until.
+set time dependent        = false
 set t0                    = 0.0
 set T                     = 0.1
 
@@ -21,7 +22,7 @@ set convergence method    = time
 set fluid pressure degree = 1
 
 # density of the fluid.
-set fluid rho             = 1.0
+set fluid rho             = 1.0e3
 
 # order of the finite element to use for the fluid velocity.
 set fluid velocity degree = 2
@@ -39,8 +40,9 @@ set lambda                = 1730769.230769231
 set make plots            = true
 
 # maximum number of optimization iterations per time step.
-set max optimization iterations = 1000
+set max optimization iterations = 1
 
+set move domain           = true
 set moving domain         = true
 
 # mu of the structure.
@@ -87,11 +89,11 @@ set structure rho         = 1.1
 # set structure width       = 6.0
 
 # theta value for the fluid, 0.5 is Crank-Nicolson and 1.0 is Implicit Euler.
-set fluid theta                 = 0.5
+set fluid theta                 = 1.0
 set structure theta 		= 0.5
 
 # viscosity of the fluid.
-set viscosity             = 0.035
+set viscosity             = 1.0
 
 # Richardson or Newton for solving the nonlinearity in NS
 # If there is a conflict, the default is Newton's method
@@ -107,4 +109,4 @@ set cg tolerance          = 1e-9
 set stability terms       = false
 set adjoint type          = 2
 
-set nonlinear elasticity  = true
+set nonlinear elasticity  = false
