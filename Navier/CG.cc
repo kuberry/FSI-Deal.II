@@ -1,7 +1,7 @@
 #include "FSI_Project.h"
 
 template <int dim>
-unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves)
+unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves, const unsigned int initial_timestep_number)
 {
   tmp=fem_properties.cg_tolerance;
   //tmp=rhs_for_adjoint;
@@ -354,4 +354,4 @@ unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves)
   return total_solves;
 }
 
-template unsigned int FSIProblem<2>::optimization_CG (unsigned int total_solves);
+template unsigned int FSIProblem<2>::optimization_CG (unsigned int total_solves, const unsigned int initial_timestep_number);

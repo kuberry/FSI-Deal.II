@@ -62,7 +62,7 @@ fprintf('%i iterations.\n', count);
 
 
 template <int dim>
-unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves)
+unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, const unsigned int initial_timestep_number)
 {
 
   // This gives the initial guess x_0
@@ -119,7 +119,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves)
   // timer.leave_subsection ();
 
   // timer.enter_subsection ("Linear Solve");
-  if (timestep_number==1) {
+  if (timestep_number==initial_timestep_number) {
     linear_solver[0].initialize(linear_matrix.block(0,0));
     linear_solver[1].initialize(linear_matrix.block(1,1));
     Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
@@ -297,4 +297,4 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves)
   return total_solves;
 }
 
-template unsigned int FSIProblem<2>::optimization_BICGSTAB (unsigned int total_solves);
+template unsigned int FSIProblem<2>::optimization_BICGSTAB (unsigned int total_solves, const unsigned int initial_timestep_number);

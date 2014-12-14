@@ -14,6 +14,10 @@ void FSIProblem<dim>::run ()
     fem_properties.fluid_theta = 1.0;
   }
 
+  // Make a quick check that we don't try to initialize to a non-one timestep with Richardson extrapolation
+  // because it requires saving more time steps of data than we are storing.
+  if (timestep_number>1 && fem_properties.richardson) AssertThrow(false, ExcNotImplemented());
+
   std::ofstream structure_file_out;
   std::ofstream fluid_file_out;
   if (physical_properties.simulation_type==1 || physical_properties.simulation_type==3)
@@ -44,9 +48,11 @@ void FSIProblem<dim>::run ()
   structure_boundary_values.set_time(fem_properties.t0-time_step);
   fluid_boundary_values.set_time(fem_properties.t0-time_step);
 
-  VectorTools::project (fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-			fluid_boundary_values,
-			old_old_solution.block(0));
+  if (fem_properties.richardson) {
+    VectorTools::project (fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			  fluid_boundary_values,
+			  old_old_solution.block(0));
+  }
 
   structure_boundary_values.set_time(fem_properties.t0);
   fluid_boundary_values.set_time(fem_properties.t0);
@@ -54,19 +60,33 @@ void FSIProblem<dim>::run ()
   structure_boundary_stress.set_time(fem_properties.t0);
   fluid_boundary_stress.set_time(fem_properties.t0);
 
-  
-  VectorTools::project (fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-			fluid_boundary_values,
-			old_solution.block(0));
-  VectorTools::project (structure_dof_handler, structure_constraints, QGauss<dim>(fem_properties.structure_degree+2),
-			structure_boundary_values,
-			old_solution.block(1));
-  if (physical_properties.simulation_type!=2)
-    {
-      VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-			   fluid_boundary_stress,
-			   old_stress.block(0));
-    }
+  if (timestep_number == 1) {
+    VectorTools::project (fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			  fluid_boundary_values,
+			  old_solution.block(0));
+    VectorTools::project (structure_dof_handler, structure_constraints, QGauss<dim>(fem_properties.structure_degree+2),
+			  structure_boundary_values,
+			  old_solution.block(1));
+    if (physical_properties.simulation_type!=2)
+      {
+	VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			     fluid_boundary_stress,
+			     old_stress.block(0));
+      }
+  } else {
+    const std::string solution_filename = "solution.data";
+    std::ifstream solution_output (solution_filename.c_str());
+    //solution_output.precision(20);
+    old_solution.block_read(solution_output);
+    solution = old_solution;
+    solution_output.close();
+    const std::string stress_filename = "stress.data";
+    std::ifstream stress_output (stress_filename.c_str());
+    //stress_output.precision(20);
+    old_stress.block_read(stress_output);
+    stress = old_stress;
+    stress_output.close();
+  }
   task.join();
   transfer_interface_dofs(old_stress,old_stress,0,1);
   stress=old_stress;
@@ -75,39 +95,51 @@ void FSIProblem<dim>::run ()
 
   if (physical_properties.moving_domain)
     {
-      if (physical_properties.simulation_type==2)
-	{
-	  // Directly solved instead of Laplace solve since the velocities compared against would otherwise not be correct
-	  ale_boundary_values.set_time(fem_properties.t0);
-	  VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-			       ale_boundary_values,
-			       mesh_displacement_star.block(2)); // move directly to fluid block 
-	  transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
-	}
-      else
-	{
-	  solution.block(1)=old_solution.block(1); // solutions sets boundary values for Laplace solve
-	  assemble_ale(state,true);
-	  dirichlet_boundaries((System)2,state);
-	  state_solver[2].factorize(system_matrix.block(2,2));
-	  solve(state_solver[2],2,state);
-	  transfer_all_dofs(solution,mesh_displacement_star,2,0);
-	}
+      if (timestep_number==1) {
+	if (physical_properties.simulation_type==2)
+	  {
+	    // Directly solved instead of Laplace solve since the velocities compared against would otherwise not be correct
+	    ale_boundary_values.set_time(fem_properties.t0);
+	    VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+				 ale_boundary_values,
+				 mesh_displacement_star.block(2)); // move directly to fluid block 
+	    transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+	  }
+	else
+	  {
+	    solution.block(1)=old_solution.block(1); // solutions sets boundary values for Laplace solve
+	    assemble_ale(state,true);
+	    dirichlet_boundaries((System)2,state);
+	    state_solver[2].factorize(system_matrix.block(2,2));
+	    solve(state_solver[2],2,state);
+	    transfer_all_dofs(solution,mesh_displacement_star,2,0);
+	  }
+      } else {
+	const std::string mesh_filename = "mesh.data";
+	std::ifstream mesh_output (mesh_filename.c_str());
+	//mesh_output.precision(20);
+	mesh_displacement_star.block_read(mesh_output);
+	mesh_output.close();
+      }
     }
 
-  std::vector<std::vector<double> > displacement_min_max_mean(2); // spatial dimension is 2 
-  std::vector<double> lift_min_max(dim); 
-  std::vector<double> drag_min_max(dim); 
-  std::vector<double> last_displacements(2);
-  std::vector<double> last_lift_drag(2);
-  if (physical_properties.simulation_type==3) {
-    std::vector<double> zero(3);
-    displacement_min_max_mean[0] = zero;
-    displacement_min_max_mean[1] = zero;
-  }
+  Vector<double> lift(total_timesteps);
+  Vector<double> drag(total_timesteps);
+  Vector<double> x_displacement(total_timesteps);
+  Vector<double> y_displacement(total_timesteps);
+  // std::vector<std::vector<double> > displacement_min_max_mean(2); // spatial dimension is 2 
+  // std::vector<double> lift_min_max(dim); 
+  // std::vector<double> drag_min_max(dim); 
+  // std::vector<double> last_displacements(2);
+  // std::vector<double> last_lift_drag(2);
+  // if (physical_properties.simulation_type==3) {
+  //   std::vector<double> zero(3);
+  //   displacement_min_max_mean[0] = zero;
+  //   displacement_min_max_mean[1] = zero;
+  // }
 
   double total_time = 0;
-
+  const unsigned int initialized_timestep_number = timestep_number;
   // timestep_number = 1 by default, is something else if given as 2nd command line argument to FSI_Project
   for (; timestep_number<=total_timesteps; ++timestep_number)
     {
@@ -128,7 +160,6 @@ void FSIProblem<dim>::run ()
       //unsigned int total_relrecord=0;
 
       unsigned int count = 0;
-      update_domain = true;
 
       rhs_for_adjoint=1;
 
@@ -219,7 +250,7 @@ void FSIProblem<dim>::run ()
   	      timer.leave_subsection();
   	      dirichlet_boundaries((System)1,state);
   	      timer.enter_subsection ("State Solve"); 
-  	      if (timestep_number==1)
+  	      if (timestep_number==initialized_timestep_number)
   	      	{
   	      	  state_solver[1].initialize(system_matrix.block(1,1));
   	      	}
@@ -255,7 +286,7 @@ void FSIProblem<dim>::run ()
 
   	      dirichlet_boundaries((System)0,state);
   	      timer.enter_subsection ("State Solve"); 
-  	      if (timestep_number==1) {
+  	      if (timestep_number==initialized_timestep_number) {
 		state_solver[0].initialize(system_matrix.block(0,0));
 	      } else {
 		state_solver[0].factorize(system_matrix.block(0,0));
@@ -298,24 +329,8 @@ void FSIProblem<dim>::run ()
   	  velocity_jump=interface_error();
 
   	  if (count%1==0) pcout << "Jump Error: " << velocity_jump << std::endl;
-  	  if (physical_properties.moving_domain && fem_properties.optimization_method.compare("Gradient")==0)
-  	    {
-  	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance)
-  	  	{
-  	  	  if (update_domain) break; // previous iteration had updated domain
-  	  	  else update_domain = true;
-  	  	}
-  	      else
-  	  	{
-  	  	  if (count%3==0) update_domain = true;
-  	  	  else update_domain = false;
-  	  	}
-  	    }
-  	  else
-  	    {
-  	      if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;
-  	    }
-
+	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;
+  	  
   	  if (fem_properties.optimization_method.compare("Gradient")==0)
   	    {
 	      
@@ -339,7 +354,7 @@ void FSIProblem<dim>::run ()
 	      // 	adjoint_solver[1].factorize(adjoint_matrix.block(1,1));
 	      // }
 
-	      if (timestep_number==1) {
+	      if (timestep_number==initialized_timestep_number) {
 	        adjoint_solver[0].initialize(adjoint_matrix.block(0,0));
 	        adjoint_solver[1].initialize(adjoint_matrix.block(1,1));
 		Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, adjoint_solver[1], 1, adjoint);
@@ -437,8 +452,8 @@ void FSIProblem<dim>::run ()
   	      transfer_interface_dofs(stress,stress,0,1,Displacement);
   	      //if (count%50==0) pcout << "alpha: " << alpha << std::endl;
   	    }
-  	  else if (fem_properties.optimization_method.compare("CG")==0) total_solves = optimization_CG(total_solves);
-	  else total_solves = optimization_BICGSTAB(total_solves);
+  	  else if (fem_properties.optimization_method.compare("CG")==0) total_solves = optimization_CG(total_solves, initialized_timestep_number);
+	  else total_solves = optimization_BICGSTAB(total_solves, initialized_timestep_number);
 
   	}
       pcout << "Total Solves: " << total_solves << std::endl;
@@ -449,60 +464,127 @@ void FSIProblem<dim>::run ()
   	}
       old_solution = solution;
       old_stress = stress;
+
       if (fem_properties.print_error) compute_error();
       pcout << "Comp. Time: " << t.elapsed() << std::endl;
       total_time += t.elapsed();
       pcout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
       t.restart();
-      if (physical_properties.simulation_type==1)
-  	{
-  	  if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0)
-  	    {
-  	      dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
-  	      Point<dim> p1(1.5,1);
-  	      Point<dim> p2(3,1);
-  	      Point<dim> p3(4.5,1);
-  	      structure_file_out << time << " " << fe_function.value(p1,1) << " " << fe_function.value(p2,1) << " " << fe_function.value(p3,1) << std::endl; 
-  	    }
-  	}
-      else if (physical_properties.simulation_type==3)
-	{
-
+      if (physical_properties.simulation_type==1) {
+	if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0)
+	  {
+	    dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
+	    Point<dim> p1(1.5,1);
+	    Point<dim> p2(3,1);
+	    Point<dim> p3(4.5,1);
+	    structure_file_out << time << " " << fe_function.value(p1,1) << " " << fe_function.value(p2,1) << " " << fe_function.value(p3,1) << std::endl; 
+	  }
+      } else if (physical_properties.simulation_type==3) {
 	  // STRUCTURE OUTPUT
 	  dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
 	  Point<dim> p1(0.6,0.2);
-	  double x_displ = fe_function.value(p1,0);
-	  double y_displ = fe_function.value(p1,1);
-	  structure_file_out << time << " " << x_displ << " " << y_displ << std::endl; 
-	  if (x_displ < displacement_min_max_mean[0][0]) displacement_min_max_mean[0][0]=x_displ;
-	  if (x_displ > displacement_min_max_mean[0][1]) displacement_min_max_mean[0][1]=x_displ;
-	  displacement_min_max_mean[0][2] += x_displ;
-	  if (y_displ < displacement_min_max_mean[1][0]) displacement_min_max_mean[1][0]=y_displ;
-	  if (y_displ > displacement_min_max_mean[1][1]) displacement_min_max_mean[1][1]=y_displ;
-	  displacement_min_max_mean[1][2] += y_displ;
-	  last_displacements[0] = x_displ;
-	  last_displacements[1] = y_displ;
+	  x_displacement[timestep_number] = fe_function.value(p1,0);
+	  y_displacement[timestep_number] = fe_function.value(p1,1);
+	  // double x_displ = fe_function.value(p1,0);
+	  // double y_displ = fe_function.value(p1,1);
+	  // structure_file_out << time << " " << x_displ << " " << y_displ << std::endl; 
+	  // if (x_displ < displacement_min_max_mean[0][0]) displacement_min_max_mean[0][0]=x_displ;
+	  // if (x_displ > displacement_min_max_mean[0][1]) displacement_min_max_mean[0][1]=x_displ;
+	  // displacement_min_max_mean[0][2] += x_displ;
+	  // if (y_displ < displacement_min_max_mean[1][0]) displacement_min_max_mean[1][0]=y_displ;
+	  // if (y_displ > displacement_min_max_mean[1][1]) displacement_min_max_mean[1][1]=y_displ;
+	  // displacement_min_max_mean[1][2] += y_displ;
+	  // last_displacements[0] = x_displ;
+	  // last_displacements[1] = y_displ;
 
 	  // FLUID OUTPUT
 	  Tensor<1,dim> lift_drag = lift_and_drag_fluid();
 	  //lift_drag += lift_and_drag_structure();
-	  fluid_file_out << time << " " << lift_drag[0] << " " << lift_drag[1] << std::endl;
-	  drag_min_max[0] = std::min(drag_min_max[0],lift_drag[0]);
-	  drag_min_max[1] = std::max(drag_min_max[1],lift_drag[0]);
-	  lift_min_max[0] = std::min(lift_min_max[0],lift_drag[1]);
-	  lift_min_max[1] = std::max(lift_min_max[1],lift_drag[1]);
-	  last_lift_drag[0] = lift_drag[0];
-	  last_lift_drag[1] = lift_drag[1];
-	}
+	  drag[timestep_number] = lift_drag[0];
+	  drag[timestep_number] = lift_drag[1];
+	  // fluid_file_out << time << " " << lift_drag[0] << " " << lift_drag[1] << std::endl;
+	  // drag_min_max[0] = std::min(drag_min_max[0],lift_drag[0]);
+	  // drag_min_max[1] = std::max(drag_min_max[1],lift_drag[0]);
+	  // lift_min_max[0] = std::min(lift_min_max[0],lift_drag[1]);
+	  // lift_min_max[1] = std::max(lift_min_max[1],lift_drag[1]);
+	  // last_lift_drag[0] = lift_drag[0];
+	  // last_lift_drag[1] = lift_drag[1];
+      }
+      // Write these vectors to the hard drive 10 times
+      if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/10))==0) {
+	  // This could be made more robust in the future by copying data before saving the new data
+	  // However, this means the job would have to fail in the middle of writing which seems unlikely
+	  std::ofstream recent_iteration_num ("recent.data");
+	  recent_iteration_num << "-1"; 
+	  // Initially indicate that the time step information is corrupt.
+	  // Once all data for the time step has been saved, this will be corrected to the appropriate time step
+	  recent_iteration_num.close();
+	  // Here is the form for if we would want to save every n time steps
+	  // const std::string solution_filename = "solution." + std::to_string(i) + ".data";
+
+	  // First, write solution, stress, and mesh variables to file
+	  const std::string solution_filename = "solution.data";
+	  std::ofstream solution_output (solution_filename.c_str());
+	  //solution_output << std::setprecision(20);
+	  solution.block_write(solution_output);
+	  solution_output.close();
+	  const std::string stress_filename = "stress.data";
+	  std::ofstream stress_output (stress_filename.c_str());
+	  //stress_output << std::setprecision(20);
+	  stress.block_write(stress_output);
+	  stress_output.close();
+	  const std::string mesh_filename = "mesh.data";
+	  std::ofstream mesh_output (mesh_filename.c_str());
+	  //mesh_output << std::setprecision(20);
+	  mesh_displacement_star.block_write(mesh_output);
+	  mesh_output.close();
+
+	  // Second, write displacements, lift, and drag to file
+	  const std::string lift_filename = "lift.data";
+	  std::ofstream lift_output (lift_filename.c_str());
+	  lift.block_write(lift_output);
+	  lift_output.close();
+	  const std::string drag_filename = "drag.data";
+	  std::ofstream drag_output (drag_filename.c_str());
+	  drag.block_write(drag_output);
+	  drag_output.close();	  
+	  const std::string x_displacement_filename = "x_displacement.data";
+	  std::ofstream x_displacement_output (x_displacement_filename.c_str());
+	  x_displacement.block_write(x_displacement_output);
+	  x_displacement_output.close();	  
+	  const std::string y_displacement_filename = "y_displacement.data";
+	  std::ofstream y_displacement_output (y_displacement_filename.c_str());
+	  y_displacement.block_write(y_displacement_output);
+	  y_displacement_output.close();	  
+
+	  // Last, confirm that all things have been written to file
+	  std::ofstream recent_iteration_num_rewrite ("recent.data");
+	  recent_iteration_num_rewrite << (timestep_number+1);
+	  recent_iteration_num_rewrite.close();
+      }
     }
   timer.leave_subsection ();
   if (physical_properties.simulation_type==3) {
-    pcout << "STRUCTURE: " << std::endl;
-    pcout << "horizontal: " << .5*(displacement_min_max_mean[0][0]+displacement_min_max_mean[0][1]) << "+/-" << .5*(displacement_min_max_mean[0][1]-displacement_min_max_mean[0][0]) << ", vertical: " << .5*(displacement_min_max_mean[1][0]+displacement_min_max_mean[1][1]) << "+/-" << .5*(displacement_min_max_mean[1][1]-displacement_min_max_mean[1][0]) << std::endl;
-    pcout << "last step: horizontal: " << last_displacements[0] << ", vertical: " << last_displacements[1] << std::endl;
-    pcout << std::endl << "FLUID: " << std::endl;
-    pcout << "drag: " << .5*(drag_min_max[0]+drag_min_max[1]) << "+/-" << .5*(drag_min_max[1]-drag_min_max[0]) << ", lift: " << .5*(lift_min_max[0]+lift_min_max[1]) << "+/-" << .5*(lift_min_max[1]-lift_min_max[0]) << std::endl;
-    pcout << "last step: drag: " << last_lift_drag[0] << ", lift: " << last_lift_drag[1] << std::endl;
+    double x_displacement_max, x_displacement_min;
+    double y_displacement_max, y_displacement_min;
+    double lift_max, lift_min, drag_max, drag_min;
+    for (unsigned int i=0; i<total_timesteps; ++i) {
+      x_displacement_max = std::max(x_displacement_max, x_displacement[i]);
+      x_displacement_min = std::min(x_displacement_min, x_displacement[i]);
+      y_displacement_max = std::max(y_displacement_max, y_displacement[i]);
+      y_displacement_min = std::min(y_displacement_min, y_displacement[i]);
+      lift_max = std::max(lift_max, lift[i]);
+      lift_min = std::min(lift_min, lift[i]);
+      drag_max = std::max(drag_max, drag[i]);
+      drag_min = std::min(drag_min, drag[i]);
+    }
+
+    // pcout << "STRUCTURE: " << std::endl;
+    // pcout << "horizontal: " << .5*(x_displacement.max()+x_displacement.min()) << "+/-" << .5*(displacement_min_max_mean[0][1]-displacement_min_max_mean[0][0]) << ", vertical: " << .5*(displacement_min_max_mean[1][0]+displacement_min_max_mean[1][1]) << "+/-" << .5*(displacement_min_max_mean[1][1]-displacement_min_max_mean[1][0]) << std::endl;
+    // pcout << "last step: horizontal: " << last_displacements[0] << ", vertical: " << last_displacements[1] << std::endl;
+    // pcout << std::endl << "FLUID: " << std::endl;
+    // pcout << "drag: " << .5*(drag_min_max[0]+drag_min_max[1]) << "+/-" << .5*(drag_min_max[1]-drag_min_max[0]) << ", lift: " << .5*(lift_min_max[0]+lift_min_max[1]) << "+/-" << .5*(lift_min_max[1]-lift_min_max[0]) << std::endl;
+    // pcout << "last step: drag: " << last_lift_drag[0] << ", lift: " << last_lift_drag[1] << std::endl;
   }
 }
 

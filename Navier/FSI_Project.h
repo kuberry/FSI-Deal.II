@@ -116,8 +116,8 @@ class FSIProblem
 					PerTaskData<dim> &data);
   void copy_local_ale_to_global (const PerTaskData<dim> &data);
 
-  unsigned int optimization_CG(unsigned int total_solves);
-  unsigned int optimization_BICGSTAB(unsigned int total_solves);
+  unsigned int optimization_CG(unsigned int total_solves, const unsigned int initial_timestep_number);
+  unsigned int optimization_BICGSTAB(unsigned int total_solves, const unsigned int initial_timestep_number);
 
   void build_adjoint_rhs();
   Tensor<1,dim> lift_and_drag_fluid();
