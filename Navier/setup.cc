@@ -308,7 +308,9 @@ void FSIProblem<dim>::setup_system ()
 	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
 	else if (i>=5 || i<=7) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet)); // Interface
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
-	//fluid_interface_boundaries.insert();
+	fluid_interface_boundaries.insert(5);
+	fluid_interface_boundaries.insert(6);
+	fluid_interface_boundaries.insert(7);
       }
 
     for (unsigned int i=1; i<=4; ++i)
@@ -318,7 +320,9 @@ void FSIProblem<dim>::setup_system ()
 	// 4- left (against cylinder)
 	else if (i==4) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
-	//structure_interface_boundaries.insert();
+	structure_interface_boundaries.insert(1);
+	structure_interface_boundaries.insert(2);
+	structure_interface_boundaries.insert(3);
       }
     for (unsigned int i=1; i<=8; ++i)
       {
