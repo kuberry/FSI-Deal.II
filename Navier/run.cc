@@ -518,7 +518,7 @@ void FSIProblem<dim>::run ()
 
 	  // FLUID OUTPUT
 	  Tensor<1,dim> lift_drag = lift_and_drag_fluid();
-	  //lift_drag += lift_and_drag_structure();
+	  lift_drag += lift_and_drag_structure();
 	  drag[timestep_number] = lift_drag[0];
 	  lift[timestep_number] = lift_drag[1];
 	  // fluid_file_out << time << " " << lift_drag[0] << " " << lift_drag[1] << std::endl;
