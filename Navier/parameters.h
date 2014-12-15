@@ -95,7 +95,7 @@ namespace Parameters
 			  "order of the finite element to use for the structure displacement and velocity.");
 	  prm.declare_entry("ale degree", "2", Patterns::Integer(1),
 			  "order of the finite element to use for the ALE mesh update.");
-	  prm.declare_entry("mesh refinements", "0", Patterns::Integer(1),
+	  prm.declare_entry("mesh refinements", "0", Patterns::Integer(0),
 			  "# of mesh refinements to make on Hron & Turek benchmark meshes.");
 
 	  // Time Parameters
