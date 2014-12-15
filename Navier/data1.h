@@ -66,7 +66,10 @@ class FluidBoundaryValues : public dealii::Function<dim>
 {
  public:
   Parameters::PhysicalProperties physical_properties;
-  FluidBoundaryValues (const Parameters::PhysicalProperties & physical_properties_) : dealii::Function<dim>(dim+1), physical_properties(physical_properties_) {}
+  Parameters::SimulationProperties fem_properties;
+  FluidBoundaryValues (const Parameters::PhysicalProperties & physical_properties_,
+		       const Parameters::SimulationProperties & fem_properties_) 
+    :dealii::Function<dim>(dim+1), physical_properties(physical_properties_), fem_properties(fem_properties_) {}
 
   virtual double value (const dealii::Point<dim>   &p,
 			const unsigned int  component = 0) const;

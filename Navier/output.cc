@@ -76,7 +76,7 @@ void FSIProblem<dim>::compute_error ()
   QIterated<dim> quadrature (q_trapez, 3);
 
   Vector<double> fluid_cellwise_errors (fluid_triangulation.n_active_cells());
-  FluidBoundaryValues<dim> fluid_exact_solution(physical_properties);
+  FluidBoundaryValues<dim> fluid_exact_solution(physical_properties, fem_properties);
   fluid_exact_solution.set_time(time);
   std::pair<unsigned int,unsigned int> fluid_indices(0,dim);
   ComponentSelectFunction<dim> fluid_velocity_mask(fluid_indices,dim+1);

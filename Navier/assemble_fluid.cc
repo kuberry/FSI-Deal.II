@@ -22,7 +22,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   //timer.enter_subsection ("Beginning");
 
   FluidStressValues<dim> fluid_stress_values(physical_properties);
-  FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties);
+  FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties, fem_properties);
   fluid_boundary_values_function.set_time (time);
 
   const FEValuesExtractors::Vector velocities (0);

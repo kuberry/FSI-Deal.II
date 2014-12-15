@@ -39,7 +39,7 @@ void FSIProblem<dim>::run ()
   timer.leave_subsection();
 
   StructureBoundaryValues<dim> structure_boundary_values(physical_properties);
-  FluidBoundaryValues<dim> fluid_boundary_values(physical_properties);
+  FluidBoundaryValues<dim> fluid_boundary_values(physical_properties, fem_properties);
   AleBoundaryValues<dim> ale_boundary_values(physical_properties);
 
   StructureStressValues<dim> structure_boundary_stress(physical_properties);
