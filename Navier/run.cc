@@ -75,17 +75,17 @@ void FSIProblem<dim>::run ()
       }
   } else {
     const std::string solution_filename = "solution.data";
-    std::ifstream solution_output (solution_filename.c_str());
-    //solution_output.precision(20);
-    old_solution.block_read(solution_output);
+    std::ifstream solution_input (solution_filename.c_str());
+    //solution_input.precision(20);
+    old_solution.block_read(solution_input);
     solution = old_solution;
-    solution_output.close();
+    solution_input.close();
     const std::string stress_filename = "stress.data";
-    std::ifstream stress_output (stress_filename.c_str());
-    //stress_output.precision(20);
-    old_stress.block_read(stress_output);
+    std::ifstream stress_input (stress_filename.c_str());
+    //stress_input.precision(20);
+    old_stress.block_read(stress_input);
     stress = old_stress;
-    stress_output.close();
+    stress_input.close();
   }
   task.join();
   transfer_interface_dofs(old_stress,old_stress,0,1);
@@ -116,10 +116,9 @@ void FSIProblem<dim>::run ()
 	  }
       } else {
 	const std::string mesh_filename = "mesh.data";
-	std::ifstream mesh_output (mesh_filename.c_str());
-	//mesh_output.precision(20);
-	mesh_displacement_star.block_read(mesh_output);
-	mesh_output.close();
+	std::ifstream mesh_input (mesh_filename.c_str());
+	mesh_displacement_star.block_read(mesh_input);
+	mesh_input.close();
       }
     }
 
@@ -127,6 +126,26 @@ void FSIProblem<dim>::run ()
   Vector<double> drag(total_timesteps);
   Vector<double> x_displacement(total_timesteps);
   Vector<double> y_displacement(total_timesteps);
+  // Read in lift, drag, and displacement data since it is available
+  if (timestep_number != 1) {
+    const std::string lift_filename = "lift.data";
+    std::ifstream lift_input (lift_filename.c_str());
+    lift.block_read(lift_input);
+    lift_input.close();
+    const std::string drag_filename = "drag.data";
+    std::ifstream drag_input (drag_filename.c_str());
+    drag.block_read(drag_input);
+    drag_input.close();	  
+    const std::string x_displacement_filename = "x_displacement.data";
+    std::ifstream x_displacement_input (x_displacement_filename.c_str());
+    x_displacement.block_read(x_displacement_input);
+    x_displacement_input.close();	  
+    const std::string y_displacement_filename = "y_displacement.data";
+    std::ifstream y_displacement_input (y_displacement_filename.c_str());
+    y_displacement.block_read(y_displacement_input);
+    y_displacement_input.close();
+  }
+
   // std::vector<std::vector<double> > displacement_min_max_mean(2); // spatial dimension is 2 
   // std::vector<double> lift_min_max(dim); 
   // std::vector<double> drag_min_max(dim); 
@@ -501,7 +520,7 @@ void FSIProblem<dim>::run ()
 	  Tensor<1,dim> lift_drag = lift_and_drag_fluid();
 	  //lift_drag += lift_and_drag_structure();
 	  drag[timestep_number] = lift_drag[0];
-	  drag[timestep_number] = lift_drag[1];
+	  lift[timestep_number] = lift_drag[1];
 	  // fluid_file_out << time << " " << lift_drag[0] << " " << lift_drag[1] << std::endl;
 	  // drag_min_max[0] = std::min(drag_min_max[0],lift_drag[0]);
 	  // drag_min_max[1] = std::max(drag_min_max[1],lift_drag[0]);
@@ -577,14 +596,26 @@ void FSIProblem<dim>::run ()
       lift_min = std::min(lift_min, lift[i]);
       drag_max = std::max(drag_max, drag[i]);
       drag_min = std::min(drag_min, drag[i]);
+      // std::cout << i << ". x: " << x_displacement[i] << " y: " << y_displacement[i] << std::endl;
     }
+    // for (unsigned int i=0; i<total_timesteps; ++i) {
+    //   // std::cout << i << ". lift: " << lift[i] << " drag: " << drag[i] << std::endl;
+    // }
 
-    // pcout << "STRUCTURE: " << std::endl;
-    // pcout << "horizontal: " << .5*(x_displacement.max()+x_displacement.min()) << "+/-" << .5*(displacement_min_max_mean[0][1]-displacement_min_max_mean[0][0]) << ", vertical: " << .5*(displacement_min_max_mean[1][0]+displacement_min_max_mean[1][1]) << "+/-" << .5*(displacement_min_max_mean[1][1]-displacement_min_max_mean[1][0]) << std::endl;
-    // pcout << "last step: horizontal: " << last_displacements[0] << ", vertical: " << last_displacements[1] << std::endl;
-    // pcout << std::endl << "FLUID: " << std::endl;
-    // pcout << "drag: " << .5*(drag_min_max[0]+drag_min_max[1]) << "+/-" << .5*(drag_min_max[1]-drag_min_max[0]) << ", lift: " << .5*(lift_min_max[0]+lift_min_max[1]) << "+/-" << .5*(lift_min_max[1]-lift_min_max[0]) << std::endl;
-    // pcout << "last step: drag: " << last_lift_drag[0] << ", lift: " << last_lift_drag[1] << std::endl;
+    const std::string output_filename = "output.data";
+    std::ofstream qoi_output (output_filename.c_str());
+    for (unsigned int i=0; i<total_timesteps; ++i) {
+      qoi_output << fem_properties.t0 + (i+1)*time_step << " " << x_displacement[i] << " " << y_displacement[i] << " " << lift[i] << " " << drag[i] << std::endl;
+    }
+    //lift.block_write(lift_output);
+    qoi_output.close();
+    
+    pcout << "STRUCTURE: " << std::endl;
+    pcout << "horizontal: " << .5*(x_displacement_max+x_displacement_min) << " +/- " << .5*(x_displacement_max-x_displacement_min) << ", vertical: " << .5*(y_displacement_max+y_displacement_min) << " +/- " << .5*(y_displacement_max-y_displacement_min) << std::endl;
+    pcout << "last step: horizontal: " << x_displacement[total_timesteps-1] << ", vertical: " << y_displacement[total_timesteps-1] << std::endl;
+    pcout << std::endl << "FLUID: " << std::endl;
+    pcout << "drag: " << .5*(drag_max+drag_min) << " +/- " << .5*(drag_max-drag_min) << ", lift: " << .5*(lift_max+lift_min) << " +/- " << .5*(lift_max-lift_min) << std::endl;
+    pcout << "last step: drag: " << drag[total_timesteps-1] << ", lift: " << lift[total_timesteps-1] << std::endl;
   }
 }
 
