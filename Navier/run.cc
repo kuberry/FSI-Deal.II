@@ -291,7 +291,7 @@ void FSIProblem<dim>::run ()
   	  // FLUID SOLVER ITERATIONS
   	  solution_star.block(0)=1;
 	  bool newton = fem_properties.newton;
-	  unsigned int picard_iterations = 7;
+	  unsigned int picard_iterations = 1;
 	  unsigned int loop_count = 0;
   	  while (solution_star.block(0).l2_norm()>1e-8)
   	    {
