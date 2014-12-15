@@ -53,7 +53,6 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
   std::vector<double> p(n_face_q_points);
 
   Tensor<1,dim> functional;
-    Tensor<1,dim> temp_functional;
   Tensor<2,dim> Identity;
   AssertThrow(dim==2,ExcNotImplemented());
   for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
@@ -69,31 +68,15 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
 	{
 	  if (cell->at_boundary(face_no))
 	    {
-	      // std::cout << (unsigned int)(cell->face(face_no)->boundary_indicator()) << std::endl;
-	      // std::cout << cell->face(face_no)->center() << std::endl;
-
-	      double multiplier=1;
-	      unsigned int bc = (unsigned int)(cell->face(face_no)->boundary_indicator());
-	      //if (bc<8) multiplier *= -1;
-	      if ((unsigned int)(cell->face(face_no)->boundary_indicator())>=5 /* circle + interface */) // <---- For fluid tests
+	      if ((unsigned int)(cell->face(face_no)->boundary_indicator())==8 /* circle + interface */) // <---- For fluid tests
 		//if (cell->face(face_no)->boundary_indicator()==8 /* circle + interface */) // <---- The good one
-		//if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 		{
 		  fe_face_values.reinit (cell, face_no);
 		  fe_face_values[velocities].get_function_gradients(solution.block(0),grad_u);
 		  fe_face_values[pressure].get_function_values(solution.block(0),p);
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
-		      // std::cout << physical_properties.viscosity << std::endl;
-		      // std::cout << "grad_u[q] " << grad_u[q] << std::endl;
-		      // std::cout << "p[q] " << p[q] << std::endl;
-		      temp_functional = multiplier * (2*physical_properties.viscosity*.5*(transpose(grad_u[q]) + grad_u[q]) - p[q]*Identity) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
-		      // std::cout << "normal: " << fe_face_values.normal_vector(q) << std::endl;
-		      // std::cout << "center " <<  cell->face(face_no)->center() << std::endl;
-		      // std::cout << (unsigned int)(cell->face(face_no)->boundary_indicator()) << std::endl;
-		      // temp_functional[0]=std::abs(temp_functional[0]);
-		      // temp_functional[1]=std::abs(temp_functional[1]);
-		      functional += temp_functional;
+		      functional += (2*physical_properties.viscosity*.5*(transpose(grad_u[q]) + grad_u[q]) - p[q]*Identity) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
 		    }
 		}
 	    }
@@ -110,16 +93,16 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
 
   QGauss<dim-1> face_quadrature_formula(fem_properties.structure_degree+2);
   FEFaceValues<dim> fe_face_values (structure_fe, face_quadrature_formula,
-				    update_values    | update_normal_vectors |
+				    update_values    | update_normal_vectors | update_gradients |
 				    update_quadrature_points  | update_JxW_values);
   const unsigned int   n_face_q_points = face_quadrature_formula.size();
 
   std::vector<Tensor<2,dim> > grad_n(n_face_q_points);
-  std::vector<Tensor<2,dim> > F(n_face_q_points);
-  std::vector<Tensor<2,dim> > E(n_face_q_points);
-  
 
   Tensor<1,dim> functional;
+  Tensor<2,dim> Identity;
+  AssertThrow(dim==2,ExcNotImplemented());
+  for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
 
   typename DoFHandler<dim>::active_cell_iterator
     cell = structure_dof_handler.begin_active(),
@@ -132,7 +115,7 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
 	{
 	  if (cell->at_boundary(face_no))
 	    {
-	      if (cell->face(face_no)->boundary_indicator()>=1 && cell->face(face_no)->boundary_indicator()<=4 /* interface */)
+	      if ((unsigned int)(cell->face(face_no)->boundary_indicator())>=1 && (unsigned int)(cell->face(face_no)->boundary_indicator())<=3 /* interface */)
 		{
 		  fe_face_values.reinit (cell, face_no);
 		  fe_face_values[displacements].get_function_gradients(solution.block(1),grad_n);
@@ -140,10 +123,6 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
 		      Tensor<2,dim> F = grad_n[q];
-		      Tensor<2,dim> Identity;
-		      for (unsigned int k=0; k<dim; ++k) {
-			Identity[k][k] = 1;
-		      }
 		      F += Identity;
 		      Tensor<2,dim> E = .5*(transpose(F)*F - Identity);
 		      Tensor<2,dim> S = physical_properties.lambda*trace(E)*Identity + 2*physical_properties.mu*E;
