@@ -15,7 +15,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
     {
       if (system==Fluid)
 	{
-	  FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties);
+	  FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties, fem_properties);
 	  fluid_boundary_values_function.set_time (time);
 	  std::map<types::global_dof_index,double> fluid_boundary_values;
 	  for (unsigned int i=min_index; i<fluid_boundaries.size()+min_index; ++i)
@@ -300,13 +300,16 @@ void FSIProblem<dim>::setup_system ()
     std::ifstream f_structure("HronTurek-Structure.msh");
     gridin_structure.read_msh(f_structure);
 
+    fluid_triangulation.refine_global(fem_properties.num_mesh_refinements);
+    structure_triangulation.refine_global(fem_properties.num_mesh_refinements);
+
     for (unsigned int i=1; i<=8; ++i)
       {
 	// 1- bottom, 3- top, 4- left, 8- circle
 	if (i==1 || i==3 || i==4 || i==8) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	// 2- right
 	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
-	else if (i>=5 || i<=7) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet)); // Interface
+	else if (i>=5 || i<=7) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // Interface
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
 	fluid_interface_boundaries.insert(5);
 	fluid_interface_boundaries.insert(6);
@@ -316,7 +319,7 @@ void FSIProblem<dim>::setup_system ()
     for (unsigned int i=1; i<=4; ++i)
       {
 	// 1- bottom, 2- right, 3- top
-	if (i>=1 && i<=3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann)); // Interface
+	if (i>=1 && i<=3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // Interface
 	// 4- left (against cylinder)
 	else if (i==4) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
@@ -326,7 +329,7 @@ void FSIProblem<dim>::setup_system ()
       }
     for (unsigned int i=1; i<=8; ++i)
       {
-	if (i>=5 || i<=7) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet)); // Interface
+	if (i>=5 || i<=7) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // Interface
 	else if (i>=1 && i<=8) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
       }
