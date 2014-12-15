@@ -28,6 +28,7 @@ namespace Parameters
     unsigned int pressure_degree;
     unsigned int structure_degree;
     unsigned int ale_degree;
+    unsigned int num_mesh_refinements;
 
     // Time Parameters
     bool        time_dependent;
@@ -79,6 +80,7 @@ namespace Parameters
     bool                navier_stokes;
     bool                stability_terms;
     bool                nonlinear_elasticity;
+    double              u_bar; // For Hron & Turek Benchmarks
   };
 
   template <int dim>
@@ -93,6 +95,8 @@ namespace Parameters
 			  "order of the finite element to use for the structure displacement and velocity.");
 	  prm.declare_entry("ale degree", "2", Patterns::Integer(1),
 			  "order of the finite element to use for the ALE mesh update.");
+	  prm.declare_entry("mesh refinements", "0", Patterns::Integer(1),
+			  "# of mesh refinements to make on Hron & Turek benchmark meshes.");
 
 	  // Time Parameters
 	  prm.declare_entry("time dependent", "true", Patterns::Bool(),
@@ -149,6 +153,8 @@ namespace Parameters
 			  	  "should the stability terms used in the papers be added.");
 	  prm.declare_entry("nonlinear elasticity", "false", Patterns::Bool(),
 			  	  "should St. Venant-Kirchhoff tensor be used.");
+	  prm.declare_entry("mean velocity", "1.0", Patterns::Double(0),
+	  			  "mean velocity ('u bar') prescribed for Hron & Turek benchmarks.");
 
 	  // Output Parameters
 	  prm.declare_entry("make plots", "true", Patterns::Bool(),

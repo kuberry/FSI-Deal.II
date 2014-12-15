@@ -216,6 +216,7 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   fem_properties.pressure_degree	= prm_.get_integer("fluid pressure degree");
   fem_properties.structure_degree	= prm_.get_integer("structure degree");
   fem_properties.ale_degree		= prm_.get_integer("ale degree");
+  fem_properties.num_mesh_refinements   = prm_.get_integer("mesh refinements");
   // Time Parameters
   fem_properties.time_dependent         = prm_.get_bool("time dependent");
   fem_properties.t0                     = prm_.get_double("t0");
@@ -260,6 +261,7 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   physical_properties.navier_stokes     = prm_.get_bool("navier stokes");
   physical_properties.stability_terms   = prm_.get_bool("stability terms");
   physical_properties.nonlinear_elasticity = prm_.get_bool("nonlinear elasticity");
+  physical_properties.u_bar		= prm_.get_double("mean velocity");
   if (std::fabs(physical_properties.lambda)<1e-13) // Lambda is to be computed
     {
       physical_properties.lambda	= 2*physical_properties.mu*physical_properties.nu/(1-2*physical_properties.nu);
