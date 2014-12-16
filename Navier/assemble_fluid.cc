@@ -10,6 +10,58 @@
 // then fix the assembly of the Stokes operator and rhs (lines ~420 and ~540)
 
 template <int dim>
+void FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number) {
+  // solution_star.block(0)=1;
+  bool newton = fem_properties.newton;
+  unsigned int picard_iterations = 1;
+  unsigned int loop_count = 0;
+  do  {
+    solution_star.block(0)=solution.block(0);
+    //timer.enter_subsection ("Assemble");
+    if (loop_count < picard_iterations) fem_properties.newton = false; 
+    // Turn off Newton's method for a few picard iterations
+    assemble_fluid(state, true);
+    if (loop_count < picard_iterations) fem_properties.newton = newton;
+    //timer.leave_subsection();
+
+    dirichlet_boundaries((System)0,state);
+    //timer.enter_subsection ("State Solve"); 
+    if (timestep_number==initialized_timestep_number) {
+      state_solver[0].initialize(system_matrix.block(0,0));
+    } else {
+      state_solver[0].factorize(system_matrix.block(0,0));
+    }
+    solve(state_solver[0],0,state);
+	      
+    // Pressure needs rescaled, since it was scaled/balanced against rho_f  in the operator
+    // tmp = 0; tmp2 = 0;
+    // transfer_all_dofs(solution, tmp, 0, 2);
+    // transfer_all_dofs(tmp2, solution, 2, 0);
+    // solution.block(0) *= physical_properties.rho_f;
+    // transfer_all_dofs(tmp, solution, 2, 0);
+
+
+    // This is done by:
+    // copying out all except pressure
+    // copying in zeros over all but pressure
+    // scaling the pressure
+    // copying the other values back in
+
+    //timer.leave_subsection ();
+    solution_star.block(0)-=solution.block(0);
+    //++total_solves;
+    if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes) {
+      break;
+    } else {
+      std::cout << "F: " << solution_star.block(0).l2_norm() << std::endl;
+    }
+	      
+    loop_count++;
+  } while (solution_star.block(0).l2_norm()>1e-8);
+  solution_star.block(0) = solution.block(0); 
+}
+
+template <int dim>
 void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
 						       FluidScratchData<dim>& scratch,
 						       PerTaskData<dim>& data )
@@ -1150,6 +1202,8 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
       }
   }
 }
+
+template void FSIProblem<2>::fluid_state_solve(unsigned int initialized_timestep_number);
 
 template void FSIProblem<2>::assemble_fluid_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
 							     FluidScratchData<2>& scratch,

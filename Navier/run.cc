@@ -258,86 +258,16 @@ void FSIProblem<dim>::run ()
   	  // Get the first assembly started ahead of time
   	  //Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
 
-  	  // STRUCTURE SOLVER ITERATIONS
-  	  pcout <<"Before structure"<<std::endl;
-  	  //solution_star.block(1)=1;
-  	  solution_star.block(1) = solution.block(1); 
-  	  do {
-  	      solution_star.block(1)=solution.block(1);
-  	      timer.enter_subsection ("Assemble");
-  	      assemble_structure(state, true);
-  	      timer.leave_subsection();
-  	      dirichlet_boundaries((System)1,state);
-  	      timer.enter_subsection ("State Solve"); 
-  	      if (timestep_number==initialized_timestep_number)
-  	      	{
-  	      	  state_solver[1].initialize(system_matrix.block(1,1));
-  	      	}
-	      else 
-		{
-		  state_solver[1].factorize(system_matrix.block(1,1));
-		}
-  	      solve(state_solver[1],1,state);
-  	      timer.leave_subsection ();
-  	      solution_star.block(1)-=solution.block(1);
-  	      ++total_solves;
-  	      pcout << solution_star.block(1).l2_norm() << std::endl;
-  	  } while (solution_star.block(1).l2_norm()>1e-8);
-  	  solution_star.block(1) = solution.block(1); 
 
 
-
+	  Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
+	  Threads::Task<> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+	  s_solver.join();
+	  f_solver.join();
+	  // structure_state_solve();
   	  //f_assembly.join();
   	  // FLUID SOLVER ITERATIONS
-  	  solution_star.block(0)=1;
-	  bool newton = fem_properties.newton;
-	  unsigned int picard_iterations = 1;
-	  unsigned int loop_count = 0;
-  	  while (solution_star.block(0).l2_norm()>1e-8)
-  	    {
-  	      solution_star.block(0)=solution.block(0);
-  	      timer.enter_subsection ("Assemble");
-	      if (loop_count < picard_iterations) fem_properties.newton = false; 
-	      // Turn off Newton's method for a few picard iterations
-	      assemble_fluid(state, true);
-	      if (loop_count < picard_iterations) fem_properties.newton = newton;
-	      timer.leave_subsection();
-
-  	      dirichlet_boundaries((System)0,state);
-  	      timer.enter_subsection ("State Solve"); 
-  	      if (timestep_number==initialized_timestep_number) {
-		state_solver[0].initialize(system_matrix.block(0,0));
-	      } else {
-		state_solver[0].factorize(system_matrix.block(0,0));
-	      }
-  	      solve(state_solver[0],0,state);
-	      
-	      // Pressure needs rescaled, since it was scaled/balanced against rho_f  in the operator
-	      // tmp = 0; tmp2 = 0;
-	      // transfer_all_dofs(solution, tmp, 0, 2);
-	      // transfer_all_dofs(tmp2, solution, 2, 0);
-	      // solution.block(0) *= physical_properties.rho_f;
-	      // transfer_all_dofs(tmp, solution, 2, 0);
-
-
-	      // This is done by:
-	      // copying out all except pressure
-	      // copying in zeros over all but pressure
-	      // scaling the pressure
-	      // copying the other values back in
-
-  	      timer.leave_subsection ();
-  	      solution_star.block(0)-=solution.block(0);
-  	      ++total_solves;
-  	      if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes) {
-		break;
-	      } else {
-		pcout << solution_star.block(0).l2_norm() << std::endl;
-	      }
-	      
-	      loop_count++;
-  	    }
-  	  solution_star.block(0) = solution.block(0); 
+	  //fluid_state_solve();
 
 
 
@@ -517,11 +447,11 @@ void FSIProblem<dim>::run ()
 	  // last_displacements[1] = y_displ;
 
 	  // FLUID OUTPUT
-	  Tensor<1,dim> lift_drag = lift_and_drag_fluid();
-	  lift_drag += lift_and_drag_structure();
+	  Tensor<1,dim> lift_drag = -lift_and_drag_fluid();
+	  //lift_drag -= lift_and_drag_structure();
 	  drag[timestep_number] = lift_drag[0];
 	  lift[timestep_number] = lift_drag[1];
-	  // fluid_file_out << time << " " << lift_drag[0] << " " << lift_drag[1] << std::endl;
+	  std::cout << time << " drag: " << lift_drag[0] << " lift: " << lift_drag[1] << std::endl;
 	  // drag_min_max[0] = std::min(drag_min_max[0],lift_drag[0]);
 	  // drag_min_max[1] = std::max(drag_min_max[1],lift_drag[0]);
 	  // lift_min_max[0] = std::min(lift_min_max[0],lift_drag[1]);

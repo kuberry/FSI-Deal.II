@@ -3,6 +3,37 @@
 #include <deal.II/base/timer.h>
 
 template <int dim>
+void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_number) {
+  // STRUCTURE SOLVER ITERATIONS
+  //pcout <<"Before structure"<<std::endl;
+  //solution_star.block(1)=1;
+  solution_star.block(1) = solution.block(1); 
+  do {
+    solution_star.block(1)=solution.block(1);
+    //timer.enter_subsection ("Assemble");
+    assemble_structure(state, true);
+    //timer.leave_subsection();
+    dirichlet_boundaries((System)1,state);
+    //timer.enter_subsection ("State Solve"); 
+    if (timestep_number==initialized_timestep_number)
+      {
+	state_solver[1].initialize(system_matrix.block(1,1));
+      }
+    else 
+      {
+	state_solver[1].factorize(system_matrix.block(1,1));
+      }
+    solve(state_solver[1],1,state);
+    //timer.leave_subsection ();
+    solution_star.block(1)-=solution.block(1);
+    //++total_solves;
+    std::cout << "S: " << solution_star.block(1).l2_norm() << std::endl;
+  } while (solution_star.block(1).l2_norm()>1e-8);
+  solution_star.block(1) = solution.block(1); 
+}
+
+
+template <int dim>
 void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
 						       FullScratchData<dim>& scratch,
 						       PerTaskData<dim>& data )
@@ -644,6 +675,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
 
   
 }
+template void FSIProblem<2>::structure_state_solve(unsigned int initialized_timestep_number);
 
 template void FSIProblem<2>::assemble_structure_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
 							     FullScratchData<2>& scratch,
