@@ -89,22 +89,22 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
   std::vector<Vector<double> > z_vertices(scratch.n_vertices_q_points, Vector<double>(dim+1));
   std::vector<Vector<double> > z_old_vertices(scratch.n_vertices_q_points, Vector<double>(dim+1));
-  std::vector<Tensor<2,dim> > grad_u_old (scratch.n_q_points);
-  std::vector<Tensor<2,dim> > grad_u_old_old (scratch.n_q_points);
-  std::vector<Tensor<2,dim> > grad_u_star (scratch.n_q_points);
-  std::vector<Tensor<2,dim> > F (scratch.n_q_points);
-  std::vector<Tensor<2,dim> > grad_z (scratch.n_q_points);
+  std::vector<Tensor<2,dim,double> > grad_u_old (scratch.n_q_points, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > grad_u_old_old (scratch.n_q_points, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > grad_u_star (scratch.n_q_points, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > F (scratch.n_q_points, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > grad_z (scratch.n_q_points, Tensor<2,dim,double>());
 
-  std::vector<Tensor<1,dim> > stress_values (dim+1);
+  std::vector<Tensor<1,dim,double> > stress_values (dim+1, Tensor<1,dim,double>());
   Vector<double> u_true_side_values (dim+1);
   std::vector<Vector<double> > g_stress_values(scratch.n_face_q_points, Vector<double>(dim+1));
   std::vector<Vector<double> > old_solution_side_values(scratch.n_face_q_points, Vector<double>(dim+1));
   std::vector<Vector<double> > old_old_solution_side_values(scratch.n_face_q_points, Vector<double>(dim+1));
   std::vector<Vector<double> > u_star_side_values(scratch.n_face_q_points, Vector<double>(dim+1));
 
-  std::vector<Tensor<1,dim> > 		  phi_u (fluid_fe.dofs_per_cell);
-  std::vector<SymmetricTensor<2,dim> >    symgrad_phi_u (fluid_fe.dofs_per_cell);
-  std::vector<Tensor<2,dim> > 		  grad_phi_u (fluid_fe.dofs_per_cell);
+  std::vector<Tensor<1,dim,double> > 		  phi_u (fluid_fe.dofs_per_cell, Tensor<1,dim,double>());
+ 
+  std::vector<Tensor<2,dim,double> > 		  grad_phi_u (fluid_fe.dofs_per_cell, Tensor<2,dim,double>());
   std::vector<double>                     div_phi_u   (fluid_fe.dofs_per_cell);
   std::vector<double>                     phi_p       (fluid_fe.dofs_per_cell);
 
@@ -201,7 +201,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
       for (unsigned int q=0; q<scratch.n_q_points; ++q)
 	{
-	  Tensor<1,dim> u_star, u_old, u_old_old, meshvelocity;
+	  Tensor<1,dim,double> u_star, u_old, u_old_old, meshvelocity;
 	  for (unsigned int d=0; d<dim; ++d)
 	    {
 	      u_star[d] = u_star_values[q](d);
@@ -219,9 +219,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	  for (unsigned int k=0; k<fluid_fe.dofs_per_cell; ++k)
 	    {
 	      phi_u[k]	   = scratch.fe_values[velocities].value (k, q);
-	      symgrad_phi_u[k] = scratch.fe_values[velocities].symmetric_gradient (k, q);
 	      grad_phi_u[k]    = scratch.fe_values[velocities].gradient (k, q);
-	      div_phi_u[k]     = scratch.fe_values[velocities].divergence (k, q);
 	      phi_p[k]         = scratch.fe_values[pressure].value (k, q);
 	    }
 	  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
@@ -532,13 +530,13 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	    for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 	      {
 		//const double old_p = old_solution_values[q](dim);
-		Tensor<1,dim> old_u;
+		Tensor<1,dim,double> old_u;
 		for (unsigned int d=0; d<dim; ++d)
 		  old_u[d] = old_solution_values[q](d);
-		const Tensor<1,dim> phi_i_s      = scratch.fe_values[velocities].value (i, q);
+		const Tensor<1,dim,double> phi_i_s      = scratch.fe_values[velocities].value (i, q);
 		//const Tensor<2,dim> symgrad_phi_i_s = scratch.fe_values[velocities].symmetric_gradient (i, q);
 		//const double div_phi_i_s =  scratch.fe_values[velocities].divergence (i, q);
-		const Tensor<2,dim> grad_phi_i_s = scratch.fe_values[velocities].gradient (i, q);
+		const Tensor<2,dim,double> grad_phi_i_s = scratch.fe_values[velocities].gradient (i, q);
 		//const double div_phi_i_s =  scratch.fe_values[velocities].divergence (i, q);
 		if (physical_properties.navier_stokes)
 		  {
@@ -661,7 +659,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      	  scratch.fe_face_values.get_function_values (solution_star.block(0), u_star_side_values);
 	      	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 	      	    {
-	      	      Tensor<1,dim> u_old_old_side, u_old_side, u_star_side;
+	      	      Tensor<1,dim,double> u_old_old_side, u_old_side, u_star_side;
 	      	      for (unsigned int d=0; d<dim; ++d)
 	      		{
 	      		  u_old_old_side[d] = old_old_solution_side_values[q](d);
@@ -752,7 +750,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 								  stress_values);
 			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 				{
-				  Tensor<2,dim> new_stresses;
+				  Tensor<2,dim,double> new_stresses;
 				  // A TRANSPOSE IS TAKING PLACE HERE SINCE Deal.II has transposed gradient
 				  new_stresses[0][0]=stress_values[0][0];
 				  new_stresses[1][0]=stress_values[0][1];
@@ -767,7 +765,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 								  stress_values);
 			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 				{
-				  Tensor<2,dim> new_stresses;
+				  Tensor<2,dim,double> new_stresses;
 				  new_stresses[0][0]=stress_values[0][0];
 				  new_stresses[1][0]=stress_values[1][0];
 				  new_stresses[1][1]=stress_values[1][1];
@@ -786,7 +784,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      	  fluid_boundary_values_function.set_time(time - (1-fem_properties.fluid_theta)*time_step);
 		      	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		      	    {
-		      	      Tensor<1,dim> u_true_side;
+		      	      Tensor<1,dim,double> u_true_side;
 		      	      if (physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2) 
 		      		{
 		      		  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
@@ -820,7 +818,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      	  scratch.fe_face_values.get_function_values (solution_star.block(0), u_star_side_values);
 	      	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 	      	    {
-	      	      Tensor<1,dim> u_old_old_side, u_old_side, u_star_side;
+	      	      Tensor<1,dim,double> u_old_old_side, u_old_side, u_star_side;
 	      	      for (unsigned int d=0; d<dim; ++d)
 	      		{
 	      		  u_old_old_side[d] = old_old_solution_side_values[q](d);
@@ -904,7 +902,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		  scratch.fe_face_values.get_function_values (stress.block(0), g_stress_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> g_stress;
+		      Tensor<1,dim,double> g_stress;
 		      for (unsigned int d=0; d<dim; ++d)
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
@@ -917,7 +915,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		  scratch.fe_face_values.get_function_values (old_stress.block(0), g_stress_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> g_stress;
+		      Tensor<1,dim,double> g_stress;
 		      for (unsigned int d=0; d<dim; ++d)
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
@@ -934,7 +932,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> r;
+		      Tensor<1,dim,double> r;
 		      for (unsigned int d=0; d<dim; ++d)
 			r[d] = adjoint_rhs_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
@@ -951,7 +949,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> h;
+		      Tensor<1,dim,double> h;
 		      for (unsigned int d=0; d<dim; ++d)
 			h[d] = linear_rhs_values[q](d);
 		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
@@ -972,7 +970,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      scratch.fe_face_values.reinit (cell, face_no);
 		      for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 			{
-			  Tensor<1,dim> u_true_side;
+			  Tensor<1,dim,double> u_true_side;
 			  if (physical_properties.simulation_type==0 || physical_properties.simulation_type==2) // assumes only time there would be nonzero dirichlet bc
 			    {
 			      fluid_boundary_values_function.set_time (time);
@@ -1087,11 +1085,8 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
     }
   *fluid_rhs=0;
 
-  Vector<double> tmp;
-  Vector<double> forcing_terms;
-
-  tmp.reinit (fluid_rhs->size());
-  forcing_terms.reinit (fluid_rhs->size());
+  Vector<double> tmp(fluid_rhs->size());
+  Vector<double> forcing_terms(fluid_rhs->size());
 
   QGauss<dim>   quadrature_formula(fem_properties.fluid_degree+2);
   FEValues<dim> fe_values (fluid_fe, quadrature_formula,

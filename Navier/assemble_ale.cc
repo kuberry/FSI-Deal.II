@@ -7,7 +7,7 @@ void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler
 						       PerTaskData<dim>& data )
 {
   const FEValuesExtractors::Vector displacements (0);
-  std::vector<Tensor<2,dim> > 	grad_phi_n (ale_fe.dofs_per_cell);
+  std::vector<Tensor<2,dim,double> > 	grad_phi_n (ale_fe.dofs_per_cell, Tensor<2,dim,double>());
   scratch.fe_values.reinit(cell);
 
   data.cell_matrix=0;
