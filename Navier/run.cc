@@ -448,7 +448,7 @@ void FSIProblem<dim>::run ()
 
 	  // FLUID OUTPUT
 	  Tensor<1,dim> lift_drag = -lift_and_drag_fluid();
-	  //lift_drag -= lift_and_drag_structure();
+	  lift_drag += lift_and_drag_structure();
 	  drag[timestep_number] = lift_drag[0];
 	  lift[timestep_number] = lift_drag[1];
 	  std::cout << time << " drag: " << lift_drag[0] << " lift: " << lift_drag[1] << std::endl;
@@ -460,7 +460,7 @@ void FSIProblem<dim>::run ()
 	  // last_lift_drag[1] = lift_drag[1];
       }
       // Write these vectors to the hard drive 10 times
-      if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/10))==0) {
+      if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0) {
 	  // This could be made more robust in the future by copying data before saving the new data
 	  // However, this means the job would have to fail in the middle of writing which seems unlikely
 	  std::ofstream recent_iteration_num ("recent.data");
