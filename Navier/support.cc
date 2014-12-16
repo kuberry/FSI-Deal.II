@@ -37,7 +37,7 @@ void FSIProblem<dim>::build_adjoint_rhs()
 }
 
 template <int dim>
-Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
+Tensor<1,dim,double> FSIProblem<dim>::lift_and_drag_fluid()
 {
   AssertThrow(physical_properties.simulation_type==3, ExcNotImplemented());
   const FEValuesExtractors::Vector velocities (0);
@@ -49,11 +49,11 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
 				    update_quadrature_points  | update_JxW_values);
   const unsigned int   n_face_q_points = face_quadrature_formula.size();
 
-  std::vector<Tensor<2,dim> > grad_u(n_face_q_points);
+  std::vector<Tensor<2,dim,double> > grad_u(n_face_q_points, Tensor<2,dim,double>());
   std::vector<double> p(n_face_q_points);
 
-  Tensor<1,dim> functional;
-  Tensor<2,dim> Identity;
+  Tensor<1,dim,double> functional;
+  Tensor<2,dim,double> Identity;
   AssertThrow(dim==2,ExcNotImplemented());
   for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
 
@@ -86,7 +86,7 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_fluid()
 }
 
 template <int dim>
-Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
+Tensor<1,dim,double> FSIProblem<dim>::lift_and_drag_structure()
 {
   AssertThrow(physical_properties.simulation_type==3, ExcNotImplemented());
   const FEValuesExtractors::Vector displacements (0);
@@ -97,10 +97,10 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
 				    update_quadrature_points  | update_JxW_values);
   const unsigned int   n_face_q_points = face_quadrature_formula.size();
 
-  std::vector<Tensor<2,dim> > grad_n(n_face_q_points);
+  std::vector<Tensor<2,dim,double> > grad_n(n_face_q_points, Tensor<2,dim,double>());
 
-  Tensor<1,dim> functional;
-  Tensor<2,dim> Identity;
+  Tensor<1,dim,double> functional;
+  Tensor<2,dim,double> Identity;
   AssertThrow(dim==2,ExcNotImplemented());
   for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
 
@@ -122,10 +122,10 @@ Tensor<1,dim> FSIProblem<dim>::lift_and_drag_structure()
 
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
-		      Tensor<2,dim> F = grad_n[q];
+		      Tensor<2,dim,double> F = grad_n[q];
 		      F += Identity;
-		      Tensor<2,dim> E = .5*(transpose(F)*F - Identity);
-		      Tensor<2,dim> S = physical_properties.lambda*trace(E)*Identity + 2*physical_properties.mu*E;
+		      Tensor<2,dim,double> E = .5*(transpose(F)*F - Identity);
+		      Tensor<2,dim,double> S = physical_properties.lambda*trace(E)*Identity + 2*physical_properties.mu*E;
 
 		      functional += (F*S) * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
 		    }
@@ -170,8 +170,8 @@ double FSIProblem<dim>::interface_error()
 
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> error;
-		      Tensor<1,dim> g_stress;
+		      Tensor<1,dim,double> error;
+		      Tensor<1,dim,double> g_stress;
 		      for (unsigned int d=0; d<dim; ++d)
 			{
 			  error[d] = error_values[q](d);
@@ -220,7 +220,7 @@ double FSIProblem<dim>::interface_norm(Vector<double>   &values)
 
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> pval, val;
+		      Tensor<1,dim,double> pval, val;
 		      for (unsigned int d=0; d<dim; ++d)
 			{
 			  pval[d] = premult_values[q](d);
@@ -238,7 +238,7 @@ double FSIProblem<dim>::interface_norm(Vector<double>   &values)
 
 
 template void FSIProblem<2>::build_adjoint_rhs();
-template Tensor<1,2> FSIProblem<2>::lift_and_drag_fluid();
-template Tensor<1,2> FSIProblem<2>::lift_and_drag_structure();
+template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_fluid();
+template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_structure();
 template double FSIProblem<2>::interface_error();
 template double FSIProblem<2>::interface_norm(Vector<double>   &values);
