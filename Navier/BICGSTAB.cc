@@ -66,7 +66,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
 {
 
   // This gives the initial guess x_0
-  tmp=fem_properties.cg_tolerance;
+  tmp=std::max(physical_properties.rho_f,physical_properties.rho_s)*fem_properties.cg_tolerance;
   rhs_for_linear_h=0;
   transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
   transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
@@ -164,6 +164,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
   
   double error_norm = 1;
 
+  unsigned int loop_count = 1;
   while (error_norm > fem_properties.cg_tolerance) {
     premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
     double rho_np1 = interface_norm(r.block(0));
@@ -282,6 +283,8 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
 
     premultiplier.block(0)=r.block(0); // used by interface_norm
     error_norm = interface_norm(r.block(0));
+    if (loop_count % 100 == 0) std::cout << "BICG Err: " << error_norm << std::endl;
+    loop_count++;
   }
 
   // update stress
