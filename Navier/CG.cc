@@ -211,7 +211,7 @@ unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves, const 
   //std::cout <<  p_n_norm_square << std::endl;
   rhs_for_linear_Ap_s=0;
 
-
+  unsigned int loop_count = 1;
   while (std::abs(p_n_norm_square) > fem_properties.cg_tolerance)
     {
       //std::cout << "more text" << std::endl;
@@ -339,6 +339,8 @@ unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves, const 
       p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
       //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
       //std::cout << p_n_norm_square << std::endl;
+      if (loop_count % 100 == 0) std::cout << "CG Err: " << p_n_norm_square << std::endl;
+      loop_count++;
     }
   // update stress
   stress.block(0) += rhs_for_linear_h.block(0);
