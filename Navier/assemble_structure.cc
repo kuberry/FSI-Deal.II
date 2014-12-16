@@ -227,24 +227,10 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			  if (component_j<dim)
 			    {
 			      if (physical_properties.nonlinear_elasticity) {
-				if (fem_properties.newton) {
-				  data.cell_matrix(i,j)+= (
-							   scalar_product(fem_properties.structure_theta*S_star*transpose(grad_phi_n[j]), transpose(grad_phi_n[i]))
-							   + scalar_product(fem_properties.structure_theta*S2[j]*transpose(F_star), transpose(grad_phi_n[i]))
-							   )*scratch.fe_values.JxW(q);
-				} else {
-				  data.cell_matrix(i,j)+= (
-							   // Formulation 1: (worst)
-							   // scalar_product(.5*F_star*S[j], grad_phi_n[i])
-							   // or
-							   // Formulation 2: (medium)
-							   // scalar_product(.5*grad_phi_n[j]*S_star, grad_phi_n[i])
-							   // or
-							   // Formulation 3: (best)
-							   scalar_product(fem_properties.structure_theta*S_star*transpose(grad_phi_n[j]), transpose(grad_phi_n[i]))
-							   + scalar_product(fem_properties.structure_theta*S[j], transpose(grad_phi_n[i]))
-							   )*scratch.fe_values.JxW(q);
-				}
+				data.cell_matrix(i,j)+= (
+							 scalar_product(fem_properties.structure_theta*S_star*transpose(grad_phi_n[j]), transpose(grad_phi_n[i]))
+							 + scalar_product(fem_properties.structure_theta*S2[j]*transpose(F_star), transpose(grad_phi_n[i]))
+							 )*scratch.fe_values.JxW(q);
 			      } else {
 				data.cell_matrix(i,j)+= fem_properties.structure_theta * scalar_product(S[j], .5*(grad_phi_n[i] + transpose(grad_phi_n[i])))
 				  *scratch.fe_values.JxW(q);
@@ -284,31 +270,14 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			  if (component_j<dim)
 			    {
 			      if (physical_properties.nonlinear_elasticity) {
-				if (fem_properties.newton) {
-				  data.cell_matrix(i,j)+= (
-							   scalar_product(fem_properties.structure_theta*S_star*transpose(grad_phi_n[i]), transpose(grad_phi_n[j]))
-							   + scalar_product(fem_properties.structure_theta*S2[i]*transpose(F_star), transpose(grad_phi_n[j]))
-							   )*scratch.fe_values.JxW(q);
-				} else {
-				  data.cell_matrix(i,j)+= (
-							   // Formulation 1: (worst)
-							   // scalar_product(.5*F_star*S[j], grad_phi_n[i])
-							   // or
-							   // Formulation 2: (medium)
-							   // scalar_product(.5*grad_phi_n[j]*S_star, grad_phi_n[i])
-							   // or
-							   // Formulation 3: (best)
-							   scalar_product(fem_properties.structure_theta*S_star*transpose(grad_phi_n[i]), transpose(grad_phi_n[j]))
-							   + scalar_product(fem_properties.structure_theta*S[i], transpose(grad_phi_n[j]))
-							   )*scratch.fe_values.JxW(q);
-				}
+				data.cell_matrix(i,j)+= (
+							 scalar_product(fem_properties.structure_theta*S_star*transpose(grad_phi_n[i]), transpose(grad_phi_n[j]))
+							 + scalar_product(fem_properties.structure_theta*S2[i]*transpose(F_star), transpose(grad_phi_n[j]))
+							 )*scratch.fe_values.JxW(q);
 			      } else {
 				data.cell_matrix(i,j)+= fem_properties.structure_theta * scalar_product(S[i], .5*(grad_phi_n[j] + transpose(grad_phi_n[j])))
 				  *scratch.fe_values.JxW(q);
 			      }
-			      // data.cell_matrix(i,j)+=(.5*( 2*physical_properties.mu*symgrad_phi_n[i] * symgrad_phi_n[j]
-			      // 				   + physical_properties.lambda*div_phi_n[i] * div_phi_n[j]))
-			      // 	*scratch.fe_values.JxW(q);
 			    }
 			  else
 			    {
