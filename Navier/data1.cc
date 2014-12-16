@@ -465,7 +465,11 @@ result[1]= mu*(3*t - 1)*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y)) - 6*mu*(3*t + 2
       case 0:
 	return 0;
       case 1:
-	return -2*physical_properties.rho_s;
+	if (physical_properties.u_bar == 0) {
+	  return -2*physical_properties.rho_s;
+	} else {
+	  return 0;
+	}
       default:
 	return 0;
       }
