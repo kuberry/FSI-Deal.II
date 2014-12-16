@@ -1,4 +1,5 @@
 #include "FSI_Project.h"
+#include <stdlib.h>     /* atoi */
 
 int main (int argc, char *argv[])
 {
@@ -28,7 +29,7 @@ int main (int argc, char *argv[])
 	FSIProblem<2> fsi_solver(prm);
 	fsi_solver.run();
       } else if (argc == 3) {
-	FSIProblem<2> fsi_solver(prm, std::stoi(argv[2]));
+	FSIProblem<2> fsi_solver(prm, std::atoi(argv[2]));
 	fsi_solver.run();	
       }
     }
