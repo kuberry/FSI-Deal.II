@@ -58,34 +58,29 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   std::vector<Vector<double> > old_solution_values(scratch.n_q_points, Vector<double>(2*dim));
   std::vector<Vector<double> > adjoint_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
   std::vector<Vector<double> > linear_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
-  std::vector<Tensor<2,dim>  > grad_n_star (scratch.n_q_points);
-  std::vector<Tensor<2,dim>  > grad_n_old (scratch.n_q_points);
+  std::vector<Tensor<2,dim,double>  > grad_n_star (scratch.n_q_points, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double>  > grad_n_old (scratch.n_q_points, Tensor<2,dim,double>());
   std::vector<Vector<double> > g_stress_values(scratch.n_face_q_points, Vector<double>(2*dim));
-  std::vector<Tensor<1,dim>  > stress_values (2*dim);
-  Tensor<1,dim, double> old_rhs_values(dim);
-  Tensor<1,dim, double> rhs_values(dim);
+  std::vector<Tensor<1,dim,double>  > stress_values (2*dim, Tensor<1,dim,double>());
+  Tensor<1,dim,double> old_rhs_values;
+  Tensor<1,dim,double> rhs_values;
 
-  std::vector<Tensor<1,dim> > 		phi_n (structure_fe.dofs_per_cell);
-  std::vector<SymmetricTensor<2,dim> > 	symgrad_phi_n (structure_fe.dofs_per_cell);
-  std::vector<double>                  	div_phi_n   (structure_fe.dofs_per_cell);
-  std::vector<Tensor<1,dim> >           phi_v       (structure_fe.dofs_per_cell);
-  std::vector<Tensor<2,dim> > 	        grad_phi_n (structure_fe.dofs_per_cell);
-  std::vector<Tensor<2,dim> > 	        F (structure_fe.dofs_per_cell);
-  std::vector<Tensor<2,dim> > 	        E (structure_fe.dofs_per_cell);
-  std::vector<Tensor<2,dim> > 	        S (structure_fe.dofs_per_cell);
-  std::vector<Tensor<2,dim> > 	        E2 (structure_fe.dofs_per_cell);
-  std::vector<Tensor<2,dim> > 	        S2 (structure_fe.dofs_per_cell);
-  
-  std::vector<Tensor<1,dim> > grad_known_stress_now (scratch.n_face_q_points,Tensor<1,dim>(2*dim));
-  std::vector<Tensor<1,dim> > grad_known_stress_old (scratch.n_face_q_points,Tensor<1,dim>(2*dim));
+  std::vector<Tensor<1,dim,double> > 		phi_n (structure_fe.dofs_per_cell, Tensor<1,dim,double>());
+  std::vector<Tensor<1,dim,double> >           phi_v       (structure_fe.dofs_per_cell, Tensor<1,dim,double>());
+  std::vector<Tensor<2,dim,double> > 	        grad_phi_n (structure_fe.dofs_per_cell, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > 	        F (structure_fe.dofs_per_cell, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > 	        E (structure_fe.dofs_per_cell, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > 	        S (structure_fe.dofs_per_cell, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > 	        E2 (structure_fe.dofs_per_cell, Tensor<2,dim,double>());
+  std::vector<Tensor<2,dim,double> > 	        S2 (structure_fe.dofs_per_cell, Tensor<2,dim,double>());
 
   scratch.fe_values.reinit(cell);
   data.cell_matrix=0;
   data.cell_rhs=0;
   
-  Tensor<2,dim> Identity;
+  Tensor<2,dim,double> Identity;
   for (unsigned int i=0; i<dim; ++i)
-    Identity[i][i]=1;
+    Identity[i][i]=1.0;
 
   //timer.leave_subsection ();
   //timer.enter_subsection ("Assembly");
@@ -103,8 +98,6 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
       for (unsigned int q=0; q<scratch.n_q_points;
 	   ++q)
 	{ 
-	  Tensor<1,dim> old_rhs_vals;
-	  Tensor<1,dim> rhs_vals;
 	  for (unsigned int k=0; k<dim; ++k) {
 	    rhs_function.set_time(time);
 	    rhs_values[k] = rhs_function.value(scratch.fe_values.quadrature_point(q), k);
@@ -113,30 +106,28 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	  }
 
 	  // All terms trailed by 2 represent the extra term from linearization
-	  Tensor<2,dim> F_star = Identity + grad_n_star[q];
-	  Tensor<2,dim> E_star = .5 * (transpose(F_star)*F_star - Identity);
-	  Tensor<2,dim> E_star2 = E_star + .5 * transpose(grad_n_star[q])*grad_n_star[q]; 
-	  Tensor<2,dim> S_star = physical_properties.lambda*trace(E_star)*Identity + 2*physical_properties.mu*E_star;
-	  Tensor<2,dim> S_star2 = physical_properties.lambda*trace(E_star2)*Identity + 2*physical_properties.mu*E_star2;
+	  Tensor<2,dim,double> F_star = Identity + grad_n_star[q];
+	  Tensor<2,dim,double> E_star = .5 * (transpose(F_star)*F_star - Identity);
+	  Tensor<2,dim,double> E_star2 = E_star + .5 * transpose(grad_n_star[q])*grad_n_star[q]; 
+	  Tensor<2,dim,double> S_star = physical_properties.lambda*trace(E_star)*Identity + 2*physical_properties.mu*E_star;
+	  Tensor<2,dim,double> S_star2 = physical_properties.lambda*trace(E_star2)*Identity + 2*physical_properties.mu*E_star2;
 	  double det_F_star = determinant(F_star);
 
-	  Tensor<2,dim> F_old = Identity + grad_n_old[q];
-	  Tensor<2,dim> E_old;
+	  Tensor<2,dim,double> F_old = Identity + grad_n_old[q];
+	  Tensor<2,dim,double> E_old;
 	  if (!physical_properties.nonlinear_elasticity) {
 	    E_old = .5 * (transpose(F_old)*F_old - Identity - transpose(grad_n_old[q])*grad_n_old[q]);
 	    F_old = Identity;
 	  } else {
 	    E_old = .5 * (transpose(F_old)*F_old - Identity);
 	  }
-	  Tensor<2,dim> S_old = physical_properties.lambda*trace(E_old)*Identity + 2*physical_properties.mu*E_old;
+	  Tensor<2,dim,double> S_old = physical_properties.lambda*trace(E_old)*Identity + 2*physical_properties.mu*E_old;
 	  double det_F_old = determinant(F_old);
 	  
 	  for (unsigned int k=0; k<structure_fe.dofs_per_cell; ++k)
 	    {
 	      phi_n[k]	       = scratch.fe_values[displacements].value (k, q);
-	      symgrad_phi_n[k] = scratch.fe_values[displacements].symmetric_gradient (k, q);
 	      grad_phi_n[k]    = scratch.fe_values[displacements].gradient (k, q);
-	      div_phi_n[k]     = scratch.fe_values[displacements].divergence (k, q);
 	      phi_v[k]         = scratch.fe_values[velocities].value (k, q);
 	      F[k]             = Identity + grad_phi_n[k];
 	      if (!physical_properties.nonlinear_elasticity) {
@@ -314,17 +305,17 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
 		{
 		  const unsigned int component_i = structure_fe.system_to_component_index(i).first;
-		  Tensor<1,dim> old_n;
-		  Tensor<1,dim> old_v;
+		  Tensor<1,dim,double> old_n;
+		  Tensor<1,dim,double> old_v;
 		  for (unsigned int d=0; d<dim; ++d)
 		    old_n[d] = old_solution_values[q](d);
 		  for (unsigned int d=0; d<dim; ++d)
 		    old_v[d] = old_solution_values[q](d+dim);
-		  const Tensor<1,dim> phi_i_eta      	= scratch.fe_values[displacements].value (i, q);
+		  const Tensor<1,dim,double> phi_i_eta      	= scratch.fe_values[displacements].value (i, q);
 		  // const Tensor<2,dim> symgrad_phi_i_eta 	= scratch.fe_values[displacements].symmetric_gradient (i, q);
-		  const Tensor<2,dim> grad_phi_i_eta 	= scratch.fe_values[displacements].gradient (i, q);
+		  const Tensor<2,dim,double> grad_phi_i_eta 	= scratch.fe_values[displacements].gradient (i, q);
 		  // const double div_phi_i_eta 			= scratch.fe_values[displacements].divergence (i, q);
-		  const Tensor<1,dim> phi_i_eta_dot  	= scratch.fe_values[velocities].value (i, q);
+		  const Tensor<1,dim,double> phi_i_eta_dot  	= scratch.fe_values[velocities].value (i, q);
 		  
 		  if (component_i<dim)
 		    {
@@ -394,7 +385,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			structure_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
 									stress_values);
 			// A TRANSPOSE IS TAKING PLACE HERE SINCE Deal.II has transposed gradient
-			Tensor<2,dim> new_stresses;
+			Tensor<2,dim,double> new_stresses;
 			new_stresses[0][0]=stress_values[0][0];
 			new_stresses[1][0]=stress_values[0][1];
 			new_stresses[1][1]=stress_values[1][1];
@@ -410,7 +401,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			old_structure_stress_values.vector_gradient(scratch.fe_face_values.quadrature_point(q),
 									stress_values);
 			// A TRANSPOSE IS TAKING PLACE HERE SINCE Deal.II has transposed gradient
-			Tensor<2,dim> new_stresses;
+			Tensor<2,dim,double> new_stresses;
 			new_stresses[0][0]=stress_values[0][0];
 			new_stresses[1][0]=stress_values[0][1];
 			new_stresses[1][1]=stress_values[1][1];
@@ -429,8 +420,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      std::vector<double> coordinate_transformation_multiplier_old(scratch.n_face_q_points);
 	      std::vector<double> coordinate_transformation_multiplier_star(scratch.n_face_q_points);
 	      if (physical_properties.nonlinear_elasticity) {
-		std::vector<Tensor<2,dim>  > face_grad_n_star (scratch.n_face_q_points);
-		std::vector<Tensor<2,dim>  > face_grad_n_old (scratch.n_face_q_points);
+		std::vector<Tensor<2,dim,double>  > face_grad_n_star (scratch.n_face_q_points, Tensor<2,dim,double>());
+		std::vector<Tensor<2,dim,double>  > face_grad_n_old (scratch.n_face_q_points, Tensor<2,dim,double>());
 		scratch.fe_face_values[displacements].get_function_gradients(old_solution.block(1),face_grad_n_old);
 		scratch.fe_face_values[displacements].get_function_gradients(solution_star.block(1),face_grad_n_star);
 		for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
@@ -452,7 +443,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> g_stress;
+		      Tensor<1,dim,double> g_stress;
 		      for (unsigned int d=0; d<dim; ++d)
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
@@ -464,7 +455,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		  scratch.fe_face_values.get_function_values (old_stress.block(1), g_stress_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> g_stress;
+		      Tensor<1,dim,double> g_stress;
 		      for (unsigned int d=0; d<dim; ++d)
 			g_stress[d] = g_stress_values[q](d);
 		      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
@@ -480,7 +471,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> r;
+		      Tensor<1,dim,double> r;
 		      if (fem_properties.adjoint_type==1)
 			{
 			  for (unsigned int d=0; d<dim; ++d)
@@ -522,7 +513,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		  scratch.fe_face_values.get_function_values (rhs_for_linear.block(1), linear_rhs_values);
 		  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		    {
-		      Tensor<1,dim> h;
+		      Tensor<1,dim,double> h;
 		      for (unsigned int d=0; d<dim; ++d)
 			h[d] = linear_rhs_values[q](d);
 		      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
@@ -589,14 +580,8 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
     }
   *structure_rhs=0;
 
-  Vector<double> tmp;
-  Vector<double> forcing_terms;
-
-  tmp.reinit (structure_rhs->size());
-  forcing_terms.reinit (structure_rhs->size());
-
-  tmp=0;
-  forcing_terms=0;
+  Vector<double> tmp(structure_rhs->size());
+  Vector<double> forcing_terms(structure_rhs->size());
 
   QGauss<dim>   quadrature_formula(fem_properties.structure_degree+2);
 
