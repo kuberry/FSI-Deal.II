@@ -514,9 +514,9 @@ void FSIProblem<dim>::run ()
     }
   timer.leave_subsection ();
   if (physical_properties.simulation_type==3) {
-    double x_displacement_max, x_displacement_min;
-    double y_displacement_max, y_displacement_min;
-    double lift_max, lift_min, drag_max, drag_min;
+    double x_displacement_max=0, x_displacement_min=0;
+    double y_displacement_max=0, y_displacement_min=0;
+    double lift_max=0, lift_min=0, drag_max=0, drag_min=0;
     for (unsigned int i=0; i<total_timesteps; ++i) {
       x_displacement_max = std::max(x_displacement_max, x_displacement[i]);
       x_displacement_min = std::min(x_displacement_min, x_displacement[i]);
