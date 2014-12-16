@@ -15,7 +15,7 @@ BDF-like methods for nonlinear dynamic analysis, S. Dong - JCP
 using namespace dealii;
 
 Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
-  Tensor<2,2> F;
+  Tensor<2,2,double> F;
   // mapping=matrix(SR,2,1,[x*y*cos(t),-x*.2*y*t^2 + x*y])
   F[0][0] = 1+y*cos(t);
   F[1][1] = 1-x*.2*pow(t,2)+x;
@@ -33,7 +33,7 @@ Point<2> reference_coord(double x, double y, double t, bool move_domain) {
 }
 
 Tensor<2,2> get_DetTimesJacobianInv(Tensor<2,2> Jacobian) {
-  Tensor<2,2> Finv;
+  Tensor<2,2,double> Finv;
   Finv[0][0] = Jacobian[1][1];
   Finv[1][1] = Jacobian[0][0];
   Finv[0][1] = -Jacobian[0][1];
@@ -56,7 +56,7 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
      * 2*viscosity*(diff(u2,y)*n2+0.5*(diff(u1,y)+diff(u2,x))*n1)-p*n2*u2
      *
      */
-    Tensor<1,dim> result;
+    Tensor<1,dim,double> result;
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -91,7 +91,7 @@ template <int dim>
 Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
 						const unsigned int component) const
 {
-  Tensor<1,dim> result;
+  Tensor<1,dim,double> result;
   if (physical_properties.simulation_type==0){
     /*
      * u1=cos(t + x)*sin(t + y) + cos(t + y)*sin(t + x);
@@ -137,7 +137,7 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
      * 2*viscosity*(diff(u2,y)*n2+0.5*(diff(u1,y)+diff(u2,x))*n1)-p*n2*u2
      *
      */
-    Tensor<2,dim> grad_u;
+    Tensor<2,dim,double> grad_u;
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -146,9 +146,9 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     grad_u[1][1] = -3*t;
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
-    Tensor<2,dim> F = get_Jacobian(x, y, t, physical_properties.move_domain);
-    Tensor<2,dim> detTimesFInv = get_DetTimesJacobianInv(F);
-    Tensor<2,dim> FInv = 1./determinant(F)*detTimesFInv;
+    Tensor<2,dim,double> F = get_Jacobian(x, y, t, physical_properties.move_domain);
+    Tensor<2,dim,double> detTimesFInv = get_DetTimesJacobianInv(F);
+    Tensor<2,dim,double> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = .5*(transpose(FInv)*grad_u + transpose(grad_u)*FInv);
     //grad_u = .5*transpose(FInv)*grad_u;
     grad_u *= 2*physical_properties.viscosity;
@@ -187,7 +187,7 @@ template <int dim>
 double StructureStressValues<dim>::value (const Point<dim>  &p,
 					  const unsigned int component) const
 {
-  Tensor<1,dim> result;
+  Tensor<1,dim,double> result;
   if (physical_properties.simulation_type==0){
     /*
       >> n1=sin(x + t)*sin(y + t);
@@ -221,7 +221,7 @@ template <int dim>
 Tensor<1,dim> StructureStressValues<dim>::gradient (const Point<dim>  &p,
 						    const unsigned int component) const
 {
-  Tensor<1,dim> result;
+  Tensor<1,dim,double> result;
   if (physical_properties.simulation_type==0){
     /*
       >> n1=sin(x + t)*sin(y + t);
@@ -257,19 +257,19 @@ Tensor<1,dim> StructureStressValues<dim>::gradient (const Point<dim>  &p,
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    Tensor<2,dim> Identity;
+    Tensor<2,dim,double> Identity;
     for (unsigned int i=0; i<dim; ++i)
       Identity[i][i]=1;
-    Tensor<2,dim> F;
+    Tensor<2,dim,double> F;
     F[0][0]=3*t + 2*x + 1;
     F[0][1]=2*cos(-t + y);
     F[1][0]=3*cos(-t + x);
     F[1][1]=-3*t + 1;
-    Tensor<2,dim> E;
+    Tensor<2,dim,double> E;
     E=.5*(transpose(F)*F-Identity);
-    Tensor<2,dim> S;
+    Tensor<2,dim,double> S;
     S=physical_properties.lambda*trace(E)*Identity + 2*physical_properties.mu*E;
-    Tensor<2,dim> First_Piola_Stress;
+    Tensor<2,dim,double> First_Piola_Stress;
     First_Piola_Stress = F*S;
 
     switch (component)
@@ -305,7 +305,7 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
 				       const unsigned int component) const
 {
   if (physical_properties.simulation_type==0){
-    double result;
+    double result=0;
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -355,8 +355,8 @@ double FluidRightHandSide<dim>::value (const Point<dim>  &p,
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    Tensor<1,dim> result(2);
-    double rhs_divergence;
+    Tensor<1,dim,double> result;
+    double rhs_divergence = 0;
 
     double viscosity = physical_properties.viscosity;
     double rho_f = physical_properties.rho_f;
@@ -442,7 +442,7 @@ double StructureRightHandSide<dim>::value (const Point<dim>  &p,
     const double mu = physical_properties.mu;
     const double rho_s = physical_properties.rho_s;
 
-    Tensor<1,dim> result(2);
+    Tensor<1,dim,double> result;
 
 result[0]= -lam*(pow(3*t - 1, 2) + pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) + 4*pow(cos(t - y), 2) - 2) - 2*mu*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y))*cos(t - y) - 2*mu*pow(3*t + 2*x + 1, 2)*sin(t - y) - 2*mu*(pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) - 1) + 2*rho_s*sin(t - y) + (lam*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2) + 2*mu*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2))*(3*t + 2*x + 1) - (lam*(pow(3*t - 1, 2) + pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) + 4*pow(cos(t - y), 2) - 2) + 2*mu*(pow(3*t - 1, 2) + 4*pow(cos(t - y), 2) - 1))*sin(t - y) + 8*(-lam*sin(t - y)*cos(t - y) - 2*mu*sin(t - y)*cos(t - y))*cos(t - y) ;
 result[1]= mu*(3*t - 1)*(-3*(3*t - 1)*sin(t - x) + 4*cos(t - y)) - 6*mu*(3*t + 2*x + 1)*sin(t - y)*cos(t - x) + 3*rho_s*sin(t - x) - 4*(3*t - 1)*(-lam*sin(t - y)*cos(t - y) - 2*mu*sin(t - y)*cos(t - y)) + 3*(lam*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2) + 2*mu*(-6*t - 4*x - 9*sin(t - x)*cos(t - x) - 2))*cos(t - x) - 3.0L/2.0L*(lam*(pow(3*t - 1, 2) + pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) + 4*pow(cos(t - y), 2) - 2) + 2*mu*(pow(3*t + 2*x + 1, 2) + 9*pow(cos(t - x), 2) - 1))*sin(t - x) ;
@@ -604,7 +604,7 @@ template <int dim>
 Tensor<1,dim> FluidBoundaryValues<dim>::gradient (const dealii::Point<dim>   &p,
 						  const unsigned int component) const
 {
-  Tensor<1,dim> result;
+  Tensor<1,dim,double> result;
   if (physical_properties.simulation_type==0){
     const double t = this->get_time();
     const double x = p[0];
@@ -629,7 +629,7 @@ Tensor<1,dim> FluidBoundaryValues<dim>::gradient (const dealii::Point<dim>   &p,
 	return result;
       }
   } else if (physical_properties.simulation_type==2){
-    Tensor<2,dim> grad_u;
+    Tensor<2,dim,double> grad_u;
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -740,7 +740,7 @@ template <int dim>
 Tensor<1,dim> StructureBoundaryValues<dim>::gradient (const Point<dim>   &p,
 						      const unsigned int component) const
 {
-  Tensor<1,dim> result;
+  Tensor<1,dim,double> result;
   if (physical_properties.simulation_type==0){
     /*
       >> n1=sin(x + t)*sin(y + t);
