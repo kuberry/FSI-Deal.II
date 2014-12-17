@@ -10,8 +10,8 @@ void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler
   std::vector<Tensor<2,dim,double> > 	grad_phi_n (ale_fe.dofs_per_cell, Tensor<2,dim,double>());
   scratch.fe_values.reinit(cell);
 
-  data.cell_matrix=0;
-  data.cell_rhs=0;
+  data.cell_matrix*=0;
+  data.cell_rhs*=0;
 
   for (unsigned int q_point=0; q_point<scratch.n_q_points;
        ++q_point)
@@ -65,9 +65,9 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
 
   if (assemble_matrix)
     {
-      *ale_matrix=0;
+      (*ale_matrix) *= 0;
     }
-  *ale_rhs=0;
+  (*ale_rhs) *= 0;
 
   QGauss<dim>   quadrature_formula(fem_properties.fluid_degree+2);
   FEValues<dim> fe_values (ale_fe, quadrature_formula,

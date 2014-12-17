@@ -148,8 +148,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   std::cout << left_vect * test_transpose(grad )* right_vect << std::endl; */
 
   scratch.fe_vertices_values.reinit(cell);
-  data.cell_matrix=0;
-  data.cell_rhs=0;
+  data.cell_matrix*=0;
+  data.cell_rhs*=0;
 
   // if (scratch.mode_type==state && physical_properties.moving_domain)
   //   {
@@ -1081,11 +1081,11 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 
   if (assemble_matrix)
     {
-      *fluid_matrix=0;
+      (*fluid_matrix) *= 0;
     }
-  *fluid_rhs=0;
+  (*fluid_rhs) *= 0;
 
-  Vector<double> tmp(fluid_rhs->size());
+  Vector<double> temporary_vector(fluid_rhs->size());
   Vector<double> forcing_terms(fluid_rhs->size());
 
   QGauss<dim>   quadrature_formula(fem_properties.fluid_degree+2);
@@ -1104,21 +1104,22 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 
   if (enum_==state)
     {
+      temporary_vector *= 0;
       FluidRightHandSide<dim> rhs_function(physical_properties);
       rhs_function.set_time(time);
       VectorTools::create_right_hand_side(fluid_dof_handler,
 					  QGauss<dim>(fluid_fe.degree+2),
 					  rhs_function,
-					  tmp);
-      forcing_terms = tmp;
+					  temporary_vector);
+      forcing_terms = temporary_vector;
       forcing_terms *= fem_properties.fluid_theta;
       rhs_function.set_time(time - time_step);
       VectorTools::create_right_hand_side(fluid_dof_handler,
 					  QGauss<dim>(fluid_fe.degree+2),
 					  rhs_function,
-					  tmp);
-      forcing_terms.add((1 - fem_properties.fluid_theta), tmp);
-      *fluid_rhs += forcing_terms;
+					  temporary_vector);
+      forcing_terms.add((1 - fem_properties.fluid_theta), temporary_vector);
+      (*fluid_rhs) += forcing_terms;
     }
 
   std::vector<Vector<double> > z_vertices(vertices_quadrature_formula.size(), Vector<double>(dim+1));

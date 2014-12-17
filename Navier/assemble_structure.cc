@@ -75,8 +75,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   std::vector<Tensor<2,dim,double> > 	        S2 (structure_fe.dofs_per_cell, Tensor<2,dim,double>());
 
   scratch.fe_values.reinit(cell);
-  data.cell_matrix=0;
-  data.cell_rhs=0;
+  data.cell_matrix*=0;
+  data.cell_rhs*=0;
   
   Tensor<2,dim,double> Identity;
   for (unsigned int i=0; i<dim; ++i)
@@ -576,12 +576,12 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
 
   if (assemble_matrix)
     {
-      *structure_matrix=0;
+      (*structure_matrix) *= 0;
     }
-  *structure_rhs=0;
+  (*structure_rhs) *= 0;
 
-  Vector<double> tmp(structure_rhs->size());
-  Vector<double> forcing_terms(structure_rhs->size());
+  // Vector<double> temporary_vector(structure_rhs->size());
+  // Vector<double> forcing_terms(structure_rhs->size());
 
   QGauss<dim>   quadrature_formula(fem_properties.structure_degree+2);
 
@@ -594,15 +594,15 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   //     VectorTools::create_right_hand_side(structure_dof_handler,
   // 					  QGauss<dim>(structure_fe.degree+2),
   // 					  rhs_function,
-  // 					  tmp);
-  //     forcing_terms = tmp;
+  // 					  temporary_vector);
+  //     forcing_terms = temporary_vector;
   //     forcing_terms *= fem_properties.structure_theta;
   //     rhs_function.set_time(time - time_step);
   //     VectorTools::create_right_hand_side(structure_dof_handler,
   // 					  QGauss<dim>(structure_fe.degree+2),
   // 					  rhs_function,
-  // 					  tmp);
-  //     forcing_terms.add((1-fem_properties.structure_theta), tmp);
+  // 					  temporary_vector);
+  //     forcing_terms.add((1-fem_properties.structure_theta), temporary_vector);
   //     *structure_rhs += forcing_terms;
   //   }
 
