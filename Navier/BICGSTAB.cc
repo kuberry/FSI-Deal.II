@@ -66,7 +66,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
 {
 
   // This gives the initial guess x_0
-  tmp=std::max(physical_properties.rho_f,physical_properties.rho_s)*fem_properties.cg_tolerance;
+  for (unsigned int i=0; i<tmp.size(); ++i) tmp[i]=std::max(physical_properties.rho_f,physical_properties.rho_s)*fem_properties.cg_tolerance;
   rhs_for_linear_h=0;
   transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
   transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
