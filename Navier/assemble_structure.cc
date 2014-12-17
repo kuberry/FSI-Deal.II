@@ -5,9 +5,9 @@
 template <int dim>
 void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_number) {
   // STRUCTURE SOLVER ITERATIONS
-  //pcout <<"Before structure"<<std::endl;
-  //solution_star.block(1)=1;
-  solution_star.block(1) = solution.block(1); 
+  // pcout <<"Before structure"<<std::endl;
+  // solution_star.block(1)=1;
+  // solution_star.block(1) = solution.block(1); 
   do {
     solution_star.block(1)=solution.block(1);
     //timer.enter_subsection ("Assemble");
@@ -136,7 +136,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 	      } else {
 		E[k]             = .5 * (transpose(F[k])*F[k] - Identity - transpose(grad_phi_n[k])*grad_phi_n[k]); // remove nonlinear contribution
 		E[k]            +=  .5 * transpose(grad_n_star[q])*grad_phi_n[k];
-		if (fem_properties.newton) {
+		if (fem_properties.structure_newton) {
 		  E2[k]          = E[k] + .5 * transpose(grad_phi_n[k])*grad_n_star[q]; // add nonlinear contribution back in
 		} 
 	      }
@@ -161,7 +161,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 			  if (component_j<dim)
 			    {
 			      if (physical_properties.nonlinear_elasticity) {
-				if (fem_properties.newton) {
+				if (fem_properties.structure_newton) {
 				  data.cell_matrix(i,j)+= (
 							   scalar_product(fem_properties.structure_theta*S_star*transpose(grad_phi_n[j]), transpose(grad_phi_n[i]))
 							   + scalar_product(fem_properties.structure_theta*S2[j]*transpose(F_star), transpose(grad_phi_n[i]))
@@ -338,7 +338,7 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 					     - scalar_product((1-fem_properties.structure_theta)*S_old*transpose(F_old), transpose(grad_phi_i_eta))
 
 					     )* scratch.fe_values.JxW(q);
-			if (fem_properties.newton) {
+			if (fem_properties.structure_newton) {
 			  data.cell_rhs(i) += ( -scalar_product(fem_properties.structure_theta*S_star, transpose(grad_phi_i_eta))
 						 +  scalar_product(fem_properties.structure_theta*S_star2*transpose(F_star), transpose(grad_phi_i_eta))
 						)* scratch.fe_values.JxW(q);

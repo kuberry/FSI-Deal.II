@@ -62,7 +62,8 @@ namespace Parameters
 
     // Solver Parameters
     bool                  richardson;
-    bool                  newton; 
+    bool                  fluid_newton; 
+    bool                  structure_newton; 
   };
   struct PhysicalProperties
   {
@@ -186,8 +187,10 @@ namespace Parameters
 	  // Operations Parameters
 	  prm.declare_entry("richardson", "true", Patterns::Bool(),
 			    "use Richardson extrapolation for the convective term.");
-	  prm.declare_entry("newton", "true", Patterns::Bool(),
+	  prm.declare_entry("fluid newton", "true", Patterns::Bool(),
 			    "use Newton's method for convergence of nonlinearity in NS solve.");
+	  prm.declare_entry("structure newton", "true", Patterns::Bool(),
+			    "use Newton's method for convergence of nonlinearity in Elasticity solve.");
 	  prm.declare_entry("moving domain", "true", Patterns::Bool(),
 	  			  "should the ALE be used.");
 	  prm.declare_entry("move domain", "false", Patterns::Bool(),

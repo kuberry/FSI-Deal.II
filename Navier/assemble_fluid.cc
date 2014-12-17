@@ -12,16 +12,16 @@
 template <int dim>
 void FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number) {
   // solution_star.block(0)=1;
-  bool newton = fem_properties.newton;
+  bool newton = fem_properties.fluid_newton;
   unsigned int picard_iterations = 1;
   unsigned int loop_count = 0;
   do  {
     solution_star.block(0)=solution.block(0);
     //timer.enter_subsection ("Assemble");
-    if (loop_count < picard_iterations) fem_properties.newton = false; 
+    if (loop_count < picard_iterations) fem_properties.fluid_newton = false; 
     // Turn off Newton's method for a few picard iterations
     assemble_fluid(state, true);
-    if (loop_count < picard_iterations) fem_properties.newton = newton;
+    if (loop_count < picard_iterations) fem_properties.fluid_newton = newton;
     //timer.leave_subsection();
 
     dirichlet_boundaries((System)0,state);
@@ -50,7 +50,7 @@ void FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number
     //timer.leave_subsection ();
     solution_star.block(0)-=solution.block(0);
     //++total_solves;
-    if ((fem_properties.richardson && !fem_properties.newton) || !physical_properties.navier_stokes) {
+    if ((fem_properties.richardson && !fem_properties.fluid_newton) || !physical_properties.navier_stokes) {
       break;
     } else {
       std::cout << "F: " << solution_star.block(0).l2_norm() << std::endl;
@@ -155,7 +155,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   //   {
   //     // if (update_domain)
   //     // {
-  //     // AssertThrow((!fem_properties.richardson)||(fem_properties.richardson && fem_properties.newton) || !physical_properties.navier_stokes, ExcNotImplemented());
+  //     // AssertThrow((!fem_properties.richardson)||(fem_properties.richardson && fem_properties.fluid_newton) || !physical_properties.navier_stokes, ExcNotImplemented());
   // 	  //std::cout << GeometryInfo<dim>::vertices_per_cell << " " << scratch.n_vertices_q_points << std::endl;
   // 	  for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
   // 	    {
@@ -181,14 +181,14 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
   if (data.assemble_matrix)
     {
-      AssertThrow(!(fem_properties.richardson && !fem_properties.newton && physical_properties.navier_stokes && physical_properties.stability_terms),ExcNotImplemented());
+      AssertThrow(!(fem_properties.richardson && !fem_properties.fluid_newton && physical_properties.navier_stokes && physical_properties.stability_terms),ExcNotImplemented());
 
       scratch.fe_values.get_function_values (old_solution.block(0), old_solution_values);
       scratch.fe_values.get_function_values (solution_star.block(0),u_star_values);
       scratch.fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u_old); // THESE NEED TO BE TRANSPOSED IN THE FUTURE
       scratch.fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star); // THESE ALSO NEED TO BE TRANSPOSED, since Deal.II transposes gradients
 
-      if (fem_properties.richardson && !fem_properties.newton)
+      if (fem_properties.richardson && !fem_properties.fluid_newton)
 	{
 	  scratch.fe_values.get_function_values (old_old_solution.block(0), old_old_solution_values);
 	  scratch.fe_values[velocities].get_function_gradients(old_old_solution.block(0),grad_u_old_old);
@@ -206,7 +206,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	    {
 	      u_star[d] = u_star_values[q](d);
 	      u_old[d] = old_solution_values[q](d);
-	      if (fem_properties.richardson && !fem_properties.newton)
+	      if (fem_properties.richardson && !fem_properties.fluid_newton)
 		{
 		  u_old_old[d] = old_old_solution_values[q](d);
 		}
@@ -239,8 +239,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			{
 			  if (physical_properties.navier_stokes)
 			    {
-			      // assumes not (fem_properties.richardson && !fem_properties.newton && physical_properties.stability_terms)
-			      if (fem_properties.newton)
+			      // assumes not (fem_properties.richardson && !fem_properties.fluid_newton && physical_properties.stability_terms)
+			      if (fem_properties.fluid_newton)
 				{
 				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    ( 
@@ -281,7 +281,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			{
 			  if (physical_properties.navier_stokes)
 			    {
-			      if (fem_properties.newton)
+			      if (fem_properties.fluid_newton)
 				{
 				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    ( 
@@ -322,7 +322,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			{
 			  if (physical_properties.navier_stokes)
 			    {
-			      if (fem_properties.newton)
+			      if (fem_properties.fluid_newton)
 				{
 				  data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				    ( 
@@ -366,7 +366,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			{
 			  if (physical_properties.navier_stokes)
 			    {
-			      if (fem_properties.richardson && !fem_properties.newton)
+			      if (fem_properties.richardson && !fem_properties.fluid_newton)
 				{
 				  data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
@@ -375,7 +375,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				}
 			      else
 				{
-				  if (fem_properties.newton)
+				  if (fem_properties.fluid_newton)
 				    {
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					( 
@@ -410,7 +410,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			{
 			  if (physical_properties.navier_stokes)
 			    {
-			      if (fem_properties.richardson && !fem_properties.newton)
+			      if (fem_properties.richardson && !fem_properties.fluid_newton)
 				{
 				  data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
@@ -419,7 +419,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				}
 			      else
 				{
-				  if (fem_properties.newton)
+				  if (fem_properties.fluid_newton)
 				    {
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
@@ -454,7 +454,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			{
 			  if (physical_properties.navier_stokes)
 			    {
-			      if (fem_properties.richardson && !fem_properties.newton)
+			      if (fem_properties.richardson && !fem_properties.fluid_newton)
 				{
 				  data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
@@ -463,7 +463,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				}
 			      else
 				{
-				  if (fem_properties.newton)
+				  if (fem_properties.fluid_newton)
 				    {
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
@@ -540,9 +540,9 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		//const double div_phi_i_s =  scratch.fe_values[velocities].divergence (i, q);
 		if (physical_properties.navier_stokes)
 		  {
-		    if (fem_properties.richardson && !fem_properties.newton)
+		    if (fem_properties.richardson && !fem_properties.fluid_newton)
 		      {
-		        // assumes not (fem_properties.richardson && !fem_properties.newton && physical_properties.stability_terms)
+		        // assumes not (fem_properties.richardson && !fem_properties.fluid_newton && physical_properties.stability_terms)
 			data.cell_rhs(i) -= (1-fem_properties.fluid_theta) * physical_properties.rho_f * 
 			  (
 			   (1.5*u_old-.5*u_old_old)*transpose(grad_u_old[q])*phi_i_s
@@ -550,7 +550,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		      }
 		    else
 		      {
-			if (fem_properties.newton) 
+			if (fem_properties.fluid_newton) 
 			  {
 			    if (physical_properties.stability_terms)
 			      {
@@ -672,7 +672,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      		    {
 	      		      if (scratch.mode_type==state)
 	      			{
-				  if (fem_properties.newton)
+				  if (fem_properties.fluid_newton)
 				    {
 				      data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 					*( 
@@ -722,7 +722,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      		    }
 			  if (scratch.mode_type==state)
 			    {
-			      if (fem_properties.newton) 
+			      if (fem_properties.fluid_newton) 
 				{
 				  data.cell_rhs(i) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				    *(
@@ -831,7 +831,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      		    {
 	      		      if (scratch.mode_type==state)
 	      			{
-				  if (fem_properties.newton)
+				  if (fem_properties.fluid_newton)
 				    {
 				      data.cell_matrix(i,j) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 					*( 
@@ -881,7 +881,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      		    }
 			  if (scratch.mode_type==state)
 			    {
-			      if (fem_properties.newton) 
+			      if (fem_properties.fluid_newton) 
 				{
 				  data.cell_rhs(i) += 0.5 * pow(fem_properties.fluid_theta,2) * physical_properties.rho_f 
 				    *(

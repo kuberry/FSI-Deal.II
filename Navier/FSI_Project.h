@@ -250,7 +250,8 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   fem_properties.adjoint_type           = prm_.get_integer("adjoint type");
   // Solver Parameters
   fem_properties.richardson		= prm_.get_bool("richardson");
-  fem_properties.newton 		= prm_.get_bool("newton");
+  fem_properties.fluid_newton 		= prm_.get_bool("fluid newton");
+  fem_properties.structure_newton 	= prm_.get_bool("structure newton");
   physical_properties.moving_domain	= prm_.get_bool("moving domain");
   physical_properties.move_domain	= prm_.get_bool("move domain");
 
