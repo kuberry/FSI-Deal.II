@@ -506,6 +506,17 @@ void FSIProblem<dim>::run ()
 	  y_displacement.block_write(y_displacement_output);
 	  y_displacement_output.close();	  
 
+	  const std::string temp_output_filename = Utilities::int_to_string (timestep_number, 5) + ".log";
+	  const std::string last_output_filename = "last.log";
+	  std::ofstream temp_qoi_output (temp_output_filename.c_str());
+	  std::ofstream last_qoi_output (last_output_filename.c_str());
+	  for (unsigned int i=0; i<timestep_number; ++i) {
+	    temp_qoi_output << fem_properties.t0 + (i+1)*time_step << " " << x_displacement[i] << " " << y_displacement[i] << " " << lift[i] << " " << drag[i] << std::endl;
+	    last_qoi_output << fem_properties.t0 + (i+1)*time_step << " " << x_displacement[i] << " " << y_displacement[i] << " " << lift[i] << " " << drag[i] << std::endl;
+	  }
+	  temp_qoi_output.close();
+	  last_qoi_output.close();
+
 	  // Last, confirm that all things have been written to file
 	  std::ofstream recent_iteration_num_rewrite ("recent.data");
 	  recent_iteration_num_rewrite << (timestep_number+1);
