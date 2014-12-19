@@ -110,6 +110,10 @@ class FSIProblem
   void assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
 							     FullScratchData<dim>& scratch,
 							     PerTaskData<dim>& data );
+  void assemble_structure_stresses_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
+							     FullScratchData<dim>& scratch,
+							     PerTaskData<dim>& data );
+
   void copy_local_structure_to_global (const PerTaskData<dim> &data);
 
   void assemble_ale(Mode enum_, bool assemble_matrix);

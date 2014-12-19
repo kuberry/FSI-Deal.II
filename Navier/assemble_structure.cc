@@ -28,7 +28,7 @@ void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_nu
     solution_star.block(1)-=solution.block(1);
     //++total_solves;
     std::cout << "S: " << solution_star.block(1).l2_norm() << std::endl;
-  } while (solution_star.block(1).l2_norm()>1e-8);
+  } while (solution_star.block(1).l2_norm()>1e-8);// && physical_properties.nonlinear_elasticity);
   solution_star.block(1) = solution.block(1); 
 }
 
@@ -56,11 +56,11 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
   const FEValuesExtractors::Vector velocities (dim);
 
   std::vector<Vector<double> > old_solution_values(scratch.n_q_points, Vector<double>(2*dim));
-  std::vector<Vector<double> > adjoint_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
-  std::vector<Vector<double> > linear_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
+  //std::vector<Vector<double> > adjoint_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
+  //std::vector<Vector<double> > linear_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
   std::vector<Tensor<2,dim,double>  > grad_n_star (scratch.n_q_points, Tensor<2,dim,double>());
   std::vector<Tensor<2,dim,double>  > grad_n_old (scratch.n_q_points, Tensor<2,dim,double>());
-  std::vector<Vector<double> > g_stress_values(scratch.n_face_q_points, Vector<double>(2*dim));
+  //std::vector<Vector<double> > g_stress_values(scratch.n_face_q_points, Vector<double>(2*dim));
   std::vector<Tensor<1,dim,double>  > stress_values (2*dim, Tensor<1,dim,double>());
   Tensor<1,dim,double> old_rhs_values;
   Tensor<1,dim,double> rhs_values;
@@ -326,7 +326,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		      	// data.cell_rhs(i) += ((1-fem_properties.structure_theta)*old_rhs_values + fem_properties.structure_theta*rhs_values) *phi_i_eta* scratch.fe_values.JxW(q);
 		      }
 		      if (physical_properties.nonlinear_elasticity) {
-			data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
+			if (fem_properties.time_dependent) {
+			  data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
 					     // Formulation 1: 
 					     // - scalar_product(.5*F_old*S_old, grad_phi_i_eta)
 					     // or
@@ -336,14 +337,14 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 					     // or
 					     // Formulation 3:
 					     - scalar_product((1-fem_properties.structure_theta)*S_old*transpose(F_old), transpose(grad_phi_i_eta))
-
 					     )* scratch.fe_values.JxW(q);
+			}
 			if (fem_properties.structure_newton) {
 			  data.cell_rhs(i) += ( -scalar_product(fem_properties.structure_theta*S_star, transpose(grad_phi_i_eta))
 						 +  scalar_product(fem_properties.structure_theta*S_star2*transpose(F_star), transpose(grad_phi_i_eta))
 						)* scratch.fe_values.JxW(q);
 			}
-		      } else {
+		      } else { // linear elasticity
 			if (fem_properties.time_dependent) {
 			  data.cell_rhs(i) += (physical_properties.rho_s/time_step *phi_i_eta*old_v
 					       -(1-fem_properties.structure_theta)*(scalar_product(S_old, .5*(grad_phi_i_eta+transpose(grad_phi_i_eta))))
@@ -412,7 +413,167 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		      }
 		}
 	    }
-	  else if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+	  // else if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+	  //   {    
+	  //     scratch.fe_face_values.reinit (cell, face_no);
+
+	  //     AssertThrow(dim==2,ExcNotImplemented()); // This scaling factor only makes sense for 1d line integrals.
+	  //     std::vector<double> coordinate_transformation_multiplier_old(scratch.n_face_q_points);
+	  //     std::vector<double> coordinate_transformation_multiplier_star(scratch.n_face_q_points);
+	  //     if (physical_properties.nonlinear_elasticity) {
+	  // 	std::vector<Tensor<2,dim,double>  > face_grad_n_star (scratch.n_face_q_points, Tensor<2,dim,double>());
+	  // 	std::vector<Tensor<2,dim,double>  > face_grad_n_old (scratch.n_face_q_points, Tensor<2,dim,double>());
+	  // 	scratch.fe_face_values[displacements].get_function_gradients(old_solution.block(1),face_grad_n_old);
+	  // 	scratch.fe_face_values[displacements].get_function_gradients(solution_star.block(1),face_grad_n_star);
+	  // 	for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+	  // 	  {
+	  // 	    coordinate_transformation_multiplier_old[q] = 1;//std::sqrt(std::pow(1+face_grad_n_old[q][0][0],2)+std::pow(1+face_grad_n_old[q][1][1],2));
+	  // 	    coordinate_transformation_multiplier_star[q] = 1;//std::sqrt(std::pow(1+face_grad_n_star[q][0][0],2)+std::pow(1+face_grad_n_star[q][1][1],2));
+	  // 	  }
+	  //     } else { // linear elasticity has no spatial multiplier
+	  // 	for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+	  // 	  {
+	  // 	    coordinate_transformation_multiplier_old[q] = 1;
+	  // 	  }
+	  // 	coordinate_transformation_multiplier_star = coordinate_transformation_multiplier_old;
+	  //     }
+
+	  //     if ((scratch.mode_type)==state)
+	  // 	{
+	  // 	  scratch.fe_face_values.get_function_values (stress.block(1), g_stress_values);
+
+	  // 	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+	  // 	    {
+	  // 	      Tensor<1,dim,double> g_stress;
+	  // 	      for (unsigned int d=0; d<dim; ++d)
+	  // 		g_stress[d] = g_stress_values[q](d);
+	  // 	      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
+	  // 		{
+	  // 		  data.cell_rhs(i) += fem_properties.structure_theta*coordinate_transformation_multiplier_star[q]*(scratch.fe_face_values[displacements].value (i, q)*
+	  // 					  (-g_stress) * scratch.fe_face_values.JxW(q));
+	  // 		}
+	  // 	    }
+	  // 	  scratch.fe_face_values.get_function_values (old_stress.block(1), g_stress_values);
+	  // 	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+	  // 	    {
+	  // 	      Tensor<1,dim,double> g_stress;
+	  // 	      for (unsigned int d=0; d<dim; ++d)
+	  // 		g_stress[d] = g_stress_values[q](d);
+	  // 	      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
+	  // 		{
+	  // 		  data.cell_rhs(i) += (1-fem_properties.structure_theta)*coordinate_transformation_multiplier_old[q]*(scratch.fe_face_values[displacements].value (i, q)*
+	  // 					  (-g_stress) * scratch.fe_face_values.JxW(q));
+	  // 		}
+	  // 	    }
+	  // 	}
+	  //     else if ((scratch.mode_type)==adjoint)
+	  // 	{
+	  // 	  scratch.fe_face_values.get_function_values (rhs_for_adjoint.block(1), adjoint_rhs_values);
+
+	  // 	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+	  // 	    {
+	  // 	      Tensor<1,dim,double> r;
+	  // 	      if (fem_properties.adjoint_type==1)
+	  // 		{
+	  // 		  for (unsigned int d=0; d<dim; ++d)
+	  // 		    r[d] = adjoint_rhs_values[q](d);
+	  // 		  for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
+	  // 		    {
+	  // 		      data.cell_rhs(i) += fem_properties.structure_theta*coordinate_transformation_multiplier_star[q]*(scratch.fe_face_values[displacements].value (i, q)*
+	  // 							   r * scratch.fe_face_values.JxW(q));
+	  // 		    }
+	  // 		}
+	  // 	      else
+	  // 		{
+	  // 		  if (fem_properties.optimization_method.compare("Gradient")==0)
+	  // 		    {
+	  // 		      for (unsigned int d=0; d<dim; ++d)
+	  // 			r[d] = adjoint_rhs_values[q](d+dim);
+	  // 		      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
+	  // 			{
+	  // 			  data.cell_rhs(i) += fem_properties.structure_theta*coordinate_transformation_multiplier_star[q]*(scratch.fe_face_values[velocities].value (i, q)*
+	  // 							       r * scratch.fe_face_values.JxW(q));
+	  // 			}
+	  // 		    }
+	  // 		  else
+	  // 		    {
+	  // 		      for (unsigned int d=0; d<dim; ++d)
+	  // 			r[d] = adjoint_rhs_values[q](d+dim);
+	  // 		      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
+	  // 			{
+	  // 			  data.cell_rhs(i) += fem_properties.structure_theta*coordinate_transformation_multiplier_star[q]*(scratch.fe_face_values[velocities].value (i, q)*
+	  // 							       r * scratch.fe_face_values.JxW(q));
+	  // 			}
+	  // 		    }
+	  // 		}
+
+	  // 	    }
+	  // 	}
+	  //     else // (scratch.mode_type)==linear
+	  // 	{
+	  // 	  scratch.fe_face_values.get_function_values (rhs_for_linear.block(1), linear_rhs_values);
+	  // 	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
+	  // 	    {
+	  // 	      Tensor<1,dim,double> h;
+	  // 	      for (unsigned int d=0; d<dim; ++d)
+	  // 		h[d] = linear_rhs_values[q](d);
+	  // 	      for (unsigned int i=0; i<structure_fe.dofs_per_cell; ++i)
+	  // 		{
+	  // 		  data.cell_rhs(i) += fem_properties.structure_theta*coordinate_transformation_multiplier_star[q]*(scratch.fe_face_values[displacements].value (i, q)*
+	  // 						       h * scratch.fe_face_values.JxW(q));
+	  // 		}
+	  // 	    }
+	  // 	}
+	  //   }
+	}
+    }
+    //timer.leave_subsection ();
+    
+    cell->get_dof_indices (data.dof_indices);
+}
+
+template <int dim>
+void FSIProblem<dim>::copy_local_structure_to_global (const PerTaskData<dim>& data )
+{
+  // ConditionalOStream pcout(std::cout,Threads::this_thread_id()==0);//master_thread); 
+  //TimerOutput timer (pcout, TimerOutput::summary,
+  //		     TimerOutput::wall_times);
+  //timer.enter_subsection ("Copy");
+  if (data.assemble_matrix)
+    {
+      structure_constraints.distribute_local_to_global (data.cell_matrix, data.cell_rhs,
+  							data.dof_indices,
+  							*data.global_matrix, *data.global_rhs);
+    }
+  else
+    {
+      structure_constraints.distribute_local_to_global (data.cell_rhs,
+  							data.dof_indices,
+  							*data.global_rhs);
+    }
+}
+
+template <int dim>
+void FSIProblem<dim>::assemble_structure_stresses_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
+						       FullScratchData<dim>& scratch,
+						       PerTaskData<dim>& data )
+{
+  unsigned int state=0, adjoint=1, linear=2;
+
+  const FEValuesExtractors::Vector displacements (0);
+  const FEValuesExtractors::Vector velocities (dim);
+
+  std::vector<Vector<double> > g_stress_values(scratch.n_face_q_points, Vector<double>(2*dim));
+  std::vector<Vector<double> > adjoint_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
+  std::vector<Vector<double> > linear_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
+
+  for (unsigned int face_no=0;
+       face_no<GeometryInfo<dim>::faces_per_cell;
+       ++face_no)
+    {
+      if (cell->at_boundary(face_no))
+	{
+	  if (structure_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 	    {    
 	      scratch.fe_face_values.reinit (cell, face_no);
 
@@ -426,8 +587,8 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 		scratch.fe_face_values[displacements].get_function_gradients(solution_star.block(1),face_grad_n_star);
 		for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		  {
-		    coordinate_transformation_multiplier_old[q] = std::sqrt(std::pow(1+face_grad_n_old[q][0][0],2)+std::pow(1+face_grad_n_old[q][1][1],2));
-		    coordinate_transformation_multiplier_star[q] = std::sqrt(std::pow(1+face_grad_n_star[q][0][0],2)+std::pow(1+face_grad_n_star[q][1][1],2));
+		    coordinate_transformation_multiplier_old[q] = 1;//std::sqrt(std::pow(1+face_grad_n_old[q][0][0],2)+std::pow(1+face_grad_n_old[q][1][1],2));
+		    coordinate_transformation_multiplier_star[q] = 1;//std::sqrt(std::pow(1+face_grad_n_star[q][0][0],2)+std::pow(1+face_grad_n_star[q][1][1],2));
 		  }
 	      } else { // linear elasticity has no spatial multiplier
 		for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
@@ -532,28 +693,6 @@ void FSIProblem<dim>::assemble_structure_matrix_on_one_cell (const typename DoFH
 }
 
 template <int dim>
-void FSIProblem<dim>::copy_local_structure_to_global (const PerTaskData<dim>& data )
-{
-  // ConditionalOStream pcout(std::cout,Threads::this_thread_id()==0);//master_thread); 
-  //TimerOutput timer (pcout, TimerOutput::summary,
-  //		     TimerOutput::wall_times);
-  //timer.enter_subsection ("Copy");
-  if (data.assemble_matrix)
-    {
-      structure_constraints.distribute_local_to_global (data.cell_matrix, data.cell_rhs,
-  							data.dof_indices,
-  							*data.global_matrix, *data.global_rhs);
-    }
-  else
-    {
-      structure_constraints.distribute_local_to_global (data.cell_rhs,
-  							data.dof_indices,
-  							*data.global_rhs);
-    }
-}
-
-
-template <int dim>
 void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
 {
   SparseMatrix<double> *structure_matrix;
@@ -627,11 +766,75 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   		   scratch_data,
   		   per_task_data);
 
+
+  // QTrapez<dim> vertices_quadrature_formula;
+  // FEValues<dim> fe_vertices_values (structure_fe, vertices_quadrature_formula,
+  // 				    update_values);
+
+  // std::vector<Vector<double> > z_vertices(vertices_quadrature_formula.size(), Vector<double>(2*dim));
+  // std::vector<Vector<double> > z_old_vertices(vertices_quadrature_formula.size(), Vector<double>(2*dim));
+  // std::set<unsigned int> visited_vertices;
+  // typename DoFHandler<dim>::active_cell_iterator
+  //   cell = structure_dof_handler.begin_active(),
+  //   endc = structure_dof_handler.end();
+  // for (; cell!=endc; ++cell) {
+  //   fe_vertices_values.reinit(cell);
+  //   if (physical_properties.nonlinear_elasticity)
+  //     {
+  // 	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
+  // 	  {
+  // 	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
+  // 	      {
+  // 		Point<2> &v = cell->vertex(i);
+  // 		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
+  // 		for (unsigned int j=0; j<dim; ++j)
+  // 		  {
+  // 		    v(j) += z_vertices[i](j);
+  // 		  }
+  // 		visited_vertices.insert(cell->vertex_index(i));
+  // 	      }
+  // 	  }
+  //     }
+  // }
   
+  WorkStream::run (structure_dof_handler.begin_active(),
+  		   structure_dof_handler.end(),
+  		   *this,
+  		   &FSIProblem<dim>::assemble_structure_stresses_on_one_cell,
+  		   &FSIProblem<dim>::copy_local_structure_to_global,
+  		   scratch_data,
+  		   per_task_data);
+
+  // visited_vertices.clear();
+  // cell = structure_dof_handler.begin_active();
+  // endc = structure_dof_handler.end();
+  // for (; cell!=endc; ++cell) {
+  //   fe_vertices_values.reinit(cell);
+  //   if (physical_properties.nonlinear_elasticity)
+  //     {
+  // 	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
+  // 	  {
+  // 	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
+  // 	      {
+  // 		Point<2> &v = cell->vertex(i);
+  // 		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
+  // 		for (unsigned int j=0; j<dim; ++j)
+  // 		  {
+  // 		    v(j) -= z_vertices[i](j);
+  // 		  }
+  // 		visited_vertices.insert(cell->vertex_index(i));
+  // 	      }
+  // 	  }
+  //     }
+  // }
 }
 template void FSIProblem<2>::structure_state_solve(unsigned int initialized_timestep_number);
 
 template void FSIProblem<2>::assemble_structure_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
+							     FullScratchData<2>& scratch,
+							     PerTaskData<2>& data );
+
+template void FSIProblem<2>::assemble_structure_stresses_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
 							     FullScratchData<2>& scratch,
 							     PerTaskData<2>& data );
 
