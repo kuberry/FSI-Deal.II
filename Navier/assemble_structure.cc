@@ -787,7 +787,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
   	      {
   		Point<2> &v = cell->vertex(i);
-  		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
+  		fe_vertices_values.get_function_values(old_solution.block(1), z_vertices);
   		for (unsigned int j=0; j<dim; ++j)
   		  {
   		    v(j) += z_vertices[i](j);
@@ -818,7 +818,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
   	      {
   		Point<2> &v = cell->vertex(i);
-  		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
+  		fe_vertices_values.get_function_values(old_solution.block(1), z_vertices);
   		for (unsigned int j=0; j<dim; ++j)
   		  {
   		    v(j) -= z_vertices[i](j);
