@@ -95,7 +95,8 @@ set viscosity             = 0.035
 # Richardson or Newton for solving the nonlinearity in NS
 # If there is a conflict, the default is Newton's method
 set richardson            = true
-set newton                = true
+set fluid newton          = true
+set structure newton      = true
 
 set navier stokes         = true
 
@@ -105,3 +106,4 @@ set optimization method   = BICG
 set cg tolerance          = 1e-9
 set stability terms       = false
 set adjoint type          = 2
+set nonlinear elasticity  = false
