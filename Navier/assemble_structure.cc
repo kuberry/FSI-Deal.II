@@ -28,7 +28,7 @@ void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_nu
     solution_star.block(1)-=solution.block(1);
     //++total_solves;
     std::cout << "S: " << solution_star.block(1).l2_norm() << std::endl;
-  } while (solution_star.block(1).l2_norm()>1e-8);// && physical_properties.nonlinear_elasticity);
+  } while (solution_star.block(1).l2_norm()>1e-8 && physical_properties.nonlinear_elasticity);
   solution_star.block(1) = solution.block(1); 
 }
 
@@ -567,6 +567,8 @@ void FSIProblem<dim>::assemble_structure_stresses_on_one_cell (const typename Do
   std::vector<Vector<double> > adjoint_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
   std::vector<Vector<double> > linear_rhs_values(scratch.n_face_q_points, Vector<double>(2*dim));
 
+  data.cell_rhs*=0;
+
   for (unsigned int face_no=0;
        face_no<GeometryInfo<dim>::faces_per_cell;
        ++face_no)
@@ -759,74 +761,73 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
 				    face_quadrature_formula, face_update_flags, (unsigned int)enum_);
 
   WorkStream::run (structure_dof_handler.begin_active(),
-  		   structure_dof_handler.end(),
-  		   *this,
-  		   &FSIProblem<dim>::assemble_structure_matrix_on_one_cell,
-  		   &FSIProblem<dim>::copy_local_structure_to_global,
-  		   scratch_data,
-  		   per_task_data);
+		   structure_dof_handler.end(),
+		   *this,
+		   &FSIProblem<dim>::assemble_structure_matrix_on_one_cell,
+		   &FSIProblem<dim>::copy_local_structure_to_global,
+		   scratch_data,
+		   per_task_data);
 
+  QTrapez<dim> vertices_quadrature_formula;
+  FEValues<dim> fe_vertices_values (structure_fe, vertices_quadrature_formula,
+  				    update_values);
 
-  // QTrapez<dim> vertices_quadrature_formula;
-  // FEValues<dim> fe_vertices_values (structure_fe, vertices_quadrature_formula,
-  // 				    update_values);
+  std::vector<Vector<double> > z_vertices(vertices_quadrature_formula.size(), Vector<double>(2*dim));
+  std::vector<Vector<double> > z_old_vertices(vertices_quadrature_formula.size(), Vector<double>(2*dim));
+  std::set<unsigned int> visited_vertices;
+  typename DoFHandler<dim>::active_cell_iterator
+    cell = structure_dof_handler.begin_active(),
+    endc = structure_dof_handler.end();
+  for (; cell!=endc; ++cell) {
+    fe_vertices_values.reinit(cell);
+    if (physical_properties.nonlinear_elasticity)
+      {
+  	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
+  	  {
+  	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
+  	      {
+  		Point<2> &v = cell->vertex(i);
+  		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
+  		for (unsigned int j=0; j<dim; ++j)
+  		  {
+  		    v(j) += z_vertices[i](j);
+  		  }
+  		visited_vertices.insert(cell->vertex_index(i));
+  	      }
+  	  }
+      }
+  }
 
-  // std::vector<Vector<double> > z_vertices(vertices_quadrature_formula.size(), Vector<double>(2*dim));
-  // std::vector<Vector<double> > z_old_vertices(vertices_quadrature_formula.size(), Vector<double>(2*dim));
-  // std::set<unsigned int> visited_vertices;
-  // typename DoFHandler<dim>::active_cell_iterator
-  //   cell = structure_dof_handler.begin_active(),
-  //   endc = structure_dof_handler.end();
-  // for (; cell!=endc; ++cell) {
-  //   fe_vertices_values.reinit(cell);
-  //   if (physical_properties.nonlinear_elasticity)
-  //     {
-  // 	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
-  // 	  {
-  // 	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
-  // 	      {
-  // 		Point<2> &v = cell->vertex(i);
-  // 		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
-  // 		for (unsigned int j=0; j<dim; ++j)
-  // 		  {
-  // 		    v(j) += z_vertices[i](j);
-  // 		  }
-  // 		visited_vertices.insert(cell->vertex_index(i));
-  // 	      }
-  // 	  }
-  //     }
-  // }
-  
   WorkStream::run (structure_dof_handler.begin_active(),
-  		   structure_dof_handler.end(),
-  		   *this,
-  		   &FSIProblem<dim>::assemble_structure_stresses_on_one_cell,
-  		   &FSIProblem<dim>::copy_local_structure_to_global,
-  		   scratch_data,
-  		   per_task_data);
+		   structure_dof_handler.end(),
+		   *this,
+		   &FSIProblem<dim>::assemble_structure_stresses_on_one_cell,
+		   &FSIProblem<dim>::copy_local_structure_to_global,
+		   scratch_data,
+		   per_task_data);
 
-  // visited_vertices.clear();
-  // cell = structure_dof_handler.begin_active();
-  // endc = structure_dof_handler.end();
-  // for (; cell!=endc; ++cell) {
-  //   fe_vertices_values.reinit(cell);
-  //   if (physical_properties.nonlinear_elasticity)
-  //     {
-  // 	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
-  // 	  {
-  // 	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
-  // 	      {
-  // 		Point<2> &v = cell->vertex(i);
-  // 		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
-  // 		for (unsigned int j=0; j<dim; ++j)
-  // 		  {
-  // 		    v(j) -= z_vertices[i](j);
-  // 		  }
-  // 		visited_vertices.insert(cell->vertex_index(i));
-  // 	      }
-  // 	  }
-  //     }
-  // }
+  visited_vertices.clear();
+  cell = structure_dof_handler.begin_active();
+  endc = structure_dof_handler.end();
+  for (; cell!=endc; ++cell) {
+    fe_vertices_values.reinit(cell);
+    if (physical_properties.nonlinear_elasticity)
+      {
+  	for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
+  	  {
+  	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
+  	      {
+  		Point<2> &v = cell->vertex(i);
+  		fe_vertices_values.get_function_values(solution_star.block(1), z_vertices);
+  		for (unsigned int j=0; j<dim; ++j)
+  		  {
+  		    v(j) -= z_vertices[i](j);
+  		  }
+  		visited_vertices.insert(cell->vertex_index(i));
+  	      }
+  	  }
+      }
+  }
 }
 template void FSIProblem<2>::structure_state_solve(unsigned int initialized_timestep_number);
 
