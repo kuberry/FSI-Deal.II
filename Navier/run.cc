@@ -32,9 +32,9 @@ void FSIProblem<dim>::run ()
   timer.enter_subsection ("Setup dof system");
 
   setup_system();
-  Threads::Task<void>
-   task = Threads::new_task (&FSIProblem<dim>::build_dof_mapping,*this);
-  //build_dof_mapping();
+  // Threads::Task<void>
+  //  task = Threads::new_task (&FSIProblem<dim>::build_dof_mapping,*this);
+  build_dof_mapping();
 
   timer.leave_subsection();
 
@@ -87,7 +87,7 @@ void FSIProblem<dim>::run ()
     stress = old_stress;
     stress_input.close();
   }
-  task.join();
+  // task.join();
   transfer_interface_dofs(old_stress,old_stress,0,1);
   stress=old_stress;
   // Note to self: On a moving domain, predotting stress tensor with unit normal requires extra work (pull backs)
