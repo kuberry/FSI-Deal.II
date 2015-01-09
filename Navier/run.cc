@@ -258,30 +258,26 @@ void FSIProblem<dim>::run ()
   	  // Get the first assembly started ahead of time
   	  //Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
 
-	  if (fem_properties.optimization_method.compare("DN")==0) 
-	    { // Dirichlet-Neumann Coupling
-	      // Take the stress from fluid and give it to the structure
-	      stress.block(1)=0;
-	      tmp.block(0)=0;
-	      get_fluid_stress();
-	      transfer_interface_dofs(tmp,stress,0,1,Displacement);
-	  }
-
 	  BlockVector<double> structure_previous_iterate;
-	  if (fem_properties.optimization_method.compare("DN")==0) {
+	  if (fem_properties.optimization_method.compare("DN")==0) { 
+	    // First solve fluid then use that information to solve structure
 	    structure_previous_iterate = solution;
+	    fluid_state_solve(initialized_timestep_number);
+	    // Take the stress from fluid and give it to the structure
+	    stress.block(1)=0;
+	    tmp.block(0)=0;
+	    ale_transform_fluid();
+	    get_fluid_stress();
+	    ref_transform_fluid();
+	    transfer_interface_dofs(tmp,stress,0,1,Displacement);
+	    structure_state_solve(initialized_timestep_number);
+	  } else {
+	    // Solve both fluid and structure simultaneously
+	    Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
+	    Threads::Task<> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+	    s_solver.join();
+	    f_solver.join();
 	  }
-	  Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
-	  Threads::Task<> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
-	  s_solver.join();
-	  f_solver.join();
-	  // structure_state_solve();
-  	  //f_assembly.join();
-  	  // FLUID SOLVER ITERATIONS
-	  //fluid_state_solve();
-
-
-
 
   	  build_adjoint_rhs();
 
@@ -291,9 +287,7 @@ void FSIProblem<dim>::run ()
 	  } else {
 	    structure_previous_iterate.block(1).add(-1,solution.block(1));
 	    transfer_interface_dofs(structure_previous_iterate,rhs_for_adjoint,1,0,Displacement);
-	    ale_transform_fluid();
 	    velocity_jump=interface_error();
-	    ref_transform_fluid();
 	  } 
 	  if (count%1==0) pcout << "Jump Error: " << velocity_jump << std::endl;
 	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;
