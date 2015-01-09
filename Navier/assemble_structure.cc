@@ -8,10 +8,17 @@ void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_nu
   // pcout <<"Before structure"<<std::endl;
   // solution_star.block(1)=1;
   // solution_star.block(1) = solution.block(1); 
+  if (fem_properties.optimization_method.compare("DN")==0) {
+    tmp.block(1) = solution.block(1);
+  }
   do {
     solution_star.block(1)=solution.block(1);
     //timer.enter_subsection ("Assemble");
     assemble_structure(state, true);
+    
+    if (fem_properties.optimization_method.compare("DN")==0)
+      system_rhs.block(1) -= stress.block(1);
+
     //timer.leave_subsection();
     dirichlet_boundaries((System)1,state);
     //timer.enter_subsection ("State Solve"); 
@@ -30,6 +37,14 @@ void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_nu
     std::cout << "S: " << solution_star.block(1).l2_norm() << std::endl;
   } while (solution_star.block(1).l2_norm()>1e-8 && physical_properties.nonlinear_elasticity);
   solution_star.block(1) = solution.block(1); 
+  if (fem_properties.optimization_method.compare("DN")==0) {
+    tmp.block(1) *= (1-fem_properties.steepest_descent_alpha);
+    tmp.block(1).add(fem_properties.steepest_descent_alpha, solution.block(1));
+    solution.block(1) = tmp.block(1);
+    solution_star.block(1) = solution.block(1);
+  }
+ 
+  
 }
 
 
@@ -798,13 +813,16 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
       }
   }
 
-  WorkStream::run (structure_dof_handler.begin_active(),
-		   structure_dof_handler.end(),
-		   *this,
-		   &FSIProblem<dim>::assemble_structure_stresses_on_one_cell,
-		   &FSIProblem<dim>::copy_local_structure_to_global,
-		   scratch_data,
-		   per_task_data);
+  if (fem_properties.optimization_method.compare("DN")!=0)
+    {
+      WorkStream::run (structure_dof_handler.begin_active(),
+		       structure_dof_handler.end(),
+		       *this,
+		       &FSIProblem<dim>::assemble_structure_stresses_on_one_cell,
+		       &FSIProblem<dim>::copy_local_structure_to_global,
+		       scratch_data,
+		       per_task_data);
+    }
 
   visited_vertices.clear();
   cell = structure_dof_handler.begin_active();

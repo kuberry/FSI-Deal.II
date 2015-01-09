@@ -258,8 +258,19 @@ void FSIProblem<dim>::run ()
   	  // Get the first assembly started ahead of time
   	  //Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
 
+	  if (fem_properties.optimization_method.compare("DN")==0) 
+	    { // Dirichlet-Neumann Coupling
+	      // Take the stress from fluid and give it to the structure
+	      stress.block(1)=0;
+	      tmp.block(0)=0;
+	      get_fluid_stress();
+	      transfer_interface_dofs(tmp,stress,0,1,Displacement);
+	  }
 
-
+	  BlockVector<double> structure_previous_iterate;
+	  if (fem_properties.optimization_method.compare("DN")==0) {
+	    structure_previous_iterate = solution;
+	  }
 	  Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
 	  Threads::Task<> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
 	  s_solver.join();
@@ -275,9 +286,14 @@ void FSIProblem<dim>::run ()
   	  build_adjoint_rhs();
 
   	  velocity_jump_old = velocity_jump;
-  	  velocity_jump=interface_error();
-
-  	  if (count%1==0) pcout << "Jump Error: " << velocity_jump << std::endl;
+	  if (fem_properties.optimization_method.compare("DN")!=0) {
+	    velocity_jump=interface_error();
+	  } else {
+	    structure_previous_iterate.block(1).add(-1,solution.block(1));
+	    transfer_interface_dofs(structure_previous_iterate,rhs_for_adjoint,1,0,Displacement);
+	    velocity_jump=interface_error();
+	  } 
+	  if (count%1==0) pcout << "Jump Error: " << velocity_jump << std::endl;
 	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;
   	  
   	  if (fem_properties.optimization_method.compare("Gradient")==0)
@@ -401,9 +417,14 @@ void FSIProblem<dim>::run ()
   	      transfer_interface_dofs(stress,stress,0,1,Displacement);
   	      //if (count%50==0) pcout << "alpha: " << alpha << std::endl;
   	    }
-  	  else if (fem_properties.optimization_method.compare("CG")==0) total_solves = optimization_CG(total_solves, initialized_timestep_number);
-	  else total_solves = optimization_BICGSTAB(total_solves, initialized_timestep_number);
-
+  	  else if (fem_properties.optimization_method.compare("CG")==0) 
+	    {
+	      total_solves = optimization_CG(total_solves, initialized_timestep_number);
+	    }
+	  else if (fem_properties.optimization_method.compare("BICG")==0) 
+	    {
+	      total_solves = optimization_BICGSTAB(total_solves, initialized_timestep_number);
+	    }
   	}
       pcout << "Total Solves: " << total_solves << std::endl;
       if (fem_properties.make_plots) output_results ();

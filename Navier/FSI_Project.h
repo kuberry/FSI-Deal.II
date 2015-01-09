@@ -126,6 +126,7 @@ class FSIProblem
   unsigned int optimization_BICGSTAB(unsigned int total_solves, const unsigned int initial_timestep_number);
 
   void build_adjoint_rhs();
+  void get_fluid_stress();
   Tensor<1,dim> lift_and_drag_fluid();
   Tensor<1,dim> lift_and_drag_structure();
   double interface_error();

@@ -18,6 +18,19 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	  FluidBoundaryValues<dim> fluid_boundary_values_function(physical_properties, fem_properties);
 	  fluid_boundary_values_function.set_time (time);
 	  std::map<types::global_dof_index,double> fluid_boundary_values;
+
+	  std::map<types::global_dof_index,double> fluid_structure_boundary_values;
+	  if (fem_properties.optimization_method.compare("DN")==0)
+	    {
+	      for (unsigned int i=min_index; i<dofs_per_big_block[0]; ++i) // loops over nodes local to ale
+		{
+		  if (f2v.count(i)) // lookup key for certain ale dof
+		    {
+		      fluid_structure_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[f2v[i]]));
+		    }
+		}
+	    }
+
 	  for (unsigned int i=min_index; i<fluid_boundaries.size()+min_index; ++i)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)
@@ -40,6 +53,12 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 		    }
 		}
 	    }
+	  if (fem_properties.optimization_method.compare("DN")==0) {
+	    MatrixTools::apply_boundary_values (fluid_structure_boundary_values,
+						system_matrix.block(0,0),
+						solution.block(0),
+						system_rhs.block(0));
+	  }
 	  MatrixTools::apply_boundary_values (fluid_boundary_values,
 					      system_matrix.block(0,0),
 					      solution.block(0),

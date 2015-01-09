@@ -37,6 +37,65 @@ void FSIProblem<dim>::build_adjoint_rhs()
 }
 
 template <int dim>
+void FSIProblem<dim>::get_fluid_stress()
+{
+  tmp.block(0)=0;
+  AssertThrow(fem_properties.optimization_method.compare("DN")==0, ExcNotImplemented());
+  const FEValuesExtractors::Vector velocities (0);
+  const FEValuesExtractors::Scalar pressure (dim);
+
+  QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
+  FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
+				    update_values    | update_normal_vectors | update_gradients |
+				    update_quadrature_points  | update_JxW_values);
+  const unsigned int   n_face_q_points = face_quadrature_formula.size();
+
+  std::vector<Tensor<2,dim,double> > grad_u(n_face_q_points, Tensor<2,dim,double>());
+  std::vector<double> p(n_face_q_points);
+
+  Tensor<1,dim,double> functional;
+  Tensor<2,dim,double> Identity;
+  AssertThrow(dim==2,ExcNotImplemented());
+  for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
+
+  std::vector<types::global_dof_index> dof_indices(fluid_fe.dofs_per_cell);
+  Vector<double> cell_rhs(fluid_fe.dofs_per_cell);
+
+  typename DoFHandler<dim>::active_cell_iterator
+    cell = fluid_dof_handler.begin_active(),
+    endc = fluid_dof_handler.end();
+  for (; cell!=endc; ++cell)
+    {
+      cell_rhs *= 0;
+      for (unsigned int face_no=0;
+	   face_no<GeometryInfo<dim>::faces_per_cell;
+	   ++face_no)
+	{
+	  if (cell->at_boundary(face_no))
+	    {
+	      if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
+		{
+		  fe_face_values.reinit (cell, face_no);
+		  fe_face_values[velocities].get_function_gradients(solution.block(0),grad_u);
+		  fe_face_values[pressure].get_function_values(solution.block(0),p);
+		  for (unsigned int q=0; q<n_face_q_points; ++q)
+		    {
+		      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
+			{
+			  cell_rhs(i) += ((2*physical_properties.viscosity*.5*(transpose(grad_u[q]) + grad_u[q]) - p[q]*Identity) * fe_face_values.normal_vector(q) * fe_face_values[velocities].value (i, q)) * fe_face_values.JxW(q); 
+			}
+		    }
+		}
+	    }
+	}
+      cell->get_dof_indices (dof_indices);
+      fluid_constraints.distribute_local_to_global (cell_rhs,
+      						    dof_indices,
+      						    tmp);
+    }
+}
+
+template <int dim>
 Tensor<1,dim,double> FSIProblem<dim>::lift_and_drag_fluid()
 {
   AssertThrow(physical_properties.simulation_type==3, ExcNotImplemented());
@@ -166,7 +225,9 @@ double FSIProblem<dim>::interface_error()
 		{
 		  fe_face_values.reinit (cell, face_no);
 		  fe_face_values.get_function_values (rhs_for_adjoint.block(0), error_values);
-		  fe_face_values.get_function_values (stress.block(0), stress_values);
+		  if (fem_properties.optimization_method.compare("DN")!=0) {
+		    fe_face_values.get_function_values (stress.block(0), stress_values);
+		  }
 
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
@@ -238,6 +299,7 @@ double FSIProblem<dim>::interface_norm(Vector<double>   &values)
 
 
 template void FSIProblem<2>::build_adjoint_rhs();
+template void FSIProblem<2>::get_fluid_stress();
 template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_fluid();
 template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_structure();
 template double FSIProblem<2>::interface_error();
