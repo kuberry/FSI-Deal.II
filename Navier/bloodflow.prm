@@ -30,7 +30,7 @@ set fluid velocity degree = 2
 set fluid width           = 6.0
 
 # tolerance to which the velocities must match on the interface.
-set jump tolerance              = 1e-6
+set jump tolerance              = 1e-14
 
 # lambda of the structure.
 set lambda                = 1730769.230769231
@@ -42,7 +42,7 @@ set make plots            = true
 set max optimization iterations = 1000
 
 set moving domain         = true
-
+set move domain           = true
 # mu of the structure.
 set mu                    = 1153846.153846154
 
@@ -71,7 +71,7 @@ set output error          = true
 set penalty epsilon             = 1e-24
 
 # tuning parameter for the steepest descent algorithm.
-set steepest descent alpha      = 1e-24
+set steepest descent alpha      = 2e-2
 
 # order of the finite element to use for the structure displacement and
 # velocity.
@@ -94,7 +94,7 @@ set viscosity             = 0.035
 
 # Richardson or Newton for solving the nonlinearity in NS
 # If there is a conflict, the default is Newton's method
-set richardson            = true
+set richardson            = false
 set fluid newton          = true
 set structure newton      = true
 
@@ -102,7 +102,7 @@ set navier stokes         = true
 
 set true control          = false
 
-set optimization method   = BICG
+set optimization method   = DN
 set cg tolerance          = 1e-9
 set stability terms       = false
 set adjoint type          = 2
