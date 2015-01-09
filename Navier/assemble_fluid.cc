@@ -63,7 +63,7 @@ void FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number
 
 template <int dim>
 void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-						       FluidScratchData<dim>& scratch,
+						       FullScratchData<dim>& scratch,
 						       PerTaskData<dim>& data )
 {
   unsigned int state=0, adjoint=1;//, linear=2;
@@ -87,8 +87,6 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
   std::vector<Vector<double> > u_star_values(scratch.n_q_points, Vector<double>(dim+1));
   std::vector<Vector<double> > z(scratch.n_q_points, Vector<double>(dim+1));
 
-  std::vector<Vector<double> > z_vertices(scratch.n_vertices_q_points, Vector<double>(dim+1));
-  std::vector<Vector<double> > z_old_vertices(scratch.n_vertices_q_points, Vector<double>(dim+1));
   std::vector<Tensor<2,dim,double> > grad_u_old (scratch.n_q_points, Tensor<2,dim,double>());
   std::vector<Tensor<2,dim,double> > grad_u_old_old (scratch.n_q_points, Tensor<2,dim,double>());
   std::vector<Tensor<2,dim,double> > grad_u_star (scratch.n_q_points, Tensor<2,dim,double>());
@@ -147,35 +145,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 
   std::cout << left_vect * test_transpose(grad )* right_vect << std::endl; */
 
-  scratch.fe_vertices_values.reinit(cell);
   data.cell_matrix*=0;
   data.cell_rhs*=0;
-
-  // if (scratch.mode_type==state && physical_properties.moving_domain)
-  //   {
-  //     // if (update_domain)
-  //     // {
-  //     // AssertThrow((!fem_properties.richardson)||(fem_properties.richardson && fem_properties.fluid_newton) || !physical_properties.navier_stokes, ExcNotImplemented());
-  // 	  //std::cout << GeometryInfo<dim>::vertices_per_cell << " " << scratch.n_vertices_q_points << std::endl;
-  // 	  for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
-  // 	    {
-  // 	      Point<2> &v = cell->vertex(i);
-  // 	      scratch.fe_vertices_values.get_function_values(mesh_displacement_star.block(0), z_vertices);
-  // 	      scratch.fe_vertices_values.get_function_values(mesh_displacement_star_old.block(0), z_old_vertices);
-  // 	      // pcout << "i= " << i << " point " << scratch.fe_vertices_values.get_quadrature().point(i) << std::endl;
-  // 	      // pcout << " v(0)= " << v(0) << " v(1)= " << v(1) <<  std::endl;
-  // 	      // pcout << " z(0)= " << z_vertices[i](0) << " z(1)= " << z_vertices[i](1) <<  std::endl;
-	  
-  // 	      //pcout << cell->vertex_index(i) << std::endl;
-  // 	      for (unsigned int j=0; j<dim; ++j)
-  // 	      	{
-  // 	      	  //v(j) -= z_old_vertices[i](j);
-  // 	      	  v(j) += z_vertices[i](j);
-  // 		  // NOTE: THERE IS ANOTHER COPY SUBTRACTING THIS AMOUNT AT THE BOTTOM
-  // 	      	}
-  // 	    }
-  // 	  // }
-  //   }
 
   scratch.fe_values.reinit(cell);
 
@@ -622,26 +593,6 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	}
     }
 
-  //        
-  // LOOP OVER BOUNDARY FACES BEGINS HERE       
-  // 
-  // if (scratch.mode_type==state && physical_properties.moving_domain && (physical_properties.simulation_type==0 || physical_properties.simulation_type==2))
-  //   {
-  //     for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
-  // 	{
-  // 	  Point<2> &v = cell->vertex(i);
-  // 	  scratch.fe_vertices_values.get_function_values(mesh_displacement_star.block(0), z_vertices);
-  // 	  scratch.fe_vertices_values.get_function_values(mesh_displacement_star_old.block(0), z_old_vertices);
-  // 	  // pcout << "i= " << i << " point " << scratch.fe_vertices_values.get_quadrature().point(i) << std::endl;
-  // 	  // pcout << " v(0)= " << v(0) << " v(1)= " << v(1) <<  std::endl;
-  // 	  // pcout << " z(0)= " << z_vertices[i](0) << " z(1)= " << z_vertices[i](1) <<  std::endl;
-	  
-  // 	  for (unsigned int j=0; j<dim; ++j)
-  // 	    {
-  // 	      v(j) -= z_vertices[i](j);
-  // 	    }
-  // 	}
-  //   }
   for (unsigned int face_no=0;
        face_no<GeometryInfo<dim>::faces_per_cell;
        ++face_no)
@@ -996,25 +947,6 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	}
     }
   cell->get_dof_indices (data.dof_indices);
-
-  // if (scratch.mode_type==state && physical_properties.moving_domain && physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2)
-  //   {
-  //     for (unsigned int i=0; i<GeometryInfo<dim>::vertices_per_cell; ++i)
-  // 	{
-  // 	  Point<2> &v = cell->vertex(i);
-  // 	  scratch.fe_vertices_values.get_function_values(mesh_displacement_star.block(0), z_vertices);
-  // 	  scratch.fe_vertices_values.get_function_values(mesh_displacement_star_old.block(0), z_old_vertices);
-  // 	  // pcout << "i= " << i << " point " << scratch.fe_vertices_values.get_quadrature().point(i) << std::endl;
-  // 	  // pcout << " v(0)= " << v(0) << " v(1)= " << v(1) <<  std::endl;
-  // 	  // pcout << " z(0)= " << z_vertices[i](0) << " z(1)= " << z_vertices[i](1) <<  std::endl;
-	  
-  // 	  for (unsigned int j=0; j<dim; ++j)
-  // 	    {
-  // 	      //v(j) -= z_vertices[i](j);
-  // 	    }
-  // 	}
-  //   }
-
 }
 
 
@@ -1098,10 +1030,6 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 				    update_values    | update_normal_vectors |
 				    update_quadrature_points  | update_JxW_values);
 
-  QTrapez<dim> vertices_quadrature_formula;
-  FEValues<dim> fe_vertices_values (fluid_fe, vertices_quadrature_formula,
-				    update_values);
-
   if (enum_==state)
     {
       temporary_vector *= 0;
@@ -1122,6 +1050,41 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
       (*fluid_rhs) += forcing_terms;
     }
 
+  ale_transform_fluid(); // Move the domain to the deformed ALE configuration
+
+  //static int master_thread = Threads::this_thread_id();
+
+  PerTaskData<dim> per_task_data(fluid_fe, fluid_matrix, fluid_rhs, assemble_matrix);
+  FullScratchData<dim> scratch_data(fluid_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
+				     face_quadrature_formula, update_values | update_normal_vectors | update_quadrature_points  | update_JxW_values,
+				     (unsigned int)enum_);//, vertices_quadrature_formula, update_values);
+ 
+  WorkStream::run (fluid_dof_handler.begin_active(),
+  		   fluid_dof_handler.end(),
+  		   *this,
+  		   &FSIProblem<dim>::assemble_fluid_matrix_on_one_cell,
+  		   &FSIProblem<dim>::copy_local_fluid_to_global,
+  		   scratch_data,
+  		   per_task_data);
+
+  // // TEMPORARY VISUALIZATION OF MOVED VERTICES
+  // const std::string fluid_mesh_filename = "fluid-mesh" +
+  //   Utilities::int_to_string (timestep_number, 3) +
+  //   ".eps";
+  // std::ofstream mesh_out (fluid_mesh_filename.c_str());
+  // GridOut grid_out;
+  // grid_out.write_eps (fluid_triangulation, mesh_out);
+  // // 
+
+  ref_transform_fluid(); // Move the domain back to reference configuration
+}
+
+template <int dim>
+void FSIProblem<dim>::ale_transform_fluid()
+{
+  QTrapez<dim> vertices_quadrature_formula;
+  FEValues<dim> fe_vertices_values (fluid_fe, vertices_quadrature_formula,
+				    update_values);
   std::vector<Vector<double> > z_vertices(vertices_quadrature_formula.size(), Vector<double>(dim+1));
   std::vector<Vector<double> > z_old_vertices(vertices_quadrature_formula.size(), Vector<double>(dim+1));
   std::set<unsigned int> visited_vertices;
@@ -1148,35 +1111,20 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 	  }
       }
   }
-    
+}
 
-  //static int master_thread = Threads::this_thread_id();
-
-  PerTaskData<dim> per_task_data(fluid_fe, fluid_matrix, fluid_rhs, assemble_matrix);
-  FluidScratchData<dim> scratch_data(fluid_fe, quadrature_formula, update_values | update_gradients | update_quadrature_points | update_JxW_values,
-				     face_quadrature_formula, update_values | update_normal_vectors | update_quadrature_points  | update_JxW_values,
-				     (unsigned int)enum_, vertices_quadrature_formula, update_values);
- 
-  WorkStream::run (fluid_dof_handler.begin_active(),
-  		   fluid_dof_handler.end(),
-  		   *this,
-  		   &FSIProblem<dim>::assemble_fluid_matrix_on_one_cell,
-  		   &FSIProblem<dim>::copy_local_fluid_to_global,
-  		   scratch_data,
-  		   per_task_data);
-
-  // // TEMPORARY VISUALIZATION OF MOVED VERTICES
-  // const std::string fluid_mesh_filename = "fluid-mesh" +
-  //   Utilities::int_to_string (timestep_number, 3) +
-  //   ".eps";
-  // std::ofstream mesh_out (fluid_mesh_filename.c_str());
-  // GridOut grid_out;
-  // grid_out.write_eps (fluid_triangulation, mesh_out);
-  // // 
-
-  visited_vertices.clear();
-  cell = fluid_dof_handler.begin_active();
-  endc = fluid_dof_handler.end();
+template <int dim>
+void FSIProblem<dim>::ref_transform_fluid()
+{
+  QTrapez<dim> vertices_quadrature_formula;
+  FEValues<dim> fe_vertices_values (fluid_fe, vertices_quadrature_formula,
+				    update_values);
+  std::vector<Vector<double> > z_vertices(vertices_quadrature_formula.size(), Vector<double>(dim+1));
+  std::vector<Vector<double> > z_old_vertices(vertices_quadrature_formula.size(), Vector<double>(dim+1));
+  std::set<unsigned int> visited_vertices;
+  typename DoFHandler<dim>::active_cell_iterator
+    cell = fluid_dof_handler.begin_active(),
+    endc = fluid_dof_handler.end();
   for (; cell!=endc; ++cell) {
     fe_vertices_values.reinit(cell);
     if (physical_properties.move_domain)
@@ -1199,16 +1147,21 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
   }
 }
 
+
+
 template void FSIProblem<2>::fluid_state_solve(unsigned int initialized_timestep_number);
 
 template void FSIProblem<2>::assemble_fluid_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
-							     FluidScratchData<2>& scratch,
+							     FullScratchData<2>& scratch,
 							     PerTaskData<2>& data );
 
 template void FSIProblem<2>::copy_local_fluid_to_global (const PerTaskData<2> &data);
 
 template void FSIProblem<2>::assemble_fluid (Mode enum_, bool assemble_matrix);
 
+template void FSIProblem<2>::ale_transform_fluid();
+
+template void FSIProblem<2>::ref_transform_fluid();
 
 
 // h           fluid.vel.L2   fluid.vel.H1   fluid.press.L2   structure.displ.L2   structure.displ.H1   structure.vel.L2

@@ -291,7 +291,9 @@ void FSIProblem<dim>::run ()
 	  } else {
 	    structure_previous_iterate.block(1).add(-1,solution.block(1));
 	    transfer_interface_dofs(structure_previous_iterate,rhs_for_adjoint,1,0,Displacement);
+	    ale_transform_fluid();
 	    velocity_jump=interface_error();
+	    ref_transform_fluid();
 	  } 
 	  if (count%1==0) pcout << "Jump Error: " << velocity_jump << std::endl;
 	  if (count >= fem_properties.max_optimization_iterations || velocity_jump < fem_properties.jump_tolerance) break;

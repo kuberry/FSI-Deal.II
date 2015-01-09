@@ -138,7 +138,7 @@ struct FullScratchData : public BaseScratchData<dim> {
       {}
 };
 
-template <int dim>
+/* template <int dim>
 struct FluidScratchData : public FullScratchData<dim> {
   FEValues<dim> fe_vertices_values;
   unsigned int n_vertices_q_points;
@@ -164,7 +164,7 @@ struct FluidScratchData : public FullScratchData<dim> {
 		       ),
     n_vertices_q_points(scratch.n_vertices_q_points)
       {}
-};
+}; */
 
 
 #endif

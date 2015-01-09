@@ -102,7 +102,7 @@ class FSIProblem
 
   void assemble_fluid (Mode enum_, bool assemble_matrix);
   void assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
-							     FluidScratchData<dim>& scratch,
+							     FullScratchData<dim>& scratch,
 							     PerTaskData<dim>& data );
   void copy_local_fluid_to_global (const PerTaskData<dim> &data);
 
@@ -124,6 +124,9 @@ class FSIProblem
 
   unsigned int optimization_CG(unsigned int total_solves, const unsigned int initial_timestep_number);
   unsigned int optimization_BICGSTAB(unsigned int total_solves, const unsigned int initial_timestep_number);
+
+  void ale_transform_fluid(); // Move the fluid domain by the mesh displacement solution variable
+  void ref_transform_fluid(); // Move the transformed fluid domain back to reference by the mesh displacement solution variable
 
   void build_adjoint_rhs();
   void get_fluid_stress();
