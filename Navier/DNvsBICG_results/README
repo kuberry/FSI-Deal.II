@@ -1,0 +1,2 @@
+This folder was created to compare the results of running Dirichlet-Neumann coupling against the optimization-based method using BICGSTAB for the inner optimization. 
+
