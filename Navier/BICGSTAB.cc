@@ -72,6 +72,8 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
   transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
   rhs_for_linear_h.block(1) *= -1;   // copy, negate
 
+  premultiplier.block(0)=rhs_for_adjoint.block(0); // used by interface_norm
+  double original_error_norm = interface_norm(rhs_for_adjoint.block(0));
   
   BlockVector<double> b = rhs_for_adjoint; // just to initialize it
   BlockVector<double> r = rhs_for_adjoint; // just to initialize it
@@ -165,7 +167,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
   double error_norm = 1;
 
   unsigned int loop_count = 1;
-  while (error_norm > fem_properties.cg_tolerance) {
+  while (error_norm/original_error_norm > fem_properties.cg_tolerance) {
     premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
     double rho_np1 = interface_norm(r.block(0));
     //     rho_np1 = r_tilde * r;
