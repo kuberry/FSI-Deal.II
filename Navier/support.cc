@@ -127,7 +127,7 @@ Tensor<1,dim,double> FSIProblem<dim>::lift_and_drag_fluid()
 	{
 	  if (cell->at_boundary(face_no))
 	    {
-	      if ((unsigned int)(cell->face(face_no)->boundary_indicator())==8 /* circle + interface */) // <---- For fluid tests
+	      if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface) // <---- For fluid tests
 		//if (cell->face(face_no)->boundary_indicator()==8 /* circle + interface */) // <---- The good one
 		{
 		  fe_face_values.reinit (cell, face_no);
