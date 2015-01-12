@@ -469,7 +469,9 @@ void FSIProblem<dim>::run ()
 	  // \int sigma_f * n = \int sigma_f * n_f = \int_fluid sigma_f * n_f + \int_structure_sigma_s * n_f
 	  //     = \int_fluid sigma_f * n_f - \int_structure sigma_s * n_s
 	  // In the following case, we actually use the opposite (but the result can be multiplied by -1 to get the result of using the other unit normal)
+	  ale_transform_fluid();
 	  Tensor<1,dim> lift_drag = -lift_and_drag_fluid();
+	  ref_transform_fluid();
 	  lift_drag += lift_and_drag_structure();
 	  drag[timestep_number] = lift_drag[0];
 	  lift[timestep_number] = lift_drag[1];
