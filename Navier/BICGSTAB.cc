@@ -42,6 +42,7 @@ while (norm(r,2)>1e-8)
    y = P*p_n;
    v = A*y;  % optional preconditioner here
    alpha = rho_n / (r_tilde'* v);
+   // ^---- THIS SHOULD BE rho_np1
    s = r - alpha * v;
    z = P*s;
    t = A*z;
@@ -49,6 +50,7 @@ while (norm(r,2)>1e-8)
    w_n = (P*t)'*(P*s) / ((P*t)'*(P*t));
    % x = x + alpha*p_n + w_n*s;
    x = x + alpha*y + w_n*z;
+   // ADD CHECK HERE TO SEE IF SMALL ENOUGH
    r = s - w_n * t;
    norm(b-A*x,2)
    count = count + 1;
@@ -225,7 +227,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
     v.block(0)=tmp.block(0);	  
 
     premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
-    alpha = rho_n / interface_norm(v.block(0));
+    alpha = rho_np1 / interface_norm(v.block(0));
 
     BlockVector<double> s = r; // only block(0) has values
     s.block(0)  = r.block(0);
