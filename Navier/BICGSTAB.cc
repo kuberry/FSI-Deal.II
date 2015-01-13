@@ -62,15 +62,20 @@ fprintf('%i iterations.\n', count);
 
 
 template <int dim>
-unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, const unsigned int initial_timestep_number)
+unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations)
 {
-
   // This gives the initial guess x_0
-  for (unsigned int i=0; i<tmp.size(); ++i) tmp[i]=std::max(physical_properties.rho_f,physical_properties.rho_s)*fem_properties.cg_tolerance;
+  if (random_initial_guess) {
+    // Generate a random vector
+    for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = ((double)std::rand() / (double)(RAND_MAX)) * std::max(physical_properties.rho_f,physical_properties.rho_s) * fem_properties.cg_tolerance;
+  } else {
+    for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s)*fem_properties.cg_tolerance;
+  }
   rhs_for_linear_h=0;
   transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
   transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
   rhs_for_linear_h.block(1) *= -1;   // copy, negate
+
 
   premultiplier.block(0)=rhs_for_adjoint.block(0); // used by interface_norm
   double original_error_norm = interface_norm(rhs_for_adjoint.block(0));
@@ -167,7 +172,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
   double error_norm = 1;
 
   unsigned int loop_count = 1;
-  while (error_norm/original_error_norm > fem_properties.cg_tolerance) {
+  while (error_norm/original_error_norm > fem_properties.cg_tolerance && loop_count <= max_iterations) {
     premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
     double rho_np1 = interface_norm(r.block(0));
     //     rho_np1 = r_tilde * r;
@@ -289,6 +294,11 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
     loop_count++;
   }
 
+  if (loop_count > max_iterations) {
+    std::cout << "BICGSTAB Stalled: Restarting..." << std::endl;
+    return 1;
+  }
+
   // update stress
   stress.block(0) += rhs_for_linear_h.block(0);
   tmp=0;
@@ -299,7 +309,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int total_solves, 
   transfer_interface_dofs(tmp,stress,1,1,Displacement);
 
   transfer_interface_dofs(stress,stress,0,1,Displacement);
-  return total_solves;
+  return 0; // success
 }
 
-template unsigned int FSIProblem<2>::optimization_BICGSTAB (unsigned int total_solves, const unsigned int initial_timestep_number);
+template unsigned int FSIProblem<2>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations);

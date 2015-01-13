@@ -419,7 +419,11 @@ void FSIProblem<dim>::run ()
 	    }
 	  else if (fem_properties.optimization_method.compare("BICG")==0) 
 	    {
-	      total_solves = optimization_BICGSTAB(total_solves, initialized_timestep_number);
+	      // total_solves is passed by reference and updated
+	      unsigned int convergence_flag = 1;
+	      while (convergence_flag!=0) {
+		convergence_flag = optimization_BICGSTAB(total_solves, initialized_timestep_number, true, 1000);
+	      }
 	    }
   	}
       pcout << "Total Solves: " << total_solves << std::endl;
