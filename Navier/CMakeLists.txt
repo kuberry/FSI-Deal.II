@@ -14,6 +14,7 @@ SET(TARGET_SRC
   dof_mapping.cc
   CG.cc
   BICGSTAB.cc
+  GMRES.cc
   output.cc
   run.cc
   setup.cc
