@@ -84,12 +84,12 @@ void FSIProblem<dim>::run ()
     std::ifstream stress_input (stress_filename.c_str());
     //stress_input.precision(20);
     old_stress.block_read(stress_input);
-    stress = old_stress;
     stress_input.close();
   }
   // task.join();
   transfer_interface_dofs(old_stress,old_stress,0,1);
   stress=old_stress;
+  stress_star=stress;
   // Note to self: On a moving domain, predotting stress tensor with unit normal requires extra work (pull backs)
   // If only retrieving the stress tensor, it can be dotted with the moving unit normal
 
@@ -187,6 +187,8 @@ void FSIProblem<dim>::run ()
       unsigned int relrecord = 0;
       unsigned int consecutiverelrecord = 0;
 
+      double update_alpha = 1.0;
+
       //stress=old_stress;
 
       unsigned int total_solves = 0;
@@ -207,6 +209,7 @@ void FSIProblem<dim>::run ()
   				   fluid_boundary_stress,
   				   stress.block(0));
   	      transfer_interface_dofs(stress,stress,0,1);
+	      stress_star = stress;
   	    }
 
   	  // RHS and Neumann conditions are inside these functions
@@ -281,6 +284,7 @@ void FSIProblem<dim>::run ()
 
   	  build_adjoint_rhs();
 
+	  double velocity_jump_last_good_value = velocity_jump_old;
   	  velocity_jump_old = velocity_jump;
 	  if (fem_properties.optimization_method.compare("DN")!=0) {
 	    velocity_jump=interface_error();
@@ -419,10 +423,18 @@ void FSIProblem<dim>::run ()
 	    }
 	  else if (fem_properties.optimization_method.compare("BICG")==0) 
 	    {
+	      if (velocity_jump > velocity_jump_old) {
+		stress = stress_star;
+		update_alpha *= 0.5;
+		velocity_jump = velocity_jump_last_good_value;
+	      } else {
+		stress_star = stress;
+		update_alpha  = 1.0;
+	      }
 	      // total_solves is passed by reference and updated
 	      unsigned int convergence_flag = 1;
 	      while (convergence_flag!=0) {
-		convergence_flag = optimization_BICGSTAB(total_solves, initialized_timestep_number, true, 1000);
+		convergence_flag = optimization_BICGSTAB(total_solves, initialized_timestep_number, true, 1000, 1.0);
 	      }
 	    }
 	  else if (fem_properties.optimization_method.compare("GMRES")==0) 

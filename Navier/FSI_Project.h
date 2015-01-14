@@ -123,7 +123,7 @@ class FSIProblem
   void copy_local_ale_to_global (const PerTaskData<dim> &data);
 
   unsigned int optimization_CG(unsigned int total_solves, const unsigned int initial_timestep_number);
-  unsigned int optimization_BICGSTAB(unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations);
+  unsigned int optimization_BICGSTAB(unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations, const double update_alpha);
   unsigned int optimization_GMRES(unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations);
 
   void ale_transform_fluid(); // Move the fluid domain by the mesh displacement solution variable
@@ -174,6 +174,7 @@ class FSIProblem
   BlockVector<double>       	adjoint_rhs;    
   BlockVector<double>       	linear_rhs;
   BlockVector<double>		stress;
+  BlockVector<double>		stress_star;
   BlockVector<double>		old_stress;
   BlockVector<double>		mesh_displacement_star;
   BlockVector<double>		mesh_displacement_star_old;

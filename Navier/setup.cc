@@ -601,6 +601,7 @@ void FSIProblem<dim>::setup_system ()
   adjoint_rhs.reinit (n_big_blocks);
   linear_rhs.reinit (n_big_blocks);
   stress.reinit (n_big_blocks);
+  stress_star.reinit (n_big_blocks);
   old_stress.reinit (n_big_blocks);
   mesh_displacement_star.reinit (n_big_blocks);
   mesh_displacement_star_old.reinit (n_big_blocks);
@@ -628,6 +629,7 @@ void FSIProblem<dim>::setup_system ()
       adjoint_rhs.block(i).reinit (dofs_per_big_block[i]);
       linear_rhs.block(i).reinit (dofs_per_big_block[i]);
       stress.block(i).reinit (dofs_per_big_block[i]);
+      stress_star.block(i).reinit (dofs_per_big_block[i]);
       old_stress.block(i).reinit (dofs_per_big_block[i]);
       mesh_displacement_star.block(i).reinit (dofs_per_big_block[i]);
       mesh_displacement_star_old.block(i).reinit (dofs_per_big_block[i]);
@@ -654,6 +656,7 @@ void FSIProblem<dim>::setup_system ()
   adjoint_rhs.collect_sizes ();
   linear_rhs.collect_sizes ();
   stress.collect_sizes ();
+  stress_star.collect_sizes ();
   old_stress.collect_sizes ();
   mesh_displacement_star.collect_sizes ();
   mesh_displacement_star.collect_sizes ();

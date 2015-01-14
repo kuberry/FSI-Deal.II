@@ -64,7 +64,7 @@ fprintf('%i iterations.\n', count);
 
 
 template <int dim>
-unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations)
+unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations, const double update_alpha)
 {
   // This gives the initial guess x_0
   if (random_initial_guess) {
@@ -384,7 +384,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
   }
 
   // update stress
-  stress.block(0) += rhs_for_linear_h.block(0);
+  stress.block(0).add(update_alpha, rhs_for_linear_h.block(0));
   tmp=0;
   transfer_interface_dofs(stress,tmp,0,0);
   transfer_interface_dofs(stress,tmp,1,1,Displacement);
@@ -396,4 +396,4 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
   return 0; // success
 }
 
-template unsigned int FSIProblem<2>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations);
+template unsigned int FSIProblem<2>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations, const double update_alpha);
