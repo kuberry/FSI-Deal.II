@@ -292,6 +292,67 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
 
     premultiplier.block(0)=r.block(0); // used by interface_norm
     error_norm = interface_norm(r.block(0));
+
+    if (loop_count % 25 == 0) {
+      // get linearized variables
+      transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
+      rhs_for_linear_h.block(1) *= -1;
+      rhs_for_linear = rhs_for_linear_h;
+      // timer.enter_subsection ("Assemble");
+      Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, true);
+      Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, true);	      
+      f_assembly.join();
+      dirichlet_boundaries((System)0,linear);
+      s_assembly.join();
+      dirichlet_boundaries((System)1,linear);
+      // timer.leave_subsection ();
+
+      // timer.enter_subsection ("Linear Solve");
+      if (timestep_number==initial_timestep_number) {
+	linear_solver[0].initialize(linear_matrix.block(0,0));
+	linear_solver[1].initialize(linear_matrix.block(1,1));
+	Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+	Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+	f_solve.join();
+	s_solve.join();
+      } else {
+	Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
+	Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
+	f_factor.join();
+	Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+	s_factor.join();
+	Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+	f_solve.join();
+	s_solve.join();
+      }
+      // timer.leave_subsection ();
+      total_solves += 2;
+      if (fem_properties.adjoint_type==1)
+	{
+	  // -Ax = -w^n + phi^n/dt
+	  tmp=0;tmp2=0;
+	  transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
+	  tmp.block(0)*=1./time_step;
+	  transfer_interface_dofs(linear_solution,tmp2,0,0);
+	  tmp.block(0)-=tmp2.block(0);
+	}
+      else
+	{
+	  // -Ax = -w^n + phi_dot^n
+	  tmp=0;tmp2=0;
+	  transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
+	  transfer_interface_dofs(linear_solution,tmp2,0,0);
+	  tmp.block(0)-=tmp2.block(0);
+	}
+      // r^0 = b - Ax
+      r.block(0)  = b.block(0);
+      r.block(0) += tmp.block(0);
+      //r = b + tmp;
+      r_tilde = r;
+    }
+
+
+
     if (loop_count % 100 == 0) std::cout << "BICG Err: " << error_norm << std::endl;
 
     std::vector<std::vector<std::string> > solution_names(3);
@@ -313,7 +374,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
       ".vtk";
     std::ofstream residual_output (residual_filename.c_str());
     residual_data_out.write_vtk (residual_output);
-
+    
     loop_count++;
   }
 
