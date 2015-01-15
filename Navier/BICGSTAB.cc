@@ -355,25 +355,25 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
 
     if (loop_count % 100 == 0) std::cout << "BICG Err: " << error_norm << std::endl;
 
-    std::vector<std::vector<std::string> > solution_names(3);
-    switch (dim)
-      {
-      case 2:
-	solution_names[0].push_back ("r_x");
-	solution_names[0].push_back ("r_y");
-	solution_names[0].push_back ("r_p");
-	break;
-      default:
-	AssertThrow (false, ExcNotImplemented());
-      }
-    DataOut<dim> residual_data_out;
-    residual_data_out.add_data_vector (fluid_dof_handler,r.block(0), solution_names[0]);
-    residual_data_out.build_patches (fem_properties.fluid_degree-1);
-    const std::string residual_filename = "residual-" +
-      Utilities::int_to_string (loop_count, 4) +
-      ".vtk";
-    std::ofstream residual_output (residual_filename.c_str());
-    residual_data_out.write_vtk (residual_output);
+    // std::vector<std::vector<std::string> > solution_names(3);
+    // switch (dim)
+    //   {
+    //   case 2:
+    // 	solution_names[0].push_back ("r_x");
+    // 	solution_names[0].push_back ("r_y");
+    // 	solution_names[0].push_back ("r_p");
+    // 	break;
+    //   default:
+    // 	AssertThrow (false, ExcNotImplemented());
+    //   }
+    // DataOut<dim> residual_data_out;
+    // residual_data_out.add_data_vector (fluid_dof_handler,r.block(0), solution_names[0]);
+    // residual_data_out.build_patches (fem_properties.fluid_degree-1);
+    // const std::string residual_filename = "residual-" +
+    //   Utilities::int_to_string (loop_count, 4) +
+    //   ".vtk";
+    // std::ofstream residual_output (residual_filename.c_str());
+    // residual_data_out.write_vtk (residual_output);
     
     loop_count++;
   }
