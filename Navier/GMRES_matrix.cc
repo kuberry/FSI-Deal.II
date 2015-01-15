@@ -145,6 +145,22 @@ void rotmat(const double a, const double b, double &c, double &s ) {
 template <int dim>
 unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations)
 {
+  const bool verification = true; 
+
+  
+  FullMatrix<double> A(100,100);
+  for (unsigned int i=0; i<100; i++) {
+    for (unsigned int j=0; j<100; j++) {
+      if (i==j) {
+	A.set(i,i,std::fabs(49.5-j));
+      } else if (j==i+1 || j==i-1) {
+	A.set(i,j,1.0);
+      }
+    }
+  }
+  //A.print_formatted(std::cout);
+
+
   unsigned int restrt = 50;
   unsigned int iter = 0;  //                                       % initialization
   unsigned int flag = 0;
@@ -179,87 +195,107 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
       b.block(0)-=tmp.block(0);
     }
   premultiplier.block(0) = b.block(0);
-  double bnrm2 = std::sqrt(interface_norm(b.block(0)));
+  double bnrm2 = interface_norm(b.block(0));
 
-  // This gives the initial guess x_0
+  if (verification) {
+    b.block(0).reinit(100);
+    for (unsigned int i=0; i<100; i++)
+      b.block(0)[i] = i;
+    bnrm2 = b.block(0).l2_norm();
+  }
+
+  tmp=0;
+  // // This gives the initial guess x_0
   // if (random_initial_guess) {
   //   // Generate a random vector
-  //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = ((double)std::rand() / (double)(RAND_MAX)) * std::max(physical_properties.rho_f,physical_properties.rho_s) * std::pow(bnrm2,2);
+  //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = ((double)std::rand() / (double)(RAND_MAX)) * std::max(physical_properties.rho_f,physical_properties.rho_s) * bnrm2;
   // } else {
-  //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * std::pow(bnrm2,2);
+  //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * bnrm2;
   // }
-  // rhs_for_linear_h=0;
-  //transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
-
   rhs_for_linear_h=0;
+  transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
   transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
   rhs_for_linear_h.block(1) *= -1;   // copy, negate
 
   if (bnrm2 == 0.0) bnrm2 = 1.0;
   std::cout << "bnrm2: " << bnrm2 << std::endl;
 
-  //  r = M \ ( b-A*x );
-  // get linearized variables
-  rhs_for_linear = rhs_for_linear_h;
-  // timer.enter_subsection ("Assemble");
-  Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, true);
-  Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, true);	      
-  f_assembly.join();
-  dirichlet_boundaries((System)0,linear);
-  s_assembly.join();
-  dirichlet_boundaries((System)1,linear);
-  // timer.leave_subsection ();
-
-  // timer.enter_subsection ("Linear Solve");
-  if (timestep_number==initial_timestep_number) {
-    linear_solver[0].initialize(linear_matrix.block(0,0));
-    linear_solver[1].initialize(linear_matrix.block(1,1));
-    Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
-    Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
-    f_solve.join();
-    s_solve.join();
+  double error;
+  if (verification) {
+    rhs_for_linear.block(0).reinit(100);
+    for (unsigned int i=0; i<100; i++) {
+      rhs_for_linear.block(0)[i]=1;
+    }
+    r.block(0).reinit(100);
+    A.vmult(r.block(0),rhs_for_linear.block(0));
+    r.block(0)*=-1;
+    r.block(0)+=b.block(0);
+    error = r.block(0).l2_norm()/bnrm2;
   } else {
-    Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
-    Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
-    f_factor.join();
-    Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
-    s_factor.join();
-    Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
-    f_solve.join();
-    s_solve.join();
-  }
-  // timer.leave_subsection ();
-  total_solves += 2;
-  if (fem_properties.adjoint_type==1)
-    {
-      // -Ax = -w^n + phi^n/dt
-      tmp=0;tmp2=0;
-      transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
-      tmp.block(0)*=1./time_step;
-      transfer_interface_dofs(linear_solution,tmp2,0,0);
-      tmp.block(0)-=tmp2.block(0);
-    }
-  else
-    {
-      // -Ax = -w^n + phi_dot^n
-      tmp=0;tmp2=0;
-      transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
-      transfer_interface_dofs(linear_solution,tmp2,0,0);
-      tmp.block(0)-=tmp2.block(0);
-    }
-  // r^0 = b - Ax
-  r.block(0)  = b.block(0);
-  r.block(0) += tmp.block(0);
-  //r = b + tmp;
-  // tmp.block(0) = 0;
-  // linear_matrix.block(0,0).vmult(tmp.block(0), r.block(0));
-  // r.block(0)=tmp.block(0);
-  
-  std::cout << "r_norm_initial: " << r.block(0).l2_norm() << std::endl;
+  // //  r = M \ ( b-A*x );
+  // // get linearized variables
+  // rhs_for_linear = rhs_for_linear_h;
+  // // timer.enter_subsection ("Assemble");
+  // Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, true);
+  // Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, true);	      
+  // f_assembly.join();
+  // dirichlet_boundaries((System)0,linear);
+  // s_assembly.join();
+  // dirichlet_boundaries((System)1,linear);
+  // // timer.leave_subsection ();
 
-  premultiplier.block(0)=r.block(0);
-  double error = std::sqrt(interface_norm(r.block(0)))/bnrm2;
+  // // timer.enter_subsection ("Linear Solve");
+  // if (timestep_number==initial_timestep_number) {
+  //   linear_solver[0].initialize(linear_matrix.block(0,0));
+  //   linear_solver[1].initialize(linear_matrix.block(1,1));
+  //   Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+  //   Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+  //   f_solve.join();
+  //   s_solve.join();
+  // } else {
+  //   Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
+  //   Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
+  //   f_factor.join();
+  //   Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+  //   s_factor.join();
+  //   Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+  //   f_solve.join();
+  //   s_solve.join();
+  // }
+  // // timer.leave_subsection ();
+  // total_solves += 2;
+  // if (fem_properties.adjoint_type==1)
+  //   {
+  //     // -Ax = -w^n + phi^n/dt
+  //     tmp=0;tmp2=0;
+  //     transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
+  //     tmp.block(0)*=1./time_step;
+  //     transfer_interface_dofs(linear_solution,tmp2,0,0);
+  //     tmp.block(0)-=tmp2.block(0);
+  //   }
+  // else
+  //   {
+  //     // -Ax = -w^n + phi_dot^n
+  //     tmp=0;tmp2=0;
+  //     transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
+  //     transfer_interface_dofs(linear_solution,tmp2,0,0);
+  //     tmp.block(0)-=tmp2.block(0);
+  //   }
+  // // r^0 = b - Ax
+  // r.block(0)  = b.block(0);
+  // r.block(0) += tmp.block(0);
+  // //r = b + tmp;
+  // // tmp.block(0) = 0;
+  // // linear_matrix.block(0,0).vmult(tmp.block(0), r.block(0));
+  // // r.block(0)=tmp.block(0);
   
+
+  // std::cout << "r_norm_initial: " << r.block(0).l2_norm() << std::endl;
+
+  // premultiplier.block(0)=r.block(0);
+  // double error = interface_norm(r.block(0))/bnrm2;
+  }
+
   if (error < fem_properties.cg_tolerance) {
     std::cout << "Error sufficiently small before running algorithm." << std::endl;
     return 0;
@@ -267,6 +303,10 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
   unsigned int n = stress.block(0).size();
   // [n,n] = size(A);                                  % initialize workspace
   unsigned int m = restrt;
+  
+  // TEST
+  if (verification) {n=100;}
+
   //std::vector<std::vector< double > > V(n,std::vector<double>(m+1));
   FullMatrix<double> V(n,m+1);
   // V(1:n,1:m+1) = zeros(n,m+1);
@@ -276,7 +316,7 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
   // cs(1:m) = zeros(m,1);
   Vector<double> sn(m);
   // sn(1:m) = zeros(m,1);
-  Vector<double> e1(m+1);
+  Vector<double> e1(n);
   //e1    = zeros(n,1);
   e1[0] = 1.0;
   // e1(1) = 1.0;
@@ -285,56 +325,65 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
   for (unsigned int iter = 0; iter < max_iterations; iter++) {
     //  r = M \ ( b-A*x );
     // get linearized variables
-    rhs_for_linear = rhs_for_linear_h;
-    // timer.enter_subsection ("Assemble");
-    Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, false);
-    Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, false);	    
-    f_assembly.join();
-    dirichlet_boundaries((System)0,linear);
-    s_assembly.join();
-    dirichlet_boundaries((System)1,linear);
-    // timer.leave_subsection ();
-    // timer.enter_subsection ("Linear Solve");
-    Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
-    Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
-    f_factor.join();
-    Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
-    s_factor.join();
-    Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
-    f_solve.join();
-    s_solve.join();
-    // timer.leave_subsection ();
-    total_solves += 2;
-    if (fem_properties.adjoint_type==1)
-      {
-	// -Ax = -w^n + phi^n/dt
-	tmp=0;tmp2=0;
-	transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
-	tmp.block(0)*=1./time_step;
-	transfer_interface_dofs(linear_solution,tmp2,0,0);
-	tmp.block(0)-=tmp2.block(0);
-      }
-    else
-      {
-	// -Ax = -w^n + phi_dot^n
-	tmp=0;tmp2=0;
-	transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
-	transfer_interface_dofs(linear_solution,tmp2,0,0);
-	tmp.block(0)-=tmp2.block(0);
-      }
-    // r^0 = b - Ax
-    r.block(0)  = b.block(0);
-    r.block(0) += tmp.block(0);
-    // added
-    // tmp.block(0) = 0;
-    // linear_matrix.block(0,0).vmult(tmp.block(0), r.block(0));
-    // r.block(0)=tmp.block(0);
-    // r = b.block(0) - M \ ( b-A*x );
-    premultiplier = r.block(0);
-    double r_norm = std::sqrt(interface_norm(r.block(0)));
+    double r_norm;
+    if (verification) {
+      A.vmult(r.block(0),rhs_for_linear.block(0));
+      r.block(0)*=-1;
+      r.block(0)+=b.block(0);
+      r_norm = r.block(0).l2_norm();
+    } else {
+    // rhs_for_linear = rhs_for_linear_h;
+    // // timer.enter_subsection ("Assemble");
+    // Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, false);
+    // Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, false);	    
+    // f_assembly.join();
+    // dirichlet_boundaries((System)0,linear);
+    // s_assembly.join();
+    // dirichlet_boundaries((System)1,linear);
+    // // timer.leave_subsection ();
+    // // timer.enter_subsection ("Linear Solve");
+    // Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
+    // Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
+    // f_factor.join();
+    // Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+    // s_factor.join();
+    // Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+    // f_solve.join();
+    // s_solve.join();
+    // // timer.leave_subsection ();
+    // total_solves += 2;
+    // if (fem_properties.adjoint_type==1)
+    //   {
+    // 	// -Ax = -w^n + phi^n/dt
+    // 	tmp=0;tmp2=0;
+    // 	transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
+    // 	tmp.block(0)*=1./time_step;
+    // 	transfer_interface_dofs(linear_solution,tmp2,0,0);
+    // 	tmp.block(0)-=tmp2.block(0);
+    //   }
+    // else
+    //   {
+    // 	// -Ax = -w^n + phi_dot^n
+    // 	tmp=0;tmp2=0;
+    // 	transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
+    // 	transfer_interface_dofs(linear_solution,tmp2,0,0);
+    // 	tmp.block(0)-=tmp2.block(0);
+    //   }
+    // // r^0 = b - Ax
+    // r.block(0)  = b.block(0);
+    // r.block(0) += tmp.block(0);
+    // // added
+    // // tmp.block(0) = 0;
+    // // linear_matrix.block(0,0).vmult(tmp.block(0), r.block(0));
+    // // r.block(0)=tmp.block(0);
+    // // r = b.block(0) - M \ ( b-A*x );
+    // premultiplier = r.block(0);
+    // double r_norm = interface_norm(r.block(0));
+    // std::cout << "inner iter r_norm: " << r_norm << std::endl;
+    }
     std::cout << "inner iter r_norm: " << r_norm << std::endl;
     for (unsigned int l=0; l<n; l++)
-      V.set(l,0,r.block(0)[l]/r_norm);
+      V.set(l,0,r.block(0)[l]*1./r_norm);
     // V(:,1) = r / norm( r );
     Vector<double> s = e1;
     s *= r_norm;
@@ -342,50 +391,61 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     int break_iter=-1;
     for (unsigned int i=0; i<m; i++) {
       // construct orthonormal basis using Gram-Schmidt
+      if (verification) v.block(0).reinit(n);
+
       for (unsigned int l=0; l<n; l++)
 	v.block(0)[l] = V(l,i);
-      transfer_interface_dofs(v,v,0,1,Displacement);
-      v.block(1) *= -1;
-      rhs_for_linear = v;
-      // timer.enter_subsection ("Assemble");
-      s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, false);
-      f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, false);	      
-      f_assembly.join();
-      dirichlet_boundaries((System)0,linear);
-      s_assembly.join();
-      dirichlet_boundaries((System)1,linear);
-      // timer.leave_subsection ();
+      
+      BlockVector<double> w = tmp;
+      double w_norm = 0;
+      if (verification) {
+	w.block(0).reinit(n);
+	A.vmult(w.block(0),v.block(0));
+	//w_norm = w.block(0).l2_norm();
+	//std::cout << w.block(0) << std::endl;
+	//std::cout << "w_norm " << w_norm << std::endl;
+      }
+      // transfer_interface_dofs(v,v,0,1,Displacement);
+      // v.block(1) *= -1;
+      // rhs_for_linear = v;
+      // // timer.enter_subsection ("Assemble");
+      // s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, false);
+      // f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, false);	      
+      // f_assembly.join();
+      // dirichlet_boundaries((System)0,linear);
+      // s_assembly.join();
+      // dirichlet_boundaries((System)1,linear);
+      // // timer.leave_subsection ();
 
-      // timer.enter_subsection ("Linear Solve");
-      f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
-      s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
-      f_factor.join();
-      f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
-      s_factor.join();
-      s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
-      f_solve.join();
-      s_solve.join();
-      // timer.leave_subsection ();
-      total_solves += 2;
-      if (fem_properties.adjoint_type==1)
-	{
-	  // -Ax = -w^n + phi^n/dt
-	  tmp=0;tmp2=0;
-	  transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
-	  tmp.block(0)*=1./time_step;
-	  transfer_interface_dofs(linear_solution,tmp2,0,0);
-	  tmp.block(0)-=tmp2.block(0);
-	}
-      else
-	{
-	  // -Ax = -w^n + phi_dot^n
-	  tmp=0;tmp2=0;
-	  transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
-	  transfer_interface_dofs(linear_solution,tmp2,0,0);
-	  tmp.block(0)-=tmp2.block(0);
-	}
-      BlockVector<double> w = tmp; 
-      w.block(0) *= -1;
+      // // timer.enter_subsection ("Linear Solve");
+      // f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
+      // s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
+      // f_factor.join();
+      // f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+      // s_factor.join();
+      // s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+      // f_solve.join();
+      // s_solve.join();
+      // // timer.leave_subsection ();
+      // total_solves += 2;
+      // if (fem_properties.adjoint_type==1)
+      // 	{
+      // 	  // -Ax = -w^n + phi^n/dt
+      // 	  tmp=0;tmp2=0;
+      // 	  transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
+      // 	  tmp.block(0)*=1./time_step;
+      // 	  transfer_interface_dofs(linear_solution,tmp2,0,0);
+      // 	  tmp.block(0)-=tmp2.block(0);
+      // 	}
+      // else
+      // 	{
+      // 	  // -Ax = -w^n + phi_dot^n
+      // 	  tmp=0;tmp2=0;
+      // 	  transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
+      // 	  transfer_interface_dofs(linear_solution,tmp2,0,0);
+      // 	  tmp.block(0)-=tmp2.block(0);
+      // 	}
+      // BlockVector<double> w = tmp; 
       // added
       // tmp.block(0) = 0;
       // linear_matrix.block(0,0).vmult(tmp.block(0), w.block(0));
@@ -393,22 +453,24 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
 
       // NOTE HERE: if tmp is usually -Ax, then w = -tmp since w=Av
       // w = M \ (A*V(:,i)); 
-      for (int k=0; k<=(int)i; k++) {
+
+      for (unsigned int k=0; k<=i; k++) {
 	H.set(k,i,0.0);
 	for (unsigned int l=0; l<n; l++) {
 	  H(k,i)+=w.block(0)[l]*V(l,k);
 	  // H[k,i] = transpose(w)*V(:,k);
-	    
 	}
 	for (unsigned int l=0; l<n; l++) {
 	  w.block(0)[l] -= H(k,i)*V(l,k);
 	  // w - H(k,i)*V(:,k);
 	}
       }
-      premultiplier.block(0) = w.block(0);
-      double w_norm = std::sqrt(interface_norm(w.block(0)));
+      // premultiplier.block(0) = w.block(0);
+      // double w_norm = interface_norm(w.block(0));
+      w_norm = w.block(0).l2_norm();
       H.set(i+1,i,w_norm);
-      //std::cout << "w_norm: " << w_norm << std::endl;
+      std::cout << "w_norm: " << w_norm << std::endl;
+      //AssertThrow(false,ExcNotImplemented());
       // H(i+1,i) = norm( w );
       for (unsigned int l=0; l<n; l++) {
 	V.set(l,i+1,w.block(0)[l] / H(i+1,i));
@@ -434,9 +496,11 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
       error  = std::fabs(s[i+1]) / bnrm2;
       std::cout << "error: " << error << std::endl;
       // *****************************************************
-      if ( error <= fem_properties.cg_tolerance ) {   //                     % update approximation
-      //	std::cout << "Error less than cg tolerance in iter i: " << i << std::endl;
+      if ( error <= fem_properties.cg_tolerance ) { 
 	unsigned int H_size = i+1;
+	if (break_iter>=0) {
+	  H_size = break_iter;
+	}
 	FullMatrix<double> H_sub(H_size,H_size);
 	H_sub.fill(H);
 	//H.print_formatted(std::cout);
@@ -463,21 +527,47 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
 	for (unsigned int l=0; l<n; l++) 
 	  for (unsigned int j=0; j<H_size; j++)
 	    rhs_for_linear_h.block(0)[l] = rhs_for_linear_h.block(0)[l] + V(l,j)*y[j]; 
-
-	// an update to the stress needs added here
-	std::cout << "Left algorithm on an earlier i with error: " << error << std::endl;
-	// update stress
-	stress.block(0).add(1.0, rhs_for_linear_h.block(0));
-	tmp=0;
-	transfer_interface_dofs(stress,tmp,0,0);
-	transfer_interface_dofs(stress,tmp,1,1,Displacement);
-	stress=0;
-	transfer_interface_dofs(tmp,stress,0,0);
-	transfer_interface_dofs(tmp,stress,1,1,Displacement);
-
-	transfer_interface_dofs(stress,stress,0,1,Displacement);
+	std::cout << "i: " << i << " error: " << error << std::endl;
+	std::cout << rhs_for_linear.block(0) << std::endl;
+	Assert(false,ExcNotImplemented());
 	return 0;
       }
+      //if ( error <= fem_properties.cg_tolerance*pow(bnrm2,2) ) {   //                     % update approximation
+      //	std::cout << "Error less than cg tolerance in iter i: " << i << std::endl;
+	// FullMatrix<double> H_sub(i,i);
+	// H_sub.fill(H);
+	// SparsityPattern H_sub_pattern(i,i,1); // should be i+1, not 1
+	// SparseMatrix<double> H_sub_sparse(H_sub_pattern);
+	// H_sub_sparse.copy_from(H_sub);
+	// //H_sub_sparse.print_formatted(std::cout);
+	// SparseDirectUMFPACK H_sub_solver;
+	// H_sub_solver.initialize(H_sub_sparse);
+	// Vector<double> y(i);
+	// for (unsigned int l=0; l<i; l++)
+	//   y[l] = s[l];
+	// //std::cout << y << std::endl;
+	// H_sub_solver.solve(y);
+	// //y = H(1:i,1:i) \ s(1:i); //                 % and exit
+	// for (unsigned int l=0; l<n; l++) 
+	//   for (unsigned int j=0; j<i; j++)
+	//     rhs_for_linear_h.block(0)[l] = rhs_for_linear_h.block(0)[l] + V(l,j)*y[j];
+	// break_iter = i;
+	// // an update to the stress needs added here
+	// std::cout << "Left algorithm on an earlier i with error: " << error << std::endl;
+	// // update stress
+	// stress.block(0).add(1.0, rhs_for_linear_h.block(0));
+	// std::cout << "Update norm: " << rhs_for_linear_h.block(0).l2_norm() << std::endl;
+	// tmp=0;
+	// transfer_interface_dofs(stress,tmp,0,0);
+	// transfer_interface_dofs(stress,tmp,1,1,Displacement);
+	// stress=0;
+	// transfer_interface_dofs(tmp,stress,0,0);
+	// transfer_interface_dofs(tmp,stress,1,1,Displacement);
+
+	// transfer_interface_dofs(stress,stress,0,1,Displacement);
+	// return 0;
+	//break;
+      //}
     }
 
     std::cout << "Completed up to a restart." << std::endl;
@@ -514,61 +604,74 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
 	rhs_for_linear_h.block(0)[l] = rhs_for_linear_h.block(0)[l] + V(l,j)*y[j]; 
     // x = x + V(:,1:m)*y; //                           % update approximation
     //  r = M \ ( b-A*x );
-    // get linearized variables
-    transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
-    rhs_for_linear_h.block(1) *= -1;
-    rhs_for_linear = rhs_for_linear_h;
-    // timer.enter_subsection ("Assemble");
-    s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, false);
-    f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, false);	      
-    f_assembly.join();
-    dirichlet_boundaries((System)0,linear);
-    s_assembly.join();
-    dirichlet_boundaries((System)1,linear);
-    // timer.leave_subsection ();
 
-    // timer.enter_subsection ("Linear Solve");
-    f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
-    s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
-    f_factor.join();
-    f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
-    s_factor.join();
-    s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
-    f_solve.join();
-    s_solve.join();
-    // timer.leave_subsection ();
-    total_solves += 2;
-    if (fem_properties.adjoint_type==1)
-      {
-	// -Ax = -w^n + phi^n/dt
-	tmp=0;tmp2=0;
-	transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
-	tmp.block(0)*=1./time_step;
-	transfer_interface_dofs(linear_solution,tmp2,0,0);
-	tmp.block(0)-=tmp2.block(0);
-      }
-    else
-      {
-	// -Ax = -w^n + phi_dot^n
-	tmp=0;tmp2=0;
-	transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
-	transfer_interface_dofs(linear_solution,tmp2,0,0);
-	tmp.block(0)-=tmp2.block(0);
-      }
-    // r^0 = b - Ax
-    r.block(0)  = b.block(0);
-    r.block(0) += tmp.block(0);
+    if (verification) {
+      A.vmult(r.block(0),rhs_for_linear.block(0));
+      r.block(0)*=-1;
+      r.block(0)+=b.block(0);
+    }
+
+    // get linearized variables
+    // transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
+    // rhs_for_linear_h.block(1) *= -1;
+    // rhs_for_linear = rhs_for_linear_h;
+    // // timer.enter_subsection ("Assemble");
+    // s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *this, linear, false);
+    // f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *this, linear, false);	      
+    // f_assembly.join();
+    // dirichlet_boundaries((System)0,linear);
+    // s_assembly.join();
+    // dirichlet_boundaries((System)1,linear);
+    // // timer.leave_subsection ();
+
+    // // timer.enter_subsection ("Linear Solve");
+    // f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[0], linear_matrix.block(0,0));
+    // s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,linear_solver[1], linear_matrix.block(1,1));
+    // f_factor.join();
+    // f_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[0],0,linear);
+    // s_factor.join();
+    // s_solve = Threads::new_task(&FSIProblem<dim>::solve,*this,linear_solver[1],1,linear);
+    // f_solve.join();
+    // s_solve.join();
+    // // timer.leave_subsection ();
+    // total_solves += 2;
+    // if (fem_properties.adjoint_type==1)
+    //   {
+    // 	// -Ax = -w^n + phi^n/dt
+    // 	tmp=0;tmp2=0;
+    // 	transfer_interface_dofs(linear_solution,tmp,1,0,Displacement);
+    // 	tmp.block(0)*=1./time_step;
+    // 	transfer_interface_dofs(linear_solution,tmp2,0,0);
+    // 	tmp.block(0)-=tmp2.block(0);
+    //   }
+    // else
+    //   {
+    // 	// -Ax = -w^n + phi_dot^n
+    // 	tmp=0;tmp2=0;
+    // 	transfer_interface_dofs(linear_solution,tmp,1,0,Velocity);
+    // 	transfer_interface_dofs(linear_solution,tmp2,0,0);
+    // 	tmp.block(0)-=tmp2.block(0);
+    //   }
+    // // r^0 = b - Ax
+    // r.block(0)  = b.block(0);
+    // r.block(0) += tmp.block(0);
+ 
     // added
     // tmp.block(0) = 0;
     // linear_matrix.block(0,0).vmult(tmp.block(0), r.block(0));
     // r.block(0)=tmp.block(0);
     //r = M \ ( b-A*x );  //                            % compute residual
     // ***************************************************
+
+    if (verification) {
+      s[H_size] = r.block(0).l2_norm();
+    } else {
     premultiplier = r.block(0);
     // if (break_iter >= 0)
     //   s[break_iter+1] = interface_norm(r.block(0));
     // else
-    s[H_size] = std::sqrt(interface_norm(r.block(0)));
+    s[H_size] = interface_norm(r.block(0));
+    }
     //s(i+1) = norm(r);
     error = s[H_size] / bnrm2; //   
     //error = s(i+1) / bnrm2; // % check convergence
