@@ -146,13 +146,13 @@ template <int dim>
 unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations)
 {
   const bool verification = true; 
-
+  unsigned int n=500;
   
-  FullMatrix<double> A(100,100);
-  for (unsigned int i=0; i<100; i++) {
-    for (unsigned int j=0; j<100; j++) {
+  FullMatrix<double> A(n,n);
+  for (unsigned int i=0; i<n; i++) {
+    for (unsigned int j=0; j<n; j++) {
       if (i==j) {
-	A.set(i,i,std::fabs(49.5-j));
+	A.set(i,i,std::fabs(.5*(n-1)-j));
       } else if (j==i+1 || j==i-1) {
 	A.set(i,j,1.0);
       }
@@ -198,8 +198,8 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
   double bnrm2 = interface_norm(b.block(0));
 
   if (verification) {
-    b.block(0).reinit(100);
-    for (unsigned int i=0; i<100; i++)
+    b.block(0).reinit(n);
+    for (unsigned int i=0; i<n; i++)
       b.block(0)[i] = i;
     bnrm2 = b.block(0).l2_norm();
   }
@@ -212,6 +212,7 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
   // } else {
   //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * bnrm2;
   // }
+  for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = 1.0;
   rhs_for_linear_h=0;
   transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
   transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
@@ -222,11 +223,11 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
 
   double error;
   if (verification) {
-    rhs_for_linear.block(0).reinit(100);
-    for (unsigned int i=0; i<100; i++) {
+    rhs_for_linear.block(0).reinit(n);
+    for (unsigned int i=0; i<n; i++) {
       rhs_for_linear.block(0)[i]=1;
     }
-    r.block(0).reinit(100);
+    r.block(0).reinit(n);
     A.vmult(r.block(0),rhs_for_linear.block(0));
     r.block(0)*=-1;
     r.block(0)+=b.block(0);
@@ -300,12 +301,12 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     std::cout << "Error sufficiently small before running algorithm." << std::endl;
     return 0;
   }
-  unsigned int n = stress.block(0).size();
+  //unsigned int n = stress.block(0).size();
   // [n,n] = size(A);                                  % initialize workspace
   unsigned int m = restrt;
   
   // TEST
-  if (verification) {n=100;}
+  //if (verification) {n=n;}
 
   //std::vector<std::vector< double > > V(n,std::vector<double>(m+1));
   FullMatrix<double> V(n,m+1);
@@ -469,7 +470,7 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
       // double w_norm = interface_norm(w.block(0));
       w_norm = w.block(0).l2_norm();
       H.set(i+1,i,w_norm);
-      std::cout << "w_norm: " << w_norm << std::endl;
+      // std::cout << "w_norm: " << w_norm << std::endl;
       //AssertThrow(false,ExcNotImplemented());
       // H(i+1,i) = norm( w );
       for (unsigned int l=0; l<n; l++) {
@@ -494,42 +495,23 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
       H.set(i,i, cs[i]*H(i,i) + sn[i]*H(i+1,i));
       H.set(i+1,i, 0.0);
       error  = std::fabs(s[i+1]) / bnrm2;
-      std::cout << "error: " << error << std::endl;
+      // std::cout << "error: " << error << std::endl;
       // *****************************************************
       if ( error <= fem_properties.cg_tolerance ) { 
 	unsigned int H_size = i+1;
-	if (break_iter>=0) {
-	  H_size = break_iter;
-	}
 	FullMatrix<double> H_sub(H_size,H_size);
 	H_sub.fill(H);
-	//H.print_formatted(std::cout);
-	CompressedSparsityPattern compressed_sparsity_pattern(H_size);
-	SparsityPattern H_sub_pattern;//(H_size,H_size,H_size); // THIS SHOULD BE m instead of 1, but there doesn't seems to be enough room for it
-	H_sub_pattern.copy_from(compressed_sparsity_pattern);
-	//H_sub_pattern.copy_from(H_size,H_size,H_sub.begin(),H_sub.end());
-	SparseMatrix<double> H_sub_sparse(H_sub_pattern);
-	H_sub_sparse.copy_from(H_sub);
-	//H_sub_sparse.print_formatted(std::cout);
-	//for (unsigned int l=0; l<m; l++) {
-	//  AssertThrow(std::fabs(H_sub_sparse.diag_element(l)>1e-9),ExcNotImplemented());
-	//std::cout << H_sub_sparse.diag_element(l) << std::endl;
-	//}
 	Vector<double> y(H_size);
 	for (unsigned int l=0; l<H_size; l++) {
 	  y[l] = s[l];
 	}
-	SparseDirectUMFPACK H_sub_solver;
-
-	H_sub_solver.initialize(H_sub_sparse);
-	H_sub_solver.solve(y);
-	// y = H(1:m,1:m) \ s(1:m);
+	H_sub.backward(y,y);
 	for (unsigned int l=0; l<n; l++) 
 	  for (unsigned int j=0; j<H_size; j++)
-	    rhs_for_linear_h.block(0)[l] = rhs_for_linear_h.block(0)[l] + V(l,j)*y[j]; 
+	    rhs_for_linear.block(0)[l] = rhs_for_linear.block(0)[l] + V(l,j)*y[j]; 
 	std::cout << "i: " << i << " error: " << error << std::endl;
-	std::cout << rhs_for_linear.block(0) << std::endl;
-	Assert(false,ExcNotImplemented());
+	//std::cout << rhs_for_linear.block(0) << std::endl;
+	AssertThrow(false,ExcNotImplemented());
 	return 0;
       }
       //if ( error <= fem_properties.cg_tolerance*pow(bnrm2,2) ) {   //                     % update approximation
@@ -573,39 +555,56 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     std::cout << "Completed up to a restart." << std::endl;
     //if ( error <= fem_properties.cg_tolerance ) {std::cout << "broke loop" << std::endl;break;}
     unsigned int H_size = m;
-    if (break_iter>=0) {
-      H_size = break_iter;
-    }
+    // if (break_iter>=0) {
+    //   H_size = break_iter;
+    // }
     FullMatrix<double> H_sub(H_size,H_size);
     H_sub.fill(H);
     //H.print_formatted(std::cout);
-    CompressedSparsityPattern compressed_sparsity_pattern(H_size);
-    SparsityPattern H_sub_pattern;//(H_size,H_size,H_size); // THIS SHOULD BE m instead of 1, but there doesn't seems to be enough room for it
-    H_sub_pattern.copy_from(compressed_sparsity_pattern);
+    //CompressedSparsityPattern compressed_sparsity_pattern(H_size);
+    //SparsityPattern H_sub_pattern;//(H_size,H_size,H_size); // THIS SHOULD BE m instead of 1, but there doesn't seems to be enough room for it
+    //H_sub_pattern.copy_from(compressed_sparsity_pattern);
+    //for (unsigned int j=0; j<H_size; j++)
+    //  for (unsigned int l=j; l<H_size; l++)
+    //	H_sub_pattern.add(j,l);
     //H_sub_pattern.copy_from(H_size,H_size,H_sub.begin(),H_sub.end());
-    SparseMatrix<double> H_sub_sparse(H_sub_pattern);
-    H_sub_sparse.copy_from(H_sub);
+    //SparseMatrix<double> H_sub_sparse(H_sub_pattern);
+    //for (unsigned int j=0; j<H_size; j++)
+    //  for (unsigned int l=j; l<H_size; l++)
+    //	H_sub_sparse.set(j,l,H(j,l)); // THIS IS WHERE THE PROBLEM IS!!!!!!!!!!!
+    //H_sub_sparse.copy_from(H_sub);
+
+    //H_sub_sparse.print_formatted(std::cout);
     //H_sub_sparse.print_formatted(std::cout);
     //for (unsigned int l=0; l<m; l++) {
     //  AssertThrow(std::fabs(H_sub_sparse.diag_element(l)>1e-9),ExcNotImplemented());
       //std::cout << H_sub_sparse.diag_element(l) << std::endl;
     //}
+    //H_sub.print_formatted(std::cout);
     Vector<double> y(H_size);
     for (unsigned int l=0; l<H_size; l++) {
       y[l] = s[l];
     }
-    SparseDirectUMFPACK H_sub_solver;
+    H_sub.backward(y,y);
+ 
+    //SparseDirectUMFPACK H_sub_solver;
 
-    H_sub_solver.initialize(H_sub_sparse);
-    H_sub_solver.solve(y);
+    //H_sub_solver.initialize(H_sub_sparse);
+    //H_sub_solver.solve(y);
+
+    //std::cout << y << std::endl;
+    std::cout << "x_norm: " << rhs_for_linear.block(0).l2_norm() << std::endl;
     // y = H(1:m,1:m) \ s(1:m);
     for (unsigned int l=0; l<n; l++) 
       for (unsigned int j=0; j<H_size; j++)
-	rhs_for_linear_h.block(0)[l] = rhs_for_linear_h.block(0)[l] + V(l,j)*y[j]; 
+	rhs_for_linear.block(0)[l] = rhs_for_linear.block(0)[l] + V(l,j)*y[j]; 
     // x = x + V(:,1:m)*y; //                           % update approximation
     //  r = M \ ( b-A*x );
 
     if (verification) {
+      std::cout << "y_norm: " << y.l2_norm() << std::endl;
+      //std::cout << rhs_for_linear_h.block(0).l2_norm() << std::endl;
+      r.block(0)*=0;
       A.vmult(r.block(0),rhs_for_linear.block(0));
       r.block(0)*=-1;
       r.block(0)+=b.block(0);
@@ -663,8 +662,10 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     //r = M \ ( b-A*x );  //                            % compute residual
     // ***************************************************
 
+    //std::cout << s << std::endl;
     if (verification) {
       s[H_size] = r.block(0).l2_norm();
+      //std::cout << "entry added: " << s[H_size] << std::endl;
     } else {
     premultiplier = r.block(0);
     // if (break_iter >= 0)
@@ -673,8 +674,11 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     s[H_size] = interface_norm(r.block(0));
     }
     //s(i+1) = norm(r);
-    error = s[H_size] / bnrm2; //   
+    error = s[H_size] / bnrm2; //  
+    //std::cout << s << std::endl;
+    std::cout << "End of i's error: " << error << std::endl;
     //error = s(i+1) / bnrm2; // % check convergence
+    //AssertThrow(false,ExcNotImplemented());
     if ( error <= fem_properties.cg_tolerance ) {
       // update stress
       stress.block(0).add(1.0, rhs_for_linear_h.block(0));
