@@ -196,7 +196,7 @@ void FSIProblem<dim>::transfer_all_dofs(BlockVector<double> & solution_1, BlockV
 }
 
 template <int dim>
-void FSIProblem<dim>::transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2)
+void FSIProblem<dim>::transfer_interface_dofs(const BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2)
 {
   std::map<unsigned int, unsigned int> mapping;
   if (from==1) // structure origin
@@ -363,6 +363,176 @@ void FSIProblem<dim>::transfer_interface_dofs(BlockVector<double> & solution_1, 
     }
 }
 
+// THIS FUNCTION SHOULD BE COMBINED WITH THE PREVIOUS FUNCTION AT SOME POINT (in a more elegant way)
+template <int dim>
+void FSIProblem<dim>::vector_vector_transfer_interface_dofs(const Vector<double> & solution_1, Vector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2)
+{
+  std::map<unsigned int, unsigned int> mapping;
+  if (from==1) // structure origin
+    {
+      if (structure_var_1==Displacement || structure_var_1==NotSet)
+	{
+	  if (to==0)
+	    {
+	      mapping = n2f;
+	    }
+	  else if (to==1)
+	    {
+	      if (structure_var_2==Displacement)
+		{
+		  mapping = n2a; //  not the correct mapping, just a place holder 
+		}
+	      else if (structure_var_2==Velocity)
+		{
+		  mapping = n2v;
+		}
+	      else
+		{
+		  mapping = n2a; // this is a place holder, but makes the assumption that they want to transfer displacements
+		  //AssertThrow(false,ExcNotImplemented());// 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		}
+	    }
+	  else // to==2
+	    {
+	      mapping = n2a;
+	    }
+	}
+      else if (structure_var_1==Velocity)
+	{
+	  if (to==0)
+	    {
+	      mapping = v2f;
+	    }
+	  else if (to==1)
+	    {
+	      if (structure_var_2==Displacement)
+		{
+		  mapping = v2n;  
+		}
+	      else if (structure_var_2==Velocity)
+		{
+		  mapping = v2a; //  not the correct mapping, just a place holder
+		}
+	      else
+		{
+		  mapping = v2a; // placeholder and assume that they want velocity -> velocity
+		  //AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		}
+	    }
+	  else // to==2
+	    {
+	      mapping = v2a;
+	    }
+	}
+      // NotSet behaves like choosing Displacement
+      // else // structure_var_1==NotSet
+      //   {
+      //     AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer from.');
+      //   }
+    }
+  else if (from==2)
+    {
+      if (to==0)
+	{
+	  mapping = a2f;
+	}
+      else if (to==1)
+	{
+	  if (!(structure_var_1==Displacement && structure_var_2==Velocity) && !(structure_var_1==Velocity && structure_var_2==Displacement))
+	    { // either both are the same and are displacement or velocity, or one is NotSet
+	      // we must find which one is not the notset and use that
+	      if (structure_var_1==Displacement || structure_var_2==Displacement)
+		{
+		  mapping = a2n;
+		}
+	      else if (structure_var_1==Velocity || structure_var_2==Velocity)
+		{
+		  mapping = a2v;
+		}
+	      else // both are NotSet
+		{
+		  mapping = a2n; // assume they want to send to displacement
+		  //AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		}
+	    }
+	  else
+	    {
+	      AssertThrow(false,ExcNotImplemented()); //  'transfer_interface_dofs has been given conflicting information about which component of the structure you wish to transfer to.');
+	    }
+	}
+      else // to == 2
+	{
+	  mapping = a2f; // placeholder since this will get mapped to itself
+	}
+    }
+  else // fluid origin
+    {
+      if (to==0)
+	{
+	  mapping = f2n; // placeholder since this will get mapped to itself
+	}
+      else if (to==1)
+	{
+	  if (!(structure_var_1==Displacement && structure_var_2==Velocity) && !(structure_var_1==Velocity && structure_var_2==Displacement))
+	    { // either both are the same and are displacement or velocity, or one is NotSet
+	      // we must find which one is not the notset and use that
+	      if (structure_var_1==Displacement || structure_var_2==Displacement)
+		{
+		  mapping = f2n;
+		}
+	      else if (structure_var_1==Velocity || structure_var_2==Velocity)
+		{
+		  mapping = f2v;
+		}
+	      else // both are NotSet
+		{
+		  mapping = f2n; // Assume they want displacements
+		  //AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs needs to know which component of the structure you wish to transfer to.');
+		}
+	    }
+	  else
+	    {
+	      AssertThrow(false,ExcNotImplemented()); // 'transfer_interface_dofs has been given conflicting information about which component of the structure you wish to transfer to.');
+	    }
+	}
+      else // to==2
+	{
+	  mapping = f2a;
+	}
+    }
+  if (from!=to)
+    {
+      for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	{
+	  solution_2[it->second]=solution_1[it->first];
+	}
+    }
+  else
+    {
+      // if (structure_var_1!=structure_var_2)
+      //   {
+      //     // ERROR COULD BE HERE! HAVE NOT CHECKED THAT THERE ARE NOT NOTSET's available
+      //     solution_2.block(to)[it->second]=solution_1.block(from)[it->first];
+      //   }
+      // else if ( COULD BE both notset and from to are not equal 1      OR if is 1, at least one not set)
+      if ((from==0 || from==2) || (from==1 && (structure_var_1==structure_var_2 || structure_var_2== NotSet)))
+	{ 
+	  for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	    {
+	      solution_2[it->first]=solution_1[it->first];
+	    }
+	}
+      else
+	{
+	  for  (std::map<unsigned int, unsigned int>::iterator it=mapping.begin(); it!=mapping.end(); ++it)
+	    {
+	      solution_2[it->second]=solution_1[it->first];
+	    }
+	}
+    }
+}
+
 template void FSIProblem<2>::build_dof_mapping();
 template void FSIProblem<2>::transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
-template void FSIProblem<2>::transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2);
+template void FSIProblem<2>::transfer_interface_dofs(const BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2);
+template void FSIProblem<2>::vector_vector_transfer_interface_dofs(const Vector<double> & solution_1, Vector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2);

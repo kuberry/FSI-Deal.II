@@ -51,9 +51,19 @@
 #include "parameters.h"
 #include "small_classes.h"
 #include "data1.h"
-#include "linear_maps.h" 
+//#include "linear_maps.h" 
 
 using namespace dealii;
+
+#ifndef LINEAR_MAPS_H
+namespace LinearMap {
+  class Wilkinson;
+  template<int dim>
+  class Linearized_Operator;
+  template<int dim>
+  class NeumannVector;
+}
+#endif
 
 template <int dim>
 class FSIProblem
@@ -139,7 +149,8 @@ class FSIProblem
   double interface_inner_product(const Vector<double>   &values1, const Vector<double>   &values2);
   void dirichlet_boundaries(System system, Mode enum_);
   void build_dof_mapping();
-  void transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1=NotSet, StructureComponent structure_var_2=NotSet);
+  void transfer_interface_dofs(const BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1=NotSet, StructureComponent structure_var_2=NotSet);
+  void vector_vector_transfer_interface_dofs(const Vector<double> & solution_1, Vector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1=NotSet, StructureComponent structure_var_2=NotSet);
   void transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
   void setup_system ();
   void solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_);
@@ -198,13 +209,13 @@ class FSIProblem
   std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
   std::vector<SparseDirectUMFPACK > state_solver,  adjoint_solver,  linear_solver;
 
-  LinearMap::Wilkinson A;
-
   unsigned int master_thread;
   bool update_domain;
   bool time_dependent;
 
   friend class LinearMap::Wilkinson;
+  friend class LinearMap::Linearized_Operator<dim>;
+  friend class LinearMap::NeumannVector<dim>;
 };
 
 

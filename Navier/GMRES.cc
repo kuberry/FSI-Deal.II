@@ -1,5 +1,7 @@
 #include "FSI_Project.h"
+#include "linear_maps.h"
 #include <cmath>
+
 /*
 To Do: Actually update the stress before leaving when the error is sufficiently small.
  */
@@ -250,6 +252,17 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
       transfer_interface_dofs(linear_solution,tmp2,0,0);
       tmp.block(0)-=tmp2.block(0);
     }
+
+  tmp2*=0;
+
+  LinearMap::Linearized_Operator<dim> A(this);
+  LinearMap::NeumannVector<dim> input_vector(rhs_for_linear_h.block(0), this);
+  LinearMap::NeumannVector<dim> output_vector(tmp2.block(0), this);
+  A.vmult(output_vector, input_vector);
+  tmp.block(0).add(-1.0, output_vector);
+  std::cout << "Difference: " << tmp.block(0).l2_norm() << std::endl;
+
+
   // r^0 = b - Ax
   r.block(0)  = b.block(0);
   r.block(0) *= -1;
