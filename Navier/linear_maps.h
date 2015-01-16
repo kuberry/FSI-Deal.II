@@ -13,59 +13,92 @@ namespace LinearMap {
       // sqrt( \int_{fluid_interface} function^2 dx )
 
     void vmult (Vector<double> &dst,
-		const Vector<double> &src) {
+		const Vector<double> &src) const {
 
-      if (!matrix_assembled) total_solves = 0; // restart the count since we are dealing with a new sequence of runs
+      //if (!matrix_assembled) total_solves = 0; // restart the count since we are dealing with a new sequence of runs
+      assemble_matrix(dst, src);
+      /* problem_space->rhs_for_linear *= 0; */
+      /* problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(0),0,0); */
+      /* problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(1),0,1,problem_space->Displacement); */
+      /* problem_space->rhs_for_linear.block(1) *= -1; */
 
-      problem_space->rhs_for_linear *= 0;
-      problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(0),0,0);
-      problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(1),0,1,problem_space->Displacement);
-      problem_space->rhs_for_linear.block(1) *= -1;
-
-      // only assembly the matrix operator if it isn't currently assembled (once each time step)
-      Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *problem_space, problem_space->linear, !matrix_assembled);
-      Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *problem_space, problem_space->linear, !matrix_assembled);	      
-      f_assembly.join();
-      problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(0),problem_space->linear);
-      s_assembly.join();
-      problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(1),problem_space->linear);
+      /* // only assembly the matrix operator if it isn't currently assembled (once each time step) */
+      /* Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *problem_space, problem_space->linear, !matrix_assembled); */
+      /* Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *problem_space, problem_space->linear, !matrix_assembled);	       */
+      /* f_assembly.join(); */
+      /* problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(0),problem_space->linear); */
+      /* s_assembly.join(); */
+      /* problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(1),problem_space->linear); */
 
       if (matrix_initialized) {
-        Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,problem_space->linear_solver[0], problem_space->linear_matrix.block(0,0));
-        Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,problem_space->linear_solver[1], problem_space->linear_matrix.block(1,1));
-        f_factor.join();
-        Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->linear_solver[0],0,problem_space->linear);
-        s_factor.join();
-        Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->linear_solver[1],1,problem_space->linear);
-        f_solve.join();
-        s_solve.join();
+	if (mode==problem_space->linear) {
+	  Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,problem_space->linear_solver[0], problem_space->linear_matrix.block(0,0));
+	  Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,problem_space->linear_solver[1], problem_space->linear_matrix.block(1,1));
+	  f_factor.join();
+	  Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->linear_solver[0],0,problem_space->linear);
+	  s_factor.join();
+	  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->linear_solver[1],1,problem_space->linear);
+	  f_solve.join();
+	  s_solve.join();
+	} else { // adjoint
+	  Threads::Task<void> f_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,problem_space->adjoint_solver[0], problem_space->adjoint_matrix.block(0,0));
+	  Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >,problem_space->adjoint_solver[1], problem_space->adjoint_matrix.block(1,1));
+	  f_factor.join();
+	  Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->adjoint_solver[0],0,problem_space->adjoint);
+	  s_factor.join();
+	  Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->adjoint_solver[1],1,problem_space->adjoint);
+	  f_solve.join();
+	  s_solve.join();
+	}
       } else {
 	ExcNotInitialized();
       }
 
-      total_solves += 2;
+      //total_solves += 2;
 
       dst *= 0;
-      if (problem_space->fem_properties.adjoint_type==1)
-        {
-          // -Ax = -w^n + phi^n/dt	  
-	  Vector<double> tmp(src.size());
-          problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(1),dst,1,0,problem_space->Displacement);
-          dst*=1./problem_space->time_step;
-          problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(0),tmp,0,0);
-          dst-=tmp;
-        }
-      else
-        {
-          // -Ax = -w^n + phi_dot^n
-	  Vector<double> tmp(src.size());
-          problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(1),dst,1,0,problem_space->Velocity);
-          problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(0),tmp,0,0);
-          dst-=tmp;
-        }
+      if (mode==problem_space->linear) {
+	if (problem_space->fem_properties.adjoint_type==1)
+	  {
+	    // -Ax = -w^n + phi^n/dt	  
+	    Vector<double> tmp(src.size());
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(1),dst,1,0,problem_space->Displacement);
+	    dst*=1./problem_space->time_step;
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(0),tmp,0,0);
+	    dst-=tmp;
+	  }
+	else
+	  {
+	    // -Ax = -w^n + phi_dot^n
+	    Vector<double> tmp(src.size());
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(1),dst,1,0,problem_space->Velocity);
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->linear_solution.block(0),tmp,0,0);
+	    dst-=tmp;
+	  }
+      } else {//adjoint 
+	// THIS NEEDS TO BE LOOKED AT!!!
+	if (problem_space->fem_properties.adjoint_type==1)
+	  {
+	    // -Ax = -w^n + phi^n/dt	  
+	    Vector<double> tmp(src.size());
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(1),dst,1,0,problem_space->Displacement);
+	    dst*=1./problem_space->time_step;
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(0),tmp,0,0);
+	    dst-=tmp;
+	  }
+	else
+	  {
+	    // -Ax = -w^n + phi_dot^n
+	    Vector<double> tmp(src.size());
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(1),dst,1,0,problem_space->Velocity);
+	    problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(0),tmp,0,0);
+	    dst-=tmp;
+	  }
+      }
 
-      //matrix_assembled = true;
-      //matrix_initialized = true;
+      /* matrix_assembled = true; */
+      /* matrix_initialized = true; */
+      //dst *= -1;
     };
     // Application of transpose to a vector.
     // Only used by some iterative methods.
@@ -74,25 +107,59 @@ namespace LinearMap {
       AssertThrow(false, ExcNotImplemented());
     };
 
-    void set_matrix_assembled(bool value) {
-      matrix_assembled = value;
-    };
-
-    void initialize_matrix() {
-      problem_space->linear_solver[0].initialize(problem_space->linear_matrix.block(0,0));
-      problem_space->linear_solver[1].initialize(problem_space->linear_matrix.block(1,1));
-      Threads::Task<void> f_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->linear_solver[0],0,problem_space->linear);
-      Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve,*problem_space,problem_space->linear_solver[1],1,problem_space->linear);
-      f_solve.join();
-      s_solve.join();
+    void initialize_matrix(Vector<double> &dst,
+			   const Vector<double> &src, enum FSIProblem<dim>::Mode mode_) {
+      mode = mode_;
+      reassemble_operator(dst, src);
+      if (mode==problem_space->linear) {
+	problem_space->linear_solver[0].initialize(problem_space->linear_matrix.block(0,0));
+	problem_space->linear_solver[1].initialize(problem_space->linear_matrix.block(1,1));
+      } else { //adjoint
+	problem_space->adjoint_solver[0].initialize(problem_space->adjoint_matrix.block(0,0));
+	problem_space->adjoint_solver[1].initialize(problem_space->adjoint_matrix.block(1,1));
+      }
       matrix_initialized = true;
     };
   
+    void assemble_matrix(Vector<double> &dst,
+		const Vector<double> &src) const {
+      if (mode==problem_space->linear) {
+	problem_space->rhs_for_linear *= 0;
+	problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(0),0,0);
+	problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(1),0,1,problem_space->Displacement);
+	problem_space->rhs_for_linear.block(1) *= -1;
+      } else { //adjoint
+	problem_space->rhs_for_adjoint *= 0;
+	problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_adjoint.block(0),0,0);
+	problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_adjoint.block(1),0,1,problem_space->Displacement);
+	problem_space->rhs_for_adjoint.block(1) *= -1;
+      }
+
+      // only assembly the matrix operator if it isn't currently assembled (once each time step)
+      Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *problem_space, mode, !matrix_assembled);
+      Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *problem_space, mode, !matrix_assembled);	      
+      f_assembly.join();
+      problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(0), mode);
+      s_assembly.join();
+      problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(1), mode);
+    };
+
+    void reassemble_operator(Vector<double> &dst,
+		const Vector<double> &src) {
+      assemble_matrix(dst, src);
+      matrix_assembled = true;
+    };
+
+    void set_matrix_assembled_false() {
+      matrix_assembled = false;
+    };
+
     private:
       FSIProblem<dim> *problem_space;
       unsigned int total_solves;
       bool matrix_assembled;
       bool matrix_initialized;
+      enum FSIProblem<dim>::Mode mode;
     };
 
 

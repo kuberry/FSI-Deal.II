@@ -1,5 +1,10 @@
 #include "FSI_Project.h"
 #include <deal.II/base/timer.h>
+#include <deal.II/lac/solver_control.h>
+#include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/solver_bicgstab.h>
+#include <deal.II/lac/solver_cg.h>
+#include "linear_maps.h"
 
 template <int dim>
 void FSIProblem<dim>::run ()
@@ -419,31 +424,130 @@ void FSIProblem<dim>::run ()
   	    }
   	  else if (fem_properties.optimization_method.compare("CG")==0) 
 	    {
-	      total_solves = optimization_CG(total_solves, initialized_timestep_number);
+	      LinearMap::Linearized_Operator<dim> A(this);
+	      LinearMap::NeumannVector<dim> output_vector(rhs_for_adjoint.block(0), this);
+	      for (Vector<double>::iterator it=output_vector.begin(); it!=output_vector.end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * rhs_for_adjoint.block(0).l2_norm();
+	      LinearMap::NeumannVector<dim> input_vector(rhs_for_adjoint.block(0), this);
+	      //input_vector *= -1;
+	      //A.vmult(output_vector, input_vector);
+	      //tmp.block(0).add(-1.0, output_vector);
+	      // total_solves is passed by reference and updated
+	      unsigned int convergence_flag = 1;
+	      ReductionControl solver_control(1000, 1e-50, fem_properties.cg_tolerance, false, false);
+	      //SolverControl solver_control(1000, 1e-50, false, false);
+	      PrimitiveVectorMemory<Vector<double> > mem;
+	      SolverCG<Vector<double> > solver (solver_control, mem);//, SolverGMRES<Vector<double> >::AdditionalData(53,false));
+	      A.initialize_matrix(output_vector, input_vector, linear);
+	      try {
+		solver.solve(A, output_vector, input_vector, PreconditionIdentity());
+	      } catch (std::exception &e) {
+		Assert (false, ExcMessage(e.what()));
+	      }
+	      
+	      std::cout << "last val: " << solver_control.last_value() << std::endl;
+	      std::cout << "last step:" << solver_control.last_step() << std::endl;
+	      //std::cout << input_vector << std::endl; 
+	      stress.block(0).add(1.0, output_vector);
+	      tmp=0;
+	      transfer_interface_dofs(stress,tmp,0,0);
+	      transfer_interface_dofs(stress,tmp,1,1,Displacement);
+	      stress=0;
+	      transfer_interface_dofs(tmp,stress,0,0);
+	      transfer_interface_dofs(tmp,stress,1,1,Displacement);
+
+	      transfer_interface_dofs(stress,stress,0,1,Displacement);
+	      //total_solves = optimization_CG(total_solves, initialized_timestep_number);
 	    }
 	  else if (fem_properties.optimization_method.compare("BICG")==0) 
 	    {
-	      if (velocity_jump > velocity_jump_old) {
-		stress = stress_star;
-		update_alpha *= 0.5;
-		velocity_jump = velocity_jump_last_good_value;
-	      } else {
-		stress_star = stress;
-		update_alpha  = 1.0;
-	      }
+	      // if (velocity_jump > velocity_jump_old) {
+	      // 	stress = stress_star;
+	      // 	update_alpha *= 0.5;
+	      // 	velocity_jump = velocity_jump_last_good_value;
+	      // } else {
+	      // 	stress_star = stress;
+	      // 	update_alpha  = 1.0;
+	      // }
+
+	      LinearMap::Linearized_Operator<dim> A(this);
+	      LinearMap::NeumannVector<dim> output_vector(rhs_for_adjoint.block(0), this);
+	      for (Vector<double>::iterator it=output_vector.begin(); it!=output_vector.end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * rhs_for_adjoint.block(0).l2_norm()*1e10;
+	      LinearMap::NeumannVector<dim> input_vector(rhs_for_adjoint.block(0), this);
+	      //input_vector *= -1;
+	      //A.vmult(output_vector, input_vector);
+	      //tmp.block(0).add(-1.0, output_vector);
 	      // total_solves is passed by reference and updated
 	      unsigned int convergence_flag = 1;
-	      while (convergence_flag!=0) {
-		convergence_flag = optimization_BICGSTAB(total_solves, initialized_timestep_number, true, 1000, 1.0);
+	      //ReductionControl solver_control(1000, 1e-50, fem_properties.cg_tolerance, false, false);
+	      SolverControl solver_control(1000, 1e-50, false, false);
+	      //GrowingVectorMemory<Vector<double> > mem;
+	      PrimitiveVectorMemory<Vector<double> > mem;
+	      SolverBicgstab<Vector<double> > solver (solver_control, mem, SolverBicgstab<Vector<double> >::AdditionalData(false /*exact residual */, -1.e-250 /* breakdown */));
+	      A.initialize_matrix(output_vector, input_vector, linear);
+	      try {
+		solver.solve(A, output_vector, input_vector, PreconditionIdentity());
+	      } catch (std::exception &e) {
+		Assert (false, ExcMessage(e.what()));
 	      }
+	      
+	      std::cout << "last val: " << solver_control.last_value() << std::endl;
+	      std::cout << "last step:" << solver_control.last_step() << std::endl;
+	      //std::cout << input_vector << std::endl; 
+	      stress_star.block(0).add(1.0, output_vector);
+	      tmp=0;
+	      transfer_interface_dofs(stress,tmp,0,0);
+	      transfer_interface_dofs(stress,tmp,1,1,Displacement);
+	      stress=0;
+	      transfer_interface_dofs(tmp,stress,0,0);
+	      transfer_interface_dofs(tmp,stress,1,1,Displacement);
+
+	      transfer_interface_dofs(stress,stress,0,1,Displacement);
+
+
+
+	      // // total_solves is passed by reference and updated
+	      // unsigned int convergence_flag = 1;
+	      // while (convergence_flag!=0) {
+	      // 	convergence_flag = optimization_BICGSTAB(total_solves, initialized_timestep_number, true, 1000, 1.0);
+	      // }
 	    }
 	  else if (fem_properties.optimization_method.compare("GMRES")==0) 
 	    {
+	      LinearMap::Linearized_Operator<dim> A(this);
+	      LinearMap::NeumannVector<dim> output_vector(rhs_for_adjoint.block(0), this);
+	      for (Vector<double>::iterator it=output_vector.begin(); it!=output_vector.end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * rhs_for_adjoint.block(0).l2_norm();
+	      LinearMap::NeumannVector<dim> input_vector(rhs_for_adjoint.block(0), this);
+	      //input_vector *= -1;
+	      //A.vmult(output_vector, input_vector);
+	      //tmp.block(0).add(-1.0, output_vector);
 	      // total_solves is passed by reference and updated
 	      unsigned int convergence_flag = 1;
-	      while (convergence_flag!=0) {
-		convergence_flag = optimization_GMRES(total_solves, initialized_timestep_number, true, 1000);
+	      ReductionControl solver_control(1000, 1e-50, fem_properties.cg_tolerance, false, false);
+	      //SolverControl solver_control(1000, 1e-50, false, false);
+	      PrimitiveVectorMemory<Vector<double> > mem;
+	      SolverGMRES<Vector<double> > solver (solver_control, mem, SolverGMRES<Vector<double> >::AdditionalData(53,false));
+	      A.initialize_matrix(output_vector, input_vector, linear);
+	      try {
+		solver.solve(A, output_vector, input_vector, PreconditionIdentity());
+	      } catch (std::exception &e) {
+		Assert (false, ExcMessage(e.what()));
 	      }
+	      
+	      std::cout << "last val: " << solver_control.last_value() << std::endl;
+	      std::cout << "last step:" << solver_control.last_step() << std::endl;
+	      //std::cout << input_vector << std::endl; 
+	      stress.block(0).add(1.0, output_vector);
+	      tmp=0;
+	      transfer_interface_dofs(stress,tmp,0,0);
+	      transfer_interface_dofs(stress,tmp,1,1,Displacement);
+	      stress=0;
+	      transfer_interface_dofs(tmp,stress,0,0);
+	      transfer_interface_dofs(tmp,stress,1,1,Displacement);
+
+	      transfer_interface_dofs(stress,stress,0,1,Displacement);
+	      // while (convergence_flag!=0) {
+	      // 	convergence_flag = optimization_GMRES(total_solves, initialized_timestep_number, true, 1);
+	      // }
 	    }
   	}
       pcout << "Total Solves: " << total_solves << std::endl;

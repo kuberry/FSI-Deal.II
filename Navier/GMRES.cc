@@ -189,14 +189,12 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
   // This gives the initial guess x_0
   // if (random_initial_guess) {
   //   // Generate a random vector
-  //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = ((double)std::rand() / (double)(RAND_MAX)) * std::max(physical_properties.rho_f,physical_properties.rho_s) * std::pow(bnrm2,2);
+  //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = ((double)std::rand() / (double)(RAND_MAX)) * std::max(physical_properties.rho_f,physical_properties.rho_s);// * std::pow(bnrm2,2);
   // } else {
-  //   for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * std::pow(bnrm2,2);
-  // }
-  // rhs_for_linear_h=0;
-  //transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
-
+    for (Vector<double>::iterator it=tmp.block(0).begin(); it!=tmp.block(0).end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s);// * std::pow(bnrm2,2);
+    //}
   rhs_for_linear_h=0;
+  transfer_interface_dofs(tmp,rhs_for_linear_h,0,0);
   transfer_interface_dofs(rhs_for_linear_h,rhs_for_linear_h,0,1,Displacement);
   rhs_for_linear_h.block(1) *= -1;   // copy, negate
 
@@ -254,14 +252,14 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     }
 
   tmp2*=0;
-
+  std::cout << "Original norm: " << tmp.block(0).l2_norm() << std::endl;
   LinearMap::Linearized_Operator<dim> A(this);
   LinearMap::NeumannVector<dim> input_vector(rhs_for_linear_h.block(0), this);
   LinearMap::NeumannVector<dim> output_vector(tmp2.block(0), this);
   A.vmult(output_vector, input_vector);
   tmp.block(0).add(-1.0, output_vector);
   std::cout << "Difference: " << tmp.block(0).l2_norm() << std::endl;
-
+  
 
   // r^0 = b - Ax
   r.block(0)  = b.block(0);
