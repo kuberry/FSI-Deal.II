@@ -181,8 +181,8 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
       transfer_interface_dofs(solution,tmp,0,0);
       b.block(0)-=tmp.block(0);
     }
-  premultiplier.block(0) = b.block(0);
-  double bnrm2 = std::sqrt(interface_norm(b.block(0)));
+  //premultiplier.block(0) = b.block(0);
+  double bnrm2 = interface_norm(b.block(0));
 
   // This gives the initial guess x_0
   // if (random_initial_guess) {
@@ -261,8 +261,8 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
   
   if (debug) std::cout << "r_norm_initial: " << r.block(0).l2_norm() << std::endl;
 
-  premultiplier.block(0)=r.block(0);
-  double error = std::sqrt(interface_norm(r.block(0)))/bnrm2;
+  //premultiplier.block(0)=r.block(0);
+  double error = interface_norm(r.block(0))/bnrm2;
   
   if (error < fem_properties.cg_tolerance) {
     std::cout << "Error sufficiently small before running algorithm." << std::endl;
@@ -335,8 +335,8 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     // linear_matrix.block(0,0).vmult(tmp.block(0), r.block(0));
     // r.block(0)=tmp.block(0);
     // r = b.block(0) - M \ ( b-A*x );
-    premultiplier = r.block(0);
-    double r_norm = std::sqrt(interface_norm(r.block(0)));
+    //premultiplier = r.block(0);
+    double r_norm = interface_norm(r.block(0));
     std::cout << "inner iter r_norm: " << r_norm << std::endl;
     for (unsigned int l=0; l<n; l++)
       V.set(l,0,r.block(0)[l]/r_norm);
@@ -410,8 +410,8 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
 	  // w - H(k,i)*V(:,k);
 	}
       }
-      premultiplier.block(0) = w.block(0);
-      double w_norm = std::sqrt(interface_norm(w.block(0)));
+      //premultiplier.block(0) = w.block(0);
+      double w_norm = interface_norm(w.block(0));
       H.set(i+1,i,w_norm);
       //std::cout << "w_norm: " << w_norm << std::endl;
       // H(i+1,i) = norm( w );
@@ -537,12 +537,12 @@ unsigned int FSIProblem<dim>::optimization_GMRES (unsigned int &total_solves, co
     // r.block(0)=tmp.block(0);
     //r = M \ ( b-A*x );  //                            % compute residual
     // ***************************************************
-    premultiplier = r.block(0);
+    //premultiplier = r.block(0);
     // if (break_iter >= 0)
     //   s[break_iter+1] = interface_norm(r.block(0));
     // else
     //std::cout << "Previous s[H_size] " << s[H_size] << std::endl;
-    s[H_size] = std::sqrt(interface_norm(r.block(0)));
+    s[H_size] = interface_norm(r.block(0));
     //std::cout << "New s[H_size] " << s[H_size] << std::endl;
     //s(i+1) = norm(r);
     error = s[H_size] / bnrm2; //   

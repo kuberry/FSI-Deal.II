@@ -204,9 +204,9 @@ unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves, const 
   rhs_for_linear_p.block(1)*=-1;   // copy, negate
 
   //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
-  premultiplier.block(0)=rhs_for_adjoint.block(0); // premult
+  //premultiplier.block(0)=rhs_for_adjoint.block(0); // premult
 
-  double p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+  double p_n_norm_square = interface_inner_product(rhs_for_adjoint.block(0),rhs_for_linear_p.block(0));
   //double p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
   //std::cout <<  p_n_norm_square << std::endl;
   rhs_for_linear_Ap_s=0;
@@ -250,10 +250,10 @@ unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves, const 
       tmp.block(0)+=tmp2.block(0);
       rhs_for_linear_Ap_s.block(0) = rhs_for_linear_p.block(0);
       rhs_for_linear_Ap_s *= sqrt(fem_properties.penalty_epsilon);
-      premultiplier.block(0)=rhs_for_linear_p.block(0);
-      double ap_norm_square = interface_norm(tmp.block(0));
+      //premultiplier.block(0)=rhs_for_linear_p.block(0);
+      double ap_norm_square = interface_inner_product(rhs_for_linear_p.block(0),tmp.block(0));
       //double ap_norm_square = tmp.block(0).l2_norm();
-      ap_norm_square += interface_norm(rhs_for_linear_p.block(0));
+      ap_norm_square += interface_inner_product(rhs_for_linear_p.block(0),rhs_for_linear_p.block(0));
       //ap_norm_square += rhs_for_linear_p.block(0).l2_norm();
       double sigma = p_n_norm_square/ap_norm_square;
 
@@ -326,8 +326,8 @@ unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves, const 
       tmp.block(0).add(sqrt(fem_properties.penalty_epsilon),rhs_for_adjoint_s.block(0)); // not sure about this one
 
       //rhs_for_linear_p = rhs_for_adjoint; // erase!! not symmetric
-      premultiplier.block(0)=rhs_for_adjoint.block(0);
-      double Astar_r_np1_norm_square = interface_norm(tmp.block(0));
+      //premultiplier.block(0)=rhs_for_adjoint.block(0);
+      double Astar_r_np1_norm_square = interface_inner_product(rhs_for_adjoint.block(0), tmp.block(0));
       //double Astar_r_np1_norm_square = tmp.block(0).l2_norm();
       double tau = Astar_r_np1_norm_square / p_n_norm_square;
 
@@ -336,7 +336,7 @@ unsigned int FSIProblem<dim>::optimization_CG (unsigned int total_solves, const 
       rhs_for_linear_p.block(0)+=tmp.block(0);
       transfer_interface_dofs(rhs_for_linear_p,rhs_for_linear_p,0,1,Displacement);
       rhs_for_linear_p.block(1)*=-1;   // copy, negate
-      p_n_norm_square = interface_norm(rhs_for_linear_p.block(0));
+      p_n_norm_square = interface_inner_product(rhs_for_adjoint.block(0),rhs_for_linear_p.block(0));
       //p_n_norm_square = rhs_for_linear_p.block(0).l2_norm();
       //std::cout << p_n_norm_square << std::endl;
       if (loop_count % 100 == 0) std::cout << "CG Err: " << p_n_norm_square << std::endl;

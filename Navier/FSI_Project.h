@@ -51,6 +51,7 @@
 #include "parameters.h"
 #include "small_classes.h"
 #include "data1.h"
+#include "linear_maps.h" 
 
 using namespace dealii;
 
@@ -134,7 +135,8 @@ class FSIProblem
   Tensor<1,dim> lift_and_drag_fluid();
   Tensor<1,dim> lift_and_drag_structure();
   double interface_error();
-  double interface_norm(Vector<double>   &values);
+  double interface_norm(const Vector<double>  &values);
+  double interface_inner_product(const Vector<double>   &values1, const Vector<double>   &values2);
   void dirichlet_boundaries(System system, Mode enum_);
   void build_dof_mapping();
   void transfer_interface_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1=NotSet, StructureComponent structure_var_2=NotSet);
@@ -196,9 +198,13 @@ class FSIProblem
   std::map<unsigned int, BoundaryCondition> fluid_boundaries, structure_boundaries, ale_boundaries;
   std::vector<SparseDirectUMFPACK > state_solver,  adjoint_solver,  linear_solver;
 
+  LinearMap::Wilkinson A;
+
   unsigned int master_thread;
   bool update_domain;
   bool time_dependent;
+
+  friend class LinearMap::Wilkinson;
 };
 
 

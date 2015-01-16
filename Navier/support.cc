@@ -249,8 +249,9 @@ double FSIProblem<dim>::interface_error()
 }
 
 template <int dim>
-double FSIProblem<dim>::interface_norm(Vector<double>   &values)
+double FSIProblem<dim>::interface_inner_product(const Vector<double>   &values1, const Vector<double>   &values2)
 {
+  ale_transform_fluid();
   QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
   FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
 				    update_values    | update_normal_vectors |
@@ -276,8 +277,8 @@ double FSIProblem<dim>::interface_norm(Vector<double>   &values)
 	      if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Interface)
 		{
 		  fe_face_values.reinit (cell, face_no);
-		  fe_face_values.get_function_values (values, actual_values);
-		  fe_face_values.get_function_values (premultiplier.block(0), premult_values);
+		  fe_face_values.get_function_values (values2, actual_values);
+		  fe_face_values.get_function_values (values1, premult_values);
 
 		  for (unsigned int q=0; q<n_face_q_points; ++q)
 		    {
@@ -293,14 +294,20 @@ double FSIProblem<dim>::interface_norm(Vector<double>   &values)
 	    }
 	}
     }
+  ref_transform_fluid();
   return functional;
 }
 
-
+template <int dim>
+double FSIProblem<dim>::interface_norm(const Vector<double>   &values)
+{
+  return std::sqrt(interface_inner_product(values, values));
+}
 
 template void FSIProblem<2>::build_adjoint_rhs();
 template void FSIProblem<2>::get_fluid_stress();
 template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_fluid();
 template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_structure();
 template double FSIProblem<2>::interface_error();
-template double FSIProblem<2>::interface_norm(Vector<double>   &values);
+template double FSIProblem<2>::interface_inner_product(const Vector<double>  &values1, const Vector<double>  &values2);
+template double FSIProblem<2>::interface_norm(const Vector<double>   &values);

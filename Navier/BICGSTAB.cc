@@ -79,7 +79,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
   rhs_for_linear_h.block(1) *= -1;   // copy, negate
 
 
-  premultiplier.block(0)=rhs_for_adjoint.block(0); // used by interface_norm
+  //premultiplier.block(0)=rhs_for_adjoint.block(0); // used by interface_norm
   double original_error_norm = interface_norm(rhs_for_adjoint.block(0));
   
   BlockVector<double> b = rhs_for_adjoint; // just to initialize it
@@ -175,8 +175,8 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
 
   unsigned int loop_count = 1;
   while (error_norm/original_error_norm > fem_properties.cg_tolerance && loop_count <= max_iterations) {
-    premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
-    double rho_np1 = interface_norm(r.block(0));
+    //premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
+    double rho_np1 = interface_inner_product(r_tilde.block(0), r.block(0));
     //     rho_np1 = r_tilde * r;
     
     double beta = (rho_np1/rho_n)*(alpha/w_n);
@@ -226,8 +226,8 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
     tmp.block(0)+=tmp2.block(0);
     v.block(0)=tmp.block(0);	  
 
-    premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
-    alpha = rho_np1 / interface_norm(v.block(0));
+    //premultiplier.block(0)=r_tilde.block(0); // used by interface_norm
+    alpha = rho_np1 / interface_inner_product(r_tilde.block(0), v.block(0));
 
     BlockVector<double> s = r; // only block(0) has values
     s.block(0)  = r.block(0);
@@ -272,9 +272,9 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
     tmp.block(0)+=tmp2.block(0);
     BlockVector<double> t = tmp;
     
-    premultiplier.block(0)=t.block(0); // used by interface_norm
-    double ts = interface_norm(s.block(0));
-    double tt = interface_norm(t.block(0));
+    //premultiplier.block(0)=t.block(0); // used by interface_norm
+    double ts = interface_inner_product(t.block(0), s.block(0));
+    double tt = interface_inner_product(t.block(0), t.block(0));
     
     w_n = ts / tt;
     // w_n = t*s / (t*t);
@@ -290,7 +290,7 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
     r.block(0) = s.block(0);
     r.block(0).add(-w_n, t.block(0));
 
-    premultiplier.block(0)=r.block(0); // used by interface_norm
+    //premultiplier.block(0)=r.block(0); // used by interface_norm
     error_norm = interface_norm(r.block(0));
 
     if (loop_count % 25 == 0) {
