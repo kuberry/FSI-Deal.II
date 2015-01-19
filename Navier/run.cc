@@ -393,7 +393,7 @@ void FSIProblem<dim>::run ()
 		LinearMap::NeumannVector<dim> x(rhs_for_adjoint.block(0), this);
 		x*=0;
 		LinearMap::NeumannVector<dim> b(rhs_for_adjoint.block(0), this);
-		A.initialize_matrix(x, b, adjoint);
+		A.initialize_matrix(x, b, adjoint, initialized_timestep_number);
 		A.vmult(x,b);
 
 		total_solves += 1;
@@ -477,7 +477,7 @@ void FSIProblem<dim>::run ()
 		//GrowingVectorMemory<Vector<double> > mem;
 		PrimitiveVectorMemory<Vector<double> > mem;
 		SolverCG<Vector<double> > solver (solver_control);//, mem, SolverCG<Vector<double> >::AdditionalData(false /*exact residual */, -1.e-250 /* breakdown */));
-		A.initialize_matrix(output_vector, input_vector, linear);
+		A.initialize_matrix(output_vector, input_vector, linear, initialized_timestep_number);
 		try {
 		  solver.solve(A, output_vector, input_vector, PreconditionIdentity());
 		} catch (std::exception &e) {
@@ -557,7 +557,7 @@ void FSIProblem<dim>::run ()
 		//GrowingVectorMemory<Vector<double> > mem;
 		PrimitiveVectorMemory<Vector<double> > mem;
 		SolverBicgstab<Vector<double> > solver (solver_control);//, mem, SolverBicgstab<Vector<double> >::AdditionalData(false /*exact residual */, 1.e-250 /* breakdown */));
-		A.initialize_matrix(output_vector, input_vector, linear);
+		A.initialize_matrix(output_vector, input_vector, linear, initialized_timestep_number);
 		try {
 		  solver.solve(A, output_vector, input_vector, PreconditionIdentity());
 		} catch (std::exception &e) {
@@ -593,6 +593,7 @@ void FSIProblem<dim>::run ()
 	      }
 	    else if (fem_properties.optimization_method.compare("GMRES")==0) 
 	      {
+		stress_star = stress;
 		// if (count == 1) update_alpha = 0.01;
 		// if (count >= 2 && count <= 6) update_alpha += .195;
 		// else update_alpha = 1.0;
@@ -628,7 +629,7 @@ void FSIProblem<dim>::run ()
 		//SolverControl solver_control(1000, 1e-50, false, false);
 		PrimitiveVectorMemory<Vector<double> > mem;
 		SolverGMRES<Vector<double> > solver (solver_control, mem, SolverGMRES<Vector<double> >::AdditionalData(53,false));
-		A.initialize_matrix(output_vector, input_vector, linear);
+		A.initialize_matrix(output_vector, input_vector, linear, initialized_timestep_number);
 		try {
 		  solver.solve(A, output_vector, input_vector, PreconditionIdentity());
 		} catch (std::exception &e) {
@@ -638,12 +639,13 @@ void FSIProblem<dim>::run ()
 		m_val = -solver_control.last_value();
 		double c_val = 0.5;
 		t_val = -m_val*c_val;
+		t_val = 0;
 		//m_val = A.vmult(output_vector);
 
 		std::cout << "last val: " << solver_control.last_value() << std::endl;
 		std::cout << "last step:" << solver_control.last_step() << std::endl;
 		//std::cout << input_vector << std::endl; 
-		stress_star = stress;
+		//stress_star = stress;
 		update_direction.block(0) = output_vector;
 		AG_line_search = true;
 		// stress.block(0).add(update_alpha, output_vector);

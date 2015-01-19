@@ -1,5 +1,9 @@
 #include "FSI_Project.h"
 #include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/std_cxx1x/condition_variable.h>
+#include <deal.II/base/std_cxx1x/condition_variable.h>
+#include <deal.II/base/std_cxx1x/type_traits.h>
+
 // #include <deal.II/grid/grid_out.h> /* remove this when not adding temporary code in assembly */
 
 // regexp replacement for grad_* terms:
@@ -159,6 +163,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
       scratch.fe_values[velocities].get_function_gradients(old_solution.block(0),grad_u_old); // THESE NEED TO BE TRANSPOSED IN THE FUTURE
       scratch.fe_values[velocities].get_function_gradients(solution_star.block(0),grad_u_star); // THESE ALSO NEED TO BE TRANSPOSED, since Deal.II transposes gradients
 
+      scratch.fe_values.get_function_values (old_old_solution.block(0), old_old_solution_values);
       if (fem_properties.richardson && !fem_properties.fluid_newton)
 	{
 	  scratch.fe_values.get_function_values (old_old_solution.block(0), old_old_solution_values);
@@ -177,6 +182,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	    {
 	      u_star[d] = u_star_values[q](d);
 	      u_old[d] = old_solution_values[q](d);
+	      u_old_old[d] = old_old_solution_values[q](d);
 	      if (fem_properties.richardson && !fem_properties.fluid_newton)
 		{
 		  u_old_old[d] = old_old_solution_values[q](d);
@@ -460,9 +466,13 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			  if (physical_properties.moving_domain)
 			    {
 			      data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f *
-			  	(- meshvelocity*transpose(grad_phi_u[j])*phi_u[i]
+			  	(- u_old_old/time_step*transpose(grad_phi_u[j])*phi_u[i]
 				 //- trace(grad_z[q]) * phi_u[j] * phi_u[i]
 			  	 )* scratch.fe_values.JxW(q);
+			      // data.cell_matrix(i,j) += fem_properties.fluid_theta * physical_properties.rho_f *
+			      // 	(- meshvelocity*transpose(grad_phi_u[j])*phi_u[i]
+			      // 	 //- trace(grad_z[q]) * phi_u[j] * phi_u[i]
+			      // 	 )* scratch.fe_values.JxW(q);
 			    }
 			}
 		    }
@@ -1059,6 +1069,21 @@ void FSIProblem<dim>::assemble_fluid (Mode enum_, bool assemble_matrix)
 				     face_quadrature_formula, update_values | update_normal_vectors | update_quadrature_points  | update_JxW_values,
 				     (unsigned int)enum_);//, vertices_quadrature_formula, update_values);
  
+  // WorkStream::run (fluid_dof_handler.begin_active(),
+  // 		   fluid_dof_handler.end(),
+  // 		   boost::bind(&FSIProblem<dim>::assemble_fluid_matrix_on_one_cell,
+  // 				   *this,
+  // 			       // current_solution,
+  // 				   boost::_1,
+  // 				   boost::_2,
+  // 			       std_cxx11::_3),
+  // 			       //previous_time+time_step),
+  // 		   std_cxx11::bind(&FSIProblem<dim>::copy_local_fluid_to_global,
+  // 				   *this,
+  // 				   std_cxx11::_1),
+  // 		   per_task_data);
+
+
   WorkStream::run (fluid_dof_handler.begin_active(),
   		   fluid_dof_handler.end(),
   		   *this,
