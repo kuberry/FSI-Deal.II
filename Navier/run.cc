@@ -832,3 +832,4 @@ void FSIProblem<dim>::run ()
 
 
 template void FSIProblem<2>::run ();
+template void FSIProblem<3>::run ();

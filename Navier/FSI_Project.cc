@@ -3,7 +3,7 @@
 
 int main (int argc, char *argv[])
 {
-  const unsigned int dim = 2;
+  const unsigned int dim = 3;
   //Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
   if (argc < 2)
     {
@@ -26,10 +26,10 @@ int main (int argc, char *argv[])
     	  std::cerr << "Couldn't read filename: " << argv[1] << std::endl;
       }
       if (argc == 2) {
-	FSIProblem<2> fsi_solver(prm);
+	FSIProblem<dim> fsi_solver(prm);
 	fsi_solver.run();
       } else if (argc == 3) {
-	FSIProblem<2> fsi_solver(prm, std::atoi(argv[2]));
+	FSIProblem<dim> fsi_solver(prm, std::atoi(argv[2]));
 	fsi_solver.run();	
       }
     }

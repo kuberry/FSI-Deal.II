@@ -157,9 +157,9 @@ class FSIProblem
   void output_results () const;
   void compute_error ();
 
-  Triangulation<dim>   	fluid_triangulation, structure_triangulation;
-  FESystem<dim>  	    	fluid_fe, structure_fe, ale_fe;
-  DoFHandler<dim>      	fluid_dof_handler, structure_dof_handler, ale_dof_handler;
+  Triangulation<dim,dim>   	fluid_triangulation, structure_triangulation;
+  FESystem<dim,dim>  	    	fluid_fe, structure_fe, ale_fe;
+  DoFHandler<dim,dim>      	fluid_dof_handler, structure_dof_handler, ale_dof_handler;
 
   ConstraintMatrix fluid_constraints, structure_constraints, ale_constraints;
 

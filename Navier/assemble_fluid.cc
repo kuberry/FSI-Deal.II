@@ -1099,7 +1099,7 @@ void FSIProblem<dim>::ale_transform_fluid()
 	  {
 	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
 	      {
-		Point<2> &v = cell->vertex(i);
+		Point<dim> &v = cell->vertex(i);
 		fe_vertices_values.get_function_values(mesh_displacement_star.block(0), z_vertices);
 		fe_vertices_values.get_function_values(mesh_displacement_star_old.block(0), z_old_vertices);
 		for (unsigned int j=0; j<dim; ++j)
@@ -1133,7 +1133,7 @@ void FSIProblem<dim>::ref_transform_fluid()
   	  {
   	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
   	      {
-  		Point<2> &v = cell->vertex(i);
+  		Point<dim> &v = cell->vertex(i);
   		fe_vertices_values.get_function_values(mesh_displacement_star.block(0), z_vertices);
   		fe_vertices_values.get_function_values(mesh_displacement_star_old.block(0), z_old_vertices);
   		for (unsigned int j=0; j<dim; ++j)
@@ -1163,6 +1163,21 @@ template void FSIProblem<2>::ale_transform_fluid();
 
 template void FSIProblem<2>::ref_transform_fluid();
 
+
+
+template void FSIProblem<3>::fluid_state_solve(unsigned int initialized_timestep_number);
+
+template void FSIProblem<3>::assemble_fluid_matrix_on_one_cell (const DoFHandler<3>::active_cell_iterator& cell,
+							     FullScratchData<3>& scratch,
+							     PerTaskData<3>& data );
+
+template void FSIProblem<3>::copy_local_fluid_to_global (const PerTaskData<3> &data);
+
+template void FSIProblem<3>::assemble_fluid (Mode enum_, bool assemble_matrix);
+
+template void FSIProblem<3>::ale_transform_fluid();
+
+template void FSIProblem<3>::ref_transform_fluid();
 
 // h           fluid.vel.L2   fluid.vel.H1   fluid.press.L2   structure.displ.L2   structure.displ.H1   structure.vel.L2
 // 0.353553               -              -                -                    -                    -                  -

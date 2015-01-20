@@ -19,6 +19,7 @@ void FSIProblem<dim>::build_dof_mapping()
       {
 	{
 	  std::vector<unsigned int> temp(fluid_fe.dofs_per_cell);
+	  std::cout << "dofs per cell: " << fluid_fe.dofs_per_cell << std::endl;
 	  cell->get_dof_indices(temp);
 	  Quadrature<dim> q(fluid_fe.get_unit_support_points());
 	  FEValues<dim> fe_values (fluid_fe, q,
@@ -536,3 +537,8 @@ template void FSIProblem<2>::build_dof_mapping();
 template void FSIProblem<2>::transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
 template void FSIProblem<2>::transfer_interface_dofs(const BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2);
 template void FSIProblem<2>::vector_vector_transfer_interface_dofs(const Vector<double> & solution_1, Vector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2);
+
+template void FSIProblem<3>::build_dof_mapping();
+template void FSIProblem<3>::transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
+template void FSIProblem<3>::transfer_interface_dofs(const BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2);
+template void FSIProblem<3>::vector_vector_transfer_interface_dofs(const Vector<double> & solution_1, Vector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1, StructureComponent structure_var_2);

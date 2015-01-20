@@ -45,3 +45,4 @@ void FSIProblem<dim>::solve (const SparseDirectUMFPACK& direct_solver, const int
 }
 
 template void FSIProblem<2>::solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_);
+template void FSIProblem<3>::solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_);

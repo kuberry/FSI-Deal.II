@@ -218,3 +218,6 @@ void FSIProblem<dim>::compute_error ()
 
 template void FSIProblem<2>::output_results () const;
 template void FSIProblem<2>::compute_error ();
+
+template void FSIProblem<3>::output_results () const;
+template void FSIProblem<3>::compute_error ();

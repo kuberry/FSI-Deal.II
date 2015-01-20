@@ -2,7 +2,16 @@
 #define DATA1_H
 #include <deal.II/base/function.h>
 #include <deal.II/lac/block_vector.h>
+#include <deal.II/base/tensor_base.h>
 #include "parameters.h"
+
+using namespace dealii;
+
+template <int dim>
+Tensor<2,dim> get_Jacobian(double x, double y, double t, bool move_domain);
+
+template <int dim>
+Tensor<2,dim> get_DetTimesJacobianInv(Tensor<2,dim> Jacobian);
 
 template <int dim>
 class FluidStressValues : public dealii::Function<dim>

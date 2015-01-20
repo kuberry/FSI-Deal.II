@@ -14,6 +14,7 @@ BDF-like methods for nonlinear dynamic analysis, S. Dong - JCP
 
 using namespace dealii;
 
+template <>
 Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   Tensor<2,2,double> F;
   // mapping=matrix(SR,2,1,[x*y*cos(t),-x*.2*y*t^2 + x*y])
@@ -27,17 +28,53 @@ Tensor<2,2> get_Jacobian(double x, double y, double t, bool move_domain) {
   return F;
 }
 
+template <>
+Tensor<2,3> get_Jacobian(double x, double y, double t, bool move_domain) {
+  Tensor<2,3,double> F;
+  // mapping=matrix(SR,2,1,[x*y*cos(t),-x*.2*y*t^2 + x*y])
+  F[0][0] = 1+y*cos(t);
+  F[1][1] = 1-x*.2*pow(t,2)+x;
+  F[2][2] = 1+2*y;
+  if (move_domain)
+    {
+      F[0][1] =  x*cos(t);
+      F[1][0] =  -.2*y*pow(t,2)+y;
+      F[2][1] =  2;
+    }
+  return F;
+}
+
 Point<2> reference_coord(double x, double y, double t, bool move_domain) {
   Point<2> inverse_coord(x,y);
   return inverse_coord;
 }
 
+template <>
 Tensor<2,2> get_DetTimesJacobianInv(Tensor<2,2> Jacobian) {
   Tensor<2,2,double> Finv;
   Finv[0][0] = Jacobian[1][1];
   Finv[1][1] = Jacobian[0][0];
   Finv[0][1] = -Jacobian[0][1];
   Finv[1][0] = -Jacobian[1][0];
+  return Finv;
+}
+template <>
+Tensor<2,3> get_DetTimesJacobianInv(Tensor<2,3> Jacobian) {
+  Tensor<2,3,double> Finv = invert(Jacobian);
+  Finv *= determinant(Jacobian);
+  // TenA_inv 
+  // FullMatrix<double> A(5,5);
+  // for (unsigned int i=0; i<5; i++)
+  //   for (unsigned int j=0; j<5; j++)
+  //     A(i,j) = Jacobian[i%3][]jde;
+  
+
+
+  // Tensor<2,3,double> Finv;
+  // Finv[0][0] = Jacobian[1][1];
+  // Finv[1][1] = Jacobian[0][0];
+  // Finv[0][1] = -Jacobian[0][1];
+  // Finv[1][0] = -Jacobian[1][0];
   return Finv;
 }
 
@@ -146,7 +183,7 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     grad_u[1][1] = -3*t;
     grad_u[1][0] = 2*cos(y-t);
     grad_u[0][1] = 3*cos(x-t);
-    Tensor<2,dim,double> F = get_Jacobian(x, y, t, physical_properties.move_domain);
+    Tensor<2,dim,double> F = get_Jacobian<dim>(x, y, t, physical_properties.move_domain);
     Tensor<2,dim,double> detTimesFInv = get_DetTimesJacobianInv(F);
     Tensor<2,dim,double> FInv = 1./determinant(F)*detTimesFInv;
     grad_u = .5*(transpose(FInv)*grad_u + transpose(grad_u)*FInv);
@@ -870,3 +907,10 @@ template class FluidBoundaryValues<2>;
 template class StructureBoundaryValues<2>;
 template class AleBoundaryValues<2>;
 
+template class FluidStressValues<3>;
+template class StructureStressValues<3>;
+template class FluidRightHandSide<3>;
+template class StructureRightHandSide<3>;
+template class FluidBoundaryValues<3>;
+template class StructureBoundaryValues<3>;
+template class AleBoundaryValues<3>;

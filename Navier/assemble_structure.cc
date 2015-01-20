@@ -801,7 +801,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   	  {
   	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
   	      {
-  		Point<2> &v = cell->vertex(i);
+  		Point<dim> &v = cell->vertex(i);
   		fe_vertices_values.get_function_values(old_solution.block(1), z_vertices);
   		for (unsigned int j=0; j<dim; ++j)
   		  {
@@ -835,7 +835,7 @@ void FSIProblem<dim>::assemble_structure (Mode enum_, bool assemble_matrix)
   	  {
   	    if (visited_vertices.find(cell->vertex_index(i)) == visited_vertices.end())
   	      {
-  		Point<2> &v = cell->vertex(i);
+  		Point<dim> &v = cell->vertex(i);
   		fe_vertices_values.get_function_values(old_solution.block(1), z_vertices);
   		for (unsigned int j=0; j<dim; ++j)
   		  {
@@ -860,6 +860,24 @@ template void FSIProblem<2>::assemble_structure_stresses_on_one_cell (const DoFH
 template void FSIProblem<2>::copy_local_structure_to_global (const PerTaskData<2> &data);
 							     
 template void FSIProblem<2>::assemble_structure (Mode enum_, bool assemble_matrix);
+
+
+
+
+
+template void FSIProblem<3>::structure_state_solve(unsigned int initialized_timestep_number);
+
+template void FSIProblem<3>::assemble_structure_matrix_on_one_cell (const DoFHandler<3>::active_cell_iterator& cell,
+							     FullScratchData<3>& scratch,
+							     PerTaskData<3>& data );
+
+template void FSIProblem<3>::assemble_structure_stresses_on_one_cell (const DoFHandler<3>::active_cell_iterator& cell,
+							     FullScratchData<3>& scratch,
+							     PerTaskData<3>& data );
+
+template void FSIProblem<3>::copy_local_structure_to_global (const PerTaskData<3> &data);
+							     
+template void FSIProblem<3>::assemble_structure (Mode enum_, bool assemble_matrix);
 
 
 // dt = 0.0555556 h_f = 0.157135 h_s = 0.114531 L2(T) error [fluid] = 0.00118288,  L2(T) error [structure] = 8.58267e-05

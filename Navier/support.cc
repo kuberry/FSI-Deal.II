@@ -311,3 +311,11 @@ template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_structure();
 template double FSIProblem<2>::interface_error();
 template double FSIProblem<2>::interface_inner_product(const Vector<double>  &values1, const Vector<double>  &values2);
 template double FSIProblem<2>::interface_norm(const Vector<double>   &values);
+
+template void FSIProblem<3>::build_adjoint_rhs();
+template void FSIProblem<3>::get_fluid_stress();
+template Tensor<1,3,double> FSIProblem<3>::lift_and_drag_fluid();
+template Tensor<1,3,double> FSIProblem<3>::lift_and_drag_structure();
+template double FSIProblem<3>::interface_error();
+template double FSIProblem<3>::interface_inner_product(const Vector<double>  &values1, const Vector<double>  &values2);
+template double FSIProblem<3>::interface_norm(const Vector<double>   &values);
