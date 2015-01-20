@@ -20,13 +20,22 @@ namespace LinearMap {
     void vmult (Vector<double> &dst,
 		const Vector<double> &src) const {
       double error_norm = 1;
-      while (error_norm > 1e-12) {
+      unsigned int loop = 1;
+      while (error_norm > 1e-12 || loop <=3) {
+	// Get solution to compare against later
 	Vector<double> reference = dst;
+ 
 	AleBoundaryValues<dim> ale_boundary_values(problem_space->physical_properties);
+	
+	// Add the previous update to the stress in order to check that the ALE won't interfere with the correct update
 	problem_space->stress.block(0) = problem_space->stress_star.block(0);
 	problem_space->stress.block(0).add(1.0, dst);
+
+	// Get the structure solution
 	Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*problem_space, initialized_timestep_number);
 	s_solver.join();
+
+	// Get the ALE solve
 	if (problem_space->physical_properties.moving_domain)
 	  {
 	    problem_space->assemble_ale(problem_space->state,true);
@@ -144,8 +153,9 @@ namespace LinearMap {
 	problem_space->old_old_solution.block(0)*=0;
 	problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(1),problem_space->old_old_solution.block(0),1,0,problem_space->Displacement);
 	reference.add(-1.0,dst);
-	error_norm = reference.l2_norm();
+	error_norm = problem_space->interface_norm(reference);
 	std::cout << "Error in loop: " << error_norm << std::endl;
+	loop++;
       };
     };
 
