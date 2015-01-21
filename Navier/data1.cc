@@ -104,6 +104,8 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
     const double pval = 2*physical_properties.mu*cos(t + x)*sin(t + y) - 2*physical_properties.viscosity*(cos(t + x)*cos(t + y)
 													  - sin(t + x)*sin(t + y));
 
+    // A third component to this stress must be added for pressure for any hope of being correct.
+
     switch (component)
       {
       case 0:
