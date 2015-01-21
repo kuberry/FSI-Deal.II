@@ -594,7 +594,7 @@ void FSIProblem<dim>::assemble_structure_stresses_on_one_cell (const typename Do
 	    {    
 	      scratch.fe_face_values.reinit (cell, face_no);
 
-	      AssertThrow(dim==2,ExcNotImplemented()); // This scaling factor only makes sense for 1d line integrals.
+	      //AssertThrow(dim==2,ExcNotImplemented()); // This scaling factor only makes sense for 1d line integrals.
 	      std::vector<double> coordinate_transformation_multiplier_old(scratch.n_face_q_points);
 	      std::vector<double> coordinate_transformation_multiplier_star(scratch.n_face_q_points);
 	      if (physical_properties.nonlinear_elasticity) {
@@ -604,6 +604,8 @@ void FSIProblem<dim>::assemble_structure_stresses_on_one_cell (const typename Do
 		scratch.fe_face_values[displacements].get_function_gradients(solution_star.block(1),face_grad_n_star);
 		for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		  {
+		    // when this is 1, we are not weighting the integral
+		    // this is being dealt with by moving the domain before integrating, instead
 		    coordinate_transformation_multiplier_old[q] = 1;//std::sqrt(std::pow(1+face_grad_n_old[q][0][0],2)+std::pow(1+face_grad_n_old[q][1][1],2));
 		    coordinate_transformation_multiplier_star[q] = 1;//std::sqrt(std::pow(1+face_grad_n_star[q][0][0],2)+std::pow(1+face_grad_n_star[q][1][1],2));
 		  }

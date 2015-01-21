@@ -112,16 +112,16 @@ class FSIProblem
   void structure_state_solve(unsigned int initialized_timestep_number);
 
   void assemble_fluid (Mode enum_, bool assemble_matrix);
-  void assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
+  void assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim,dim>::active_cell_iterator& cell,
 							     FullScratchData<dim>& scratch,
 							     PerTaskData<dim>& data );
   void copy_local_fluid_to_global (const PerTaskData<dim> &data);
 
   void assemble_structure(Mode enum_, bool assemble_matrix);
-  void assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
+  void assemble_structure_matrix_on_one_cell (const typename DoFHandler<dim,dim>::active_cell_iterator& cell,
 							     FullScratchData<dim>& scratch,
 							     PerTaskData<dim>& data );
-  void assemble_structure_stresses_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
+  void assemble_structure_stresses_on_one_cell (const typename DoFHandler<dim,dim>::active_cell_iterator& cell,
 							     FullScratchData<dim>& scratch,
 							     PerTaskData<dim>& data );
 
@@ -157,9 +157,9 @@ class FSIProblem
   void output_results () const;
   void compute_error ();
 
-  Triangulation<dim,dim>   	fluid_triangulation, structure_triangulation;
-  FESystem<dim,dim>  	    	fluid_fe, structure_fe, ale_fe;
-  DoFHandler<dim,dim>      	fluid_dof_handler, structure_dof_handler, ale_dof_handler;
+  Triangulation<dim>    	fluid_triangulation, structure_triangulation;
+  FESystem<dim>  	    	fluid_fe, structure_fe, ale_fe;
+  DoFHandler<dim>        	fluid_dof_handler, structure_dof_handler, ale_dof_handler;
 
   ConstraintMatrix fluid_constraints, structure_constraints, ale_constraints;
 

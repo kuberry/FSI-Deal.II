@@ -532,7 +532,7 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
 					const unsigned int component) const
 {
   if (physical_properties.simulation_type==0){
-    Assert (component < 3, ExcInternalError());
+    Assert (component < dim+1, ExcInternalError());
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -715,11 +715,12 @@ double StructureBoundaryValues<dim>::value (const Point<dim> &p,
 					    const unsigned int component) const
 {
   if (physical_properties.simulation_type==0){
+    Assert (component < 2*dim, ExcInternalError());
     /*
       >> n1=sin(x + t)*sin(y + t);
       >> n2=cos(x + t)*cos(y + t);
     */
-    Assert (component < 4, ExcInternalError());
+    Assert (component < 2*dim, ExcInternalError());
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -734,14 +735,13 @@ double StructureBoundaryValues<dim>::value (const Point<dim> &p,
       case 3:
 	return -sin(x + t)*cos(y + t)-cos(x + t)*sin(y + t);
       default:
-	Assert(false,ExcDimensionMismatch(5,4));
 	return 0;
       }
   } else if (physical_properties.simulation_type==2) {
     /*
       u=matrix(SR,2,1,[2*sin(y-t)+3*x*t+pow(x,2),3*sin(x-t)-3*y*t])
      */
-    Assert (component < 4, ExcInternalError());
+    Assert (component < 2*dim, ExcInternalError());
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
@@ -756,7 +756,6 @@ double StructureBoundaryValues<dim>::value (const Point<dim> &p,
       case 3:
 	return -3*y - 3*cos(-t + x);
       default:
-	Assert(false,ExcDimensionMismatch(5,4));
 	return 0;
       }    
   }

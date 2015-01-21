@@ -2,6 +2,9 @@
 #include "small_classes.h"
 // this function is fast, no need to parallelize
 
+
+// currently it checks whether face boundary id is zero to determine if it is an interface
+
 template <int dim>
 void FSIProblem<dim>::build_dof_mapping()
 {
@@ -18,8 +21,7 @@ void FSIProblem<dim>::build_dof_mapping()
     for (; cell!=endc; ++cell)
       {
 	{
-	  std::vector<unsigned int> temp(fluid_fe.dofs_per_cell);
-	  std::cout << "dofs per cell: " << fluid_fe.dofs_per_cell << std::endl;
+	  std::vector<unsigned int> temp(cell->get_fe().dofs_per_cell);
 	  cell->get_dof_indices(temp);
 	  Quadrature<dim> q(fluid_fe.get_unit_support_points());
 	  FEValues<dim> fe_values (fluid_fe, q,
@@ -38,7 +40,8 @@ void FSIProblem<dim>::build_dof_mapping()
 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
 	  if (fluid_interface_boundaries.count(cell->face(f)->boundary_indicator())!=0)
 	    {
-	      std::vector<unsigned int> temp(2*fluid_dof_handler.get_fe()[0].dofs_per_vertex + fluid_dof_handler.get_fe()[0].dofs_per_line);
+	      
+	      std::vector<unsigned int> temp(4*cell->get_fe()[0].dofs_per_vertex + 4*cell->get_fe()[0].dofs_per_line + cell->get_fe()[0].dofs_per_quad);
 	      cell->face(f)->get_dof_indices(temp);
 	      Quadrature<dim-1> q(fluid_fe.get_unit_face_support_points());
 	      FEFaceValues<dim> fe_face_values (fluid_fe, q,
@@ -72,7 +75,7 @@ void FSIProblem<dim>::build_dof_mapping()
 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
 	  if (structure_interface_boundaries.count(cell->face(f)->boundary_indicator())!=0)
 	    {
-	      std::vector<unsigned int> temp(2*structure_dof_handler.get_fe()[0].dofs_per_vertex + structure_dof_handler.get_fe()[0].dofs_per_line);
+	      std::vector<unsigned int> temp(4*cell->get_fe()[0].dofs_per_vertex + 4*cell->get_fe()[0].dofs_per_line + cell->get_fe()[0].dofs_per_quad);
 	      cell->face(f)->get_dof_indices(temp);
 	      Quadrature<dim-1> q(structure_fe.get_unit_face_support_points());
 	      FEFaceValues<dim> fe_face_values (structure_fe, q,
@@ -107,7 +110,7 @@ void FSIProblem<dim>::build_dof_mapping()
     for (; cell!=endc; ++cell)
       {
 	{
-	  std::vector<unsigned int> temp(ale_fe.dofs_per_cell);
+	  std::vector<unsigned int> temp(cell->get_fe()[0].dofs_per_cell);
 	  cell->get_dof_indices(temp);
 	  Quadrature<dim> q(ale_fe.get_unit_support_points());
 	  FEValues<dim> fe_values (ale_fe, q,
@@ -126,7 +129,7 @@ void FSIProblem<dim>::build_dof_mapping()
 	for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
 	  if (fluid_interface_boundaries.count(cell->face(f)->boundary_indicator())!=0)
 	    {
-	      std::vector<unsigned int> temp(2*ale_dof_handler.get_fe()[0].dofs_per_vertex + ale_dof_handler.get_fe()[0].dofs_per_line);
+	      std::vector<unsigned int> temp(4*cell->get_fe()[0].dofs_per_vertex + 4*cell->get_fe()[0].dofs_per_line + cell->get_fe()[0].dofs_per_quad);
 	      cell->face(f)->get_dof_indices(temp);
 	      Quadrature<dim-1> q(ale_fe.get_unit_face_support_points());
 	      FEFaceValues<dim> fe_face_values (ale_fe, q,

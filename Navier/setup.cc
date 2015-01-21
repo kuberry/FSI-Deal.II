@@ -368,7 +368,7 @@ void FSIProblem<2>::setup_system ()
     // also, we will initially have a temp_* vectors that we will rearrange to match the order of the fluid
 
     //unsigned int ind=0;
-    for (typename Triangulation<2>::active_cell_iterator
+    for (Triangulation<2>::active_cell_iterator
 	   cell = fluid_triangulation.begin_active(); cell != fluid_triangulation.end(); ++cell)
       {
 	for (unsigned int f=0; f<GeometryInfo<2>::faces_per_cell; ++f)
@@ -398,7 +398,7 @@ void FSIProblem<2>::setup_system ()
       }
 
     // ind=0;
-    for (typename Triangulation<2>::active_cell_iterator
+    for (Triangulation<2>::active_cell_iterator
 	   cell = structure_triangulation.begin_active(); cell != structure_triangulation.end(); ++cell)
       {
 	for (unsigned int f=0; f<GeometryInfo<2>::faces_per_cell; ++f)
@@ -689,11 +689,11 @@ void FSIProblem<3>::setup_system ()
     AssertThrow(fem_properties.nx_f==fem_properties.nx_s,ExcNotImplemented()); // Checks that the interface edges are equally refined
     AssertThrow(std::fabs(fem_properties.fluid_width-fem_properties.structure_width)<1e-15,ExcNotImplemented());
 
-    for (unsigned int i=0; i<4; ++i)
+    for (unsigned int i=0; i<6; ++i)
       {
 	if (physical_properties.simulation_type == 0) {
 	  if (i==1||i==3) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-	  else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	  else if (i==5) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	  else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	  fluid_interface_boundaries.insert(2);
 	} else { // simulation_type ==2
@@ -702,10 +702,10 @@ void FSIProblem<3>::setup_system ()
 	}
       }
 
-    for (unsigned int i=0; i<4; ++i)
+    for (unsigned int i=0; i<6; ++i)
       {
 	if (physical_properties.simulation_type == 0) {
-	  if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	  if (i==4) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	  else if (i==1||i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	  structure_interface_boundaries.insert(0);
@@ -714,10 +714,10 @@ void FSIProblem<3>::setup_system ()
 	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	}
       }
-    for (unsigned int i=0; i<4; ++i)
+    for (unsigned int i=0; i<6; ++i)
       {
 	if (physical_properties.simulation_type == 0) {
-	  if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	  if (i==5) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	  else if (i==0) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	  else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
 	} else { // simulation_type ==2
@@ -830,7 +830,7 @@ void FSIProblem<3>::setup_system ()
     // also, we will initially have a temp_* vectors that we will rearrange to match the order of the fluid
 
     //unsigned int ind=0;
-    for (typename Triangulation<3>::active_cell_iterator
+    for (Triangulation<3>::active_cell_iterator
 	   cell = fluid_triangulation.begin_active(); cell != fluid_triangulation.end(); ++cell)
       {
 	for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
@@ -860,7 +860,7 @@ void FSIProblem<3>::setup_system ()
       }
 
     // ind=0;
-    for (typename Triangulation<3>::active_cell_iterator
+    for (Triangulation<3>::active_cell_iterator
 	   cell = structure_triangulation.begin_active(); cell != structure_triangulation.end(); ++cell)
       {
 	for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
