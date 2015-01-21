@@ -229,12 +229,13 @@ void FSIProblem<dim>::run ()
 	    std::cout << "Line search. " << std::endl;
 	    stress *= 0;
 	    transfer_interface_dofs(stress_star, stress, 0, 0);
-
-	    // if (fem_properties.optimization_method.compare("Gradient")==0) {
-	    //   stress.block(0)*=(1-alpha_j);
-	    // } 
-
-	    stress.block(0).add(alpha_j, update_direction.block(0));
+	    
+	    if (fem_properties.optimization_method.compare("Gradient")==0) {
+	      stress.block(0)*=(1-alpha_j);
+	      stress.block(0).add(alpha_j/fem_properties.penalty_epsilon, update_direction.block(0));
+	    } else {
+	      stress.block(0).add(alpha_j, update_direction.block(0));
+	    }
 	    transfer_interface_dofs(stress, stress, 0, 1, Displacement);
 
 	    // Solve both fluid and structure simultaneously
@@ -389,6 +390,7 @@ void FSIProblem<dim>::run ()
   	  
 	    if (fem_properties.optimization_method.compare("Gradient")==0)
 	      {
+		stress_star = stress;
 		LinearMap::Linearized_Operator<dim> A(this);
 		LinearMap::NeumannVector<dim> x(rhs_for_adjoint.block(0), this);
 		x*=0;
@@ -441,10 +443,10 @@ void FSIProblem<dim>::run ()
 		    //break;
 		  }
 
-		stress_star = stress;
 		update_direction.block(0) = x;
 		//x *= -1;
 		AG_line_search = true;
+		alpha_j = fem_properties.steepest_descent_alpha;
 
 		// // Update the stress using the adjoint variables
 		// stress.block(0)*=(1-alpha);

@@ -19,63 +19,51 @@ namespace LinearMap {
 
     void vmult (Vector<double> &dst,
 		const Vector<double> &src) const {
-      double error_norm = 1;
-      unsigned int loop = 1;
-      while (error_norm > 1e-12 || loop <=3) {
-	// Get solution to compare against later
-	Vector<double> reference = dst;
+      /* double error_norm = 1; */
+      /* unsigned int loop = 1; */
+      /* while (error_norm > 1e-12 || loop <=3) { */
+      /* 	// Get solution to compare against later */
+      /* 	Vector<double> reference = dst; */
  
-	AleBoundaryValues<dim> ale_boundary_values(problem_space->physical_properties);
+      /* 	AleBoundaryValues<dim> ale_boundary_values(problem_space->physical_properties); */
 	
-	// Add the previous update to the stress in order to check that the ALE won't interfere with the correct update
-	problem_space->stress.block(0) = problem_space->stress_star.block(0);
-	problem_space->stress.block(0).add(1.0, dst);
+      /* 	// Add the previous update to the stress in order to check that the ALE won't interfere with the correct update */
+      /* 	problem_space->stress.block(0) = problem_space->stress_star.block(0); */
+      /* 	problem_space->stress.block(0).add(1.0, dst); */
 
-	// Get the structure solution
-	Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*problem_space, initialized_timestep_number);
-	s_solver.join();
+      /* 	// Get the structure solution */
+      /* 	Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*problem_space, initialized_timestep_number); */
+      /* 	s_solver.join(); */
 
-	// Get the ALE solve
-	if (problem_space->physical_properties.moving_domain)
-	  {
-	    problem_space->assemble_ale(problem_space->state,true);
-	    problem_space->dirichlet_boundaries((enum FSIProblem<dim>::System)2,problem_space->state);
-	    problem_space->state_solver[2].factorize(problem_space->system_matrix.block(2,2));
-	    problem_space->solve(problem_space->state_solver[2],2,problem_space->state);
-	    problem_space->transfer_all_dofs(problem_space->solution,problem_space->mesh_displacement_star,2,0);
+      /* 	// Get the ALE solve */
+      /* 	if (problem_space->physical_properties.moving_domain) */
+      /* 	  { */
+      /* 	    problem_space->assemble_ale(problem_space->state,true); */
+      /* 	    problem_space->dirichlet_boundaries((enum FSIProblem<dim>::System)2,problem_space->state); */
+      /* 	    problem_space->state_solver[2].factorize(problem_space->system_matrix.block(2,2)); */
+      /* 	    problem_space->solve(problem_space->state_solver[2],2,problem_space->state); */
+      /* 	    problem_space->transfer_all_dofs(problem_space->solution,problem_space->mesh_displacement_star,2,0); */
 
-	    if (problem_space->physical_properties.simulation_type==2)
-	      {
-		// Overwrites the Laplace solve since the velocities compared against will not be correct
-		ale_boundary_values.set_time(problem_space->time);
-		VectorTools::project(problem_space->ale_dof_handler, problem_space->ale_constraints, QGauss<dim>(problem_space->fem_properties.fluid_degree+2),
-				     ale_boundary_values,
-				     problem_space->mesh_displacement_star.block(2)); // move directly to fluid block 
-		problem_space->transfer_all_dofs(problem_space->mesh_displacement_star,problem_space->mesh_displacement_star,2,0);
-	      }
-	    problem_space->mesh_displacement_star_old.block(0) = problem_space->mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
+      /* 	    if (problem_space->physical_properties.simulation_type==2) */
+      /* 	      { */
+      /* 		// Overwrites the Laplace solve since the velocities compared against will not be correct */
+      /* 		ale_boundary_values.set_time(problem_space->time); */
+      /* 		VectorTools::project(problem_space->ale_dof_handler, problem_space->ale_constraints, QGauss<dim>(problem_space->fem_properties.fluid_degree+2), */
+      /* 				     ale_boundary_values, */
+      /* 				     problem_space->mesh_displacement_star.block(2)); // move directly to fluid block  */
+      /* 		problem_space->transfer_all_dofs(problem_space->mesh_displacement_star,problem_space->mesh_displacement_star,2,0); */
+      /* 	      } */
+      /* 	    problem_space->mesh_displacement_star_old.block(0) = problem_space->mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps */
 
-	    if (problem_space->fem_properties.time_dependent) {
-	      problem_space->mesh_velocity.block(0)=problem_space->mesh_displacement_star.block(0);
-	      problem_space->mesh_velocity.block(0)-=problem_space->old_mesh_displacement.block(0);
-	      problem_space->mesh_velocity.block(0)*=1./problem_space->time_step;
-	    }
-	  }
+      /* 	    if (problem_space->fem_properties.time_dependent) { */
+      /* 	      problem_space->mesh_velocity.block(0)=problem_space->mesh_displacement_star.block(0); */
+      /* 	      problem_space->mesh_velocity.block(0)-=problem_space->old_mesh_displacement.block(0); */
+      /* 	      problem_space->mesh_velocity.block(0)*=1./problem_space->time_step; */
+      /* 	    } */
+      /* 	  } */
 
 	//if (!matrix_assembled) total_solves = 0; // restart the count since we are dealing with a new sequence of runs
 	assemble_matrix(dst, src);
-	/* problem_space->rhs_for_linear *= 0; */
-	/* problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(0),0,0); */
-	/* problem_space->vector_vector_transfer_interface_dofs(src, problem_space->rhs_for_linear.block(1),0,1,problem_space->Displacement); */
-	/* problem_space->rhs_for_linear.block(1) *= -1; */
-
-	/* // only assembly the matrix operator if it isn't currently assembled (once each time step) */
-	/* Threads::Task<void> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure, *problem_space, problem_space->linear, !matrix_assembled); */
-	/* Threads::Task<void> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid, *problem_space, problem_space->linear, !matrix_assembled);	       */
-	/* f_assembly.join(); */
-	/* problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(0),problem_space->linear); */
-	/* s_assembly.join(); */
-	/* problem_space->dirichlet_boundaries(static_cast<enum FSIProblem<dim>::System >(1),problem_space->linear); */
 
 	if (matrix_initialized) {
 	  if (mode==problem_space->linear) {
@@ -129,34 +117,15 @@ namespace LinearMap {
 	    }
 	  dst *= problem_space->fem_properties.structure_theta;
 	  dst.add(-problem_space->fem_properties.fluid_theta,problem_space->adjoint_solution.block(0));
-
-	  /* // THIS NEEDS TO BE LOOKED AT!!! */
-	  /* if (problem_space->fem_properties.adjoint_type==1) */
-	  /*   { */
-	  /*     // -Ax = -w^n + phi^n/dt	   */
-	  /*     Vector<double> tmp(src.size()); */
-	  /*     problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(1),dst,1,0,problem_space->Displacement); */
-	  /*     dst*=-1./problem_space->time_step; */
-	  /*     problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(0),tmp,0,0); */
-	  /*     dst+=tmp; */
-	  /*   } */
-	  /* else */
-	  /*   { */
-	  /*     // -Ax = -w^n + phi_dot^n */
-	  /*     Vector<double> tmp(src.size()); */
-	  /*     problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(1),dst,1,0,problem_space->Velocity); */
-	  /*     dst*=-1; */
-	  /*     problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(0),tmp,0,0); */
-	  /*     dst+=tmp; */
-	  /*   } */
 	}
-	problem_space->old_old_solution.block(0)*=0;
-	problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(1),problem_space->old_old_solution.block(0),1,0,problem_space->Displacement);
-	reference.add(-1.0,dst);
-	error_norm = problem_space->interface_norm(reference);
-	std::cout << "Error in loop: " << error_norm << std::endl;
-	loop++;
-      };
+
+      /* 	problem_space->old_old_solution.block(0)*=0; */
+      /* 	problem_space->vector_vector_transfer_interface_dofs(problem_space->adjoint_solution.block(1),problem_space->old_old_solution.block(0),1,0,problem_space->Displacement); */
+      /* 	reference.add(-1.0,dst); */
+      /* 	error_norm = problem_space->interface_norm(reference); */
+      /* 	std::cout << "Error in loop: " << error_norm << std::endl; */
+      /* 	loop++; */
+      /* }; */
     };
 
 
