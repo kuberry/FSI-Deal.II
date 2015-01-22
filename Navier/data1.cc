@@ -116,10 +116,21 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
 	result[0]=2*physical_properties.viscosity*0.5*(u1_y+u2_x);
 	result[1]=2*physical_properties.viscosity*u2_y-pval;
 	break;
+      case 2:
+	if (dim==2) {
+	  result=0;
+	} else {
+	  result[2]=-pval;
+	}
+	break;
       default:
 	result=0;
       }
-    answer = result[0]*0+result[1]*1;
+    if (dim==2) {
+      answer = result[0]*0+result[1]*1;
+    } else {
+      answer = result[0]*0+result[1]*0+result[2]*1;
+    }
   } else if (physical_properties.simulation_type==2){
     AssertThrow( false, ExcInternalError());
   }
@@ -162,7 +173,9 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
 	result[1]=2*physical_properties.viscosity*u2_y-pval;
 	return result;
       default:
-	result=0;
+	if (dim==3) {
+	  result[2]=-pval;
+	} 
 	return result;
       }
   } else if (physical_properties.simulation_type==2){
@@ -544,8 +557,19 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
 	return cos(x + t)*sin(y + t) + sin(x + t)*cos(y + t);
       case 1:
 	return -sin(x + t)*cos(y + t) - cos(x + t)*sin(y + t);
+	break;
       case 2:
-	return 2*physical_properties.viscosity*(sin(x + t)*sin(y + t) - cos(x + t)*cos(y + t)) + 2*physical_properties.mu*cos(x + t)*sin(y + t);
+	if (dim==2) {
+	  return 2*physical_properties.viscosity*(sin(x + t)*sin(y + t) - cos(x + t)*cos(y + t)) + 2*physical_properties.mu*cos(x + t)*sin(y + t);
+	} else {
+	  return 0;
+	}
+      case 3:
+	if (dim==3) {
+	    return 2*physical_properties.viscosity*(sin(x + t)*sin(y + t) - cos(x + t)*cos(y + t)) + 2*physical_properties.mu*cos(x + t)*sin(y + t);
+	} else {
+	  return 0;
+	}
       default:
 	return 0;
       }
@@ -726,8 +750,8 @@ double StructureBoundaryValues<dim>::value (const Point<dim> &p,
     const double t = this->get_time();
     const double x = p[0];
     const double y = p[1];
-    switch (component)
-      {
+    if (dim==2) {
+      switch (component) {
       case 0:
 	return sin(x + t)*sin(y + t);
       case 1:
@@ -739,6 +763,22 @@ double StructureBoundaryValues<dim>::value (const Point<dim> &p,
       default:
 	return 0;
       }
+    } else {
+      switch (component) {
+      case 0:
+	return sin(x + t)*sin(y + t);
+      case 1:
+	return cos(x + t)*cos(y + t);
+      case 2:
+	return 0;
+      case 3:
+	return sin(x + t)*cos(y + t)+cos(x + t)*sin(y + t);
+      case 4:
+	return -sin(x + t)*cos(y + t)-cos(x + t)*sin(y + t);
+      default:
+	return 0;
+      }
+    }
   } else if (physical_properties.simulation_type==2) {
     /*
       u=matrix(SR,2,1,[2*sin(y-t)+3*x*t+pow(x,2),3*sin(x-t)-3*y*t])

@@ -153,6 +153,7 @@ class FSIProblem
   void vector_vector_transfer_interface_dofs(const Vector<double> & solution_1, Vector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1=NotSet, StructureComponent structure_var_2=NotSet);
   void transfer_all_dofs(BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to);
   void setup_system ();
+  void initialize_sizes ();
   void solve (const SparseDirectUMFPACK& direct_solver, const int block_num, Mode enum_);
   void output_results () const;
   void compute_error ();
