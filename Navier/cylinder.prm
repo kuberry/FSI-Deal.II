@@ -56,8 +56,8 @@ set make plots            = false
 # maximum number of optimization iterations per time step.
 set max optimization iterations = 1000
 
-set moving domain         = false
-set move domain           = false
+set moving domain         = true
+set move domain           = true
 
 # number of time steps to divide T by.
 set number of time steps  = 1000 
@@ -118,4 +118,4 @@ set cg tolerance          = 1e-5
 set stability terms       = false
 set adjoint type          = 2
 
-set nonlinear elasticity  = false
+set nonlinear elasticity  = true
