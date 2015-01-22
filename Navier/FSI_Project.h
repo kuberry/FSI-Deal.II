@@ -147,6 +147,8 @@ class FSIProblem
   double interface_error();
   double interface_norm(const Vector<double>  &values);
   double interface_inner_product(const Vector<double>   &values1, const Vector<double>   &values2);
+  double flowrate_through_surface(const unsigned int surface_id);
+
   void dirichlet_boundaries(System system, Mode enum_);
   void build_dof_mapping();
   void transfer_interface_dofs(const BlockVector<double> & solution_1, BlockVector<double> & solution_2, unsigned int from, unsigned int to, StructureComponent structure_var_1=NotSet, StructureComponent structure_var_2=NotSet);

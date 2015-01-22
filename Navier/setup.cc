@@ -213,6 +213,9 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 template <>
 void FSIProblem<2>::setup_system ()
 {
+  //******************************************************************
+  //                   ANALYTICAL 2D PROBLEM
+  //******************************************************************
   AssertThrow(physical_properties.simulation_type<4,ExcNotImplemented());
   if (physical_properties.simulation_type == 0 || physical_properties.simulation_type == 2) {
     Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
@@ -267,6 +270,9 @@ void FSIProblem<2>::setup_system ()
 	  ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	}
       }
+  //******************************************************************
+  //                   2D MUREA AND SY PROBLEM
+  //******************************************************************
   } else if (physical_properties.simulation_type == 1) {
     Point<2> fluid_bottom_left(0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_height);
     Point<2> structure_bottom_left(0,fem_properties.fluid_height),
@@ -310,6 +316,9 @@ void FSIProblem<2>::setup_system ()
 	if (i==2) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
 	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
       }
+  //******************************************************************
+  //                   2D HRON & TUREK BENCHMARK 
+  //******************************************************************
   } else if (physical_properties.simulation_type == 3) {
     GridIn<2> gridin_fluid;
     gridin_fluid.attach_triangulation(fluid_triangulation);
@@ -537,6 +546,9 @@ void FSIProblem<2>::setup_system ()
 template <>
 void FSIProblem<3>::setup_system ()
 {
+  //******************************************************************
+  //                   ANALYTICAL 3D PROBLEM
+  //******************************************************************
   AssertThrow(physical_properties.simulation_type==0 || physical_properties.simulation_type==4 || physical_properties.simulation_type==5, ExcNotImplemented());
   if (physical_properties.simulation_type == 0) {
     Point<3> fluid_bottom_left(0,0,0), fluid_top_right(fem_properties.fluid_width,fem_properties.fluid_width,fem_properties.fluid_height);
@@ -591,6 +603,9 @@ void FSIProblem<3>::setup_system ()
 	  ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	}
       }
+  //******************************************************************
+  //                   3D BURMAN CYLINDER PROBLEM
+  //******************************************************************
   } else if (physical_properties.simulation_type == 4) {
     // GridGenerator::hyper_cube_with_cylindrical_hole ( structure_triangulation,
     // 							   0.5, // inner radius
@@ -662,21 +677,48 @@ void FSIProblem<3>::setup_system ()
     // fluid_triangulation.set_boundary (2, boundary_description); // right
     // fluid_triangulation.refine_global (1);
     // fluid_triangulation.set_boundary (1);
-    std::string filename = "grid1.msh";
-    std::ofstream out (filename.c_str());
-    GridOut grid_out;
-    grid_out.write_msh (fluid_triangulation, out);
-    std::cout << " written to " << filename << std::endl << std::endl;
-    std::string filename2 = "grid2.msh";
-    std::ofstream out2 (filename2.c_str());
-    GridOut grid_out2;
-    grid_out2.write_msh (structure_triangulation, out2);
-    std::cout << " written to " << filename2 << std::endl << std::endl;
+
+    // // Write mesh to gmsh file
+    // std::string filename = "grid1.msh";
+    // std::ofstream out (filename.c_str());
+    // GridOut grid_out;
+    // grid_out.write_msh (fluid_triangulation, out);
+    // std::cout << " written to " << filename << std::endl << std::endl;
+    // std::string filename2 = "grid2.msh";
+    // std::ofstream out2 (filename2.c_str());
+    // GridOut grid_out2;
+    // grid_out2.write_msh (structure_triangulation, out2);
+    // std::cout << " written to " << filename2 << std::endl << std::endl;
+
+    for (unsigned int i=0; i<6; ++i)
+      {
+	// x-0 and 1, y-2 and 3, z-4 and 5
+	if (i<4) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else if (i==4) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
+	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
+	for (unsigned int j=0; j<4; ++j)
+	  fluid_interface_boundaries.insert(j);
+      }
+
+    for (unsigned int i=0; i<4; ++i)
+      {
+	// guess inner is 0, outer is 1, bottom is 2, and top is 3
+	  if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	  else if (i==1) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
+	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	  structure_interface_boundaries.insert(0);
+      }
+    for (unsigned int i=0; i<6; ++i)
+      {
+	// x-0 and 1, y-2 and 3, z-4 and 5
+	if (i<4) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+      }
   } else {
     AssertThrow(false, ExcNotImplemented());
   }
 
-  if (physical_properties.simulation_type < 3) {
+  if (physical_properties.simulation_type == 0) {
     // All of these cases have the idea of the fluid placed below the structure and both as rectangles
 
     // we need to track cells, faces, and temporarily the centers for the faces
@@ -743,6 +785,7 @@ void FSIProblem<3>::setup_system ()
       }
 
   } else if (physical_properties.simulation_type == 4) {
+    // Boundary indicators set through colorize option
   } else {
     AssertThrow(false, ExcNotImplemented());
   }

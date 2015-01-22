@@ -25,7 +25,7 @@ void FSIProblem<dim>::run ()
 
   std::ofstream structure_file_out;
   std::ofstream fluid_file_out;
-  if (physical_properties.simulation_type==1 || physical_properties.simulation_type==3)
+  if (physical_properties.simulation_type==1 || physical_properties.simulation_type==3 || physical_properties.simulation_type==4)
     {
       structure_file_out.open("structure_output.txt");
       fluid_file_out.open("fluid_output.txt");
@@ -728,6 +728,12 @@ void FSIProblem<dim>::run ()
 	  // lift_min_max[1] = std::max(lift_min_max[1],lift_drag[1]);
 	  // last_lift_drag[0] = lift_drag[0];
 	  // last_lift_drag[1] = lift_drag[1];
+      } else if (physical_properties.simulation_type==4) {
+	dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
+	//Point<dim> p1(-0.11126, -0.487464, 2.5); Point used in Burman paper
+	Point<dim> p1(0.0, -0.5, 2.5);
+	const double flow_rate = flowrate_through_surface(5); // get flow rate through top of cylinder
+	structure_file_out << time << " " << fe_function.value(p1,1) << " " << flow_rate << std::endl; 
       }
       // Write these vectors to the hard drive 10 times
       if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0) {

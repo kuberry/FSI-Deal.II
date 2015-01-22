@@ -304,6 +304,51 @@ double FSIProblem<dim>::interface_norm(const Vector<double>   &values)
   return std::sqrt(interface_inner_product(values, values));
 }
 
+template <int dim>
+double FSIProblem<dim>::flowrate_through_surface(const unsigned int surface_id)
+{
+  // This integral is taken over the reference domain as written
+  double functional = 0;
+
+  AssertThrow(physical_properties.simulation_type==4, ExcNotImplemented());
+  const FEValuesExtractors::Vector velocities (0);
+  const FEValuesExtractors::Scalar pressure (dim);
+
+  QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
+  FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
+				    update_values    | update_normal_vectors | 
+				    update_quadrature_points  | update_JxW_values);
+  const unsigned int   n_face_q_points = face_quadrature_formula.size();
+
+  
+  std::vector<Tensor<1,dim,double> > u(n_face_q_points, Tensor<1,dim,double>());
+
+  typename DoFHandler<dim>::active_cell_iterator
+    cell = fluid_dof_handler.begin_active(),
+    endc = fluid_dof_handler.end();
+  for (; cell!=endc; ++cell)
+    {
+      for (unsigned int face_no=0;
+	   face_no<GeometryInfo<dim>::faces_per_cell;
+	   ++face_no)
+	{
+	  if (cell->at_boundary(face_no))
+	    {
+	      if ((unsigned int)cell->face(face_no)->boundary_indicator()==surface_id)
+		{
+		  fe_face_values.reinit (cell, face_no);
+		  fe_face_values[velocities].get_function_values(solution.block(0),u);
+		  for (unsigned int q=0; q<n_face_q_points; ++q)
+		    {
+		      functional += u[q] * fe_face_values.normal_vector(q) * fe_face_values.JxW(q); 
+		    }
+		}
+	    }
+	}
+    }
+  return functional;
+}
+
 template void FSIProblem<2>::build_adjoint_rhs();
 template void FSIProblem<2>::get_fluid_stress();
 template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_fluid();
@@ -311,6 +356,7 @@ template Tensor<1,2,double> FSIProblem<2>::lift_and_drag_structure();
 template double FSIProblem<2>::interface_error();
 template double FSIProblem<2>::interface_inner_product(const Vector<double>  &values1, const Vector<double>  &values2);
 template double FSIProblem<2>::interface_norm(const Vector<double>   &values);
+template double FSIProblem<2>::flowrate_through_surface(const unsigned int surface_id);
 
 template void FSIProblem<3>::build_adjoint_rhs();
 template void FSIProblem<3>::get_fluid_stress();
@@ -319,3 +365,4 @@ template Tensor<1,3,double> FSIProblem<3>::lift_and_drag_structure();
 template double FSIProblem<3>::interface_error();
 template double FSIProblem<3>::interface_inner_product(const Vector<double>  &values1, const Vector<double>  &values2);
 template double FSIProblem<3>::interface_norm(const Vector<double>   &values);
+template double FSIProblem<3>::flowrate_through_surface(const unsigned int surface_id);

@@ -133,6 +133,12 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
     }
   } else if (physical_properties.simulation_type==2){
     AssertThrow( false, ExcInternalError());
+  } else if (physical_properties.simulation_type==4) {
+    Tensor<1,dim,double> result;
+    const double t = this->get_time();
+    if (t <= 5.0e-3)
+      result[2] = -1.3332e+4;
+    return result[2]; // result[0]*0+result[1]*0+result[2]*1;
   }
   return answer;
 }
@@ -222,6 +228,14 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
       default:
     	result=0;
       }
+  } else if (physical_properties.simulation_type==4){
+    const double t = this->get_time();
+    if (component==2) {
+      double pval = 0;
+      if (t <= 5.0e-3)
+	pval = 1.3332e+4;
+      result[2] = -pval;
+    }
   }
   return result;
 }
