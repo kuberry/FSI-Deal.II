@@ -90,7 +90,7 @@ namespace Parameters
 	  // FE_Q Degrees
 	  prm.declare_entry("fluid velocity degree", "2", Patterns::Integer(1),
 			  "order of the finite element to use for the fluid velocity.");
-	  prm.declare_entry("fluid pressure degree", "1", Patterns::Integer(1),
+	  prm.declare_entry("fluid pressure degree", "1", Patterns::Integer(0),
 			  "order of the finite element to use for the fluid pressure.");
 	  prm.declare_entry("structure degree", "2", Patterns::Integer(1),
 			  "order of the finite element to use for the structure displacement and velocity.");

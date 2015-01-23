@@ -37,6 +37,7 @@ void FSIProblem<dim>::run ()
   timer.enter_subsection ("Setup dof system");
 
   setup_system();
+
   // Threads::Task<void>
   //  task = Threads::new_task (&FSIProblem<dim>::build_dof_mapping,*this);
   build_dof_mapping();

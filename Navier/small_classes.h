@@ -14,36 +14,9 @@ class Info
   unsigned int component;
   Info(){};
  Info(const unsigned int dof_, Point<dim> & coord_, unsigned int component_):dof(dof_), coord(coord_), component(component_) {};
-  static bool by_dof (const Info & first, const Info & second)
-  {
-    if (first.dof<second.dof)
-      {
-	return true;
-      }
-    else
-      {
-	return false;
-      }
-  }
-  static bool by_point (const Info &first, const Info & second)
-  {
-    for (unsigned int i=0; i<dim; ++i)
-      {
-	if (first.coord[i]<second.coord[i])
-	  {
-	    return true;
-	  }
-	else if (std::fabs(first.coord[i]-second.coord[i])>1e-13)
-	  {
-	    return false;
-	  }
-      }
-    if (first.component>second.component) return false;
-    return true;
-  }
   bool operator== (const Info &other) const
   {
-    if (coord.distance(other.coord)>1e-10)
+    if (coord.distance(other.coord)>1e-12)
       {
 	return false;
       }
@@ -52,6 +25,23 @@ class Info
 	if (dof==other.dof) return true;
 	else return false;
       }
+  }
+  bool operator< (const Info &other) const
+  {
+    for (unsigned int i=0; i<dim; ++i) {
+      if (coord[i]<other.coord[i]) {
+	return true;
+      } else if (std::fabs(other.coord[i] - coord[i]) > 1e-15) {
+	return false;
+      }
+    }
+    // made it this far so all points are equal
+    if (component<other.component) {
+      return true;
+    } else {
+      return false;
+    }
+    return false;
   }
 };
 

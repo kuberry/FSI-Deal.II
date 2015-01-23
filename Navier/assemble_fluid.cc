@@ -703,10 +703,9 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				{
 				  Tensor<2,dim,double> new_stresses;
 				  // A TRANSPOSE IS TAKING PLACE HERE SINCE Deal.II has transposed gradient
-				  new_stresses[0][0]=stress_values[0][0];
-				  new_stresses[1][0]=stress_values[0][1];
-				  new_stresses[1][1]=stress_values[1][1];
-				  new_stresses[0][1]=stress_values[1][0];
+				  for (unsigned int i=0; i<dim; ++i)
+				    for (unsigned int j=0; j<dim; j++)
+				      new_stresses[i][j]=stress_values[j][i];
 
 				  data.cell_rhs(i) += fem_properties.fluid_theta*(new_stresses*scratch.fe_face_values.normal_vector(q) *
 								   scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.JxW(q));
@@ -717,10 +716,10 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 				{
 				  Tensor<2,dim,double> new_stresses;
-				  new_stresses[0][0]=stress_values[0][0];
-				  new_stresses[1][0]=stress_values[1][0];
-				  new_stresses[1][1]=stress_values[1][1];
-				  new_stresses[0][1]=stress_values[0][1];
+				  for (unsigned int i=0; i<dim; ++i)
+				    for (unsigned int j=0; j<dim; j++)
+				      new_stresses[i][j]=stress_values[j][i];
+     
 				  // data.cell_rhs(i) += (1-fem_properties.fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
 				  // 				       new_stresses*scratch.fe_face_values.normal_vector(q) *
 				  // 				       scratch.fe_face_values.JxW(q));

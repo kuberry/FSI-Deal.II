@@ -2,6 +2,7 @@
 #include <deal.II/grid/grid_in.h>
 #include <deal.II/grid/grid_out.h>
 #include <deal.II/grid/tria_boundary_lib.h>
+#include <deal.II/grid/grid_tools.h>
 
 template <int dim>
 void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
@@ -12,7 +13,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 
   unsigned int min_index=0;
   if (physical_properties.simulation_type==3) min_index=1;
-
+  if (physical_properties.simulation_type==4) min_index=1;
   if (enum_==state)
     {
       if (system==Fluid)
@@ -37,6 +38,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)
 		{
+		  std::cout << i << ": " << fluid_boundaries[i] << std::endl;
 		  if (physical_properties.simulation_type!=1)
 		    {
 		      VectorTools::interpolate_boundary_values (fluid_dof_handler,
@@ -543,6 +545,63 @@ void FSIProblem<2>::setup_system ()
   initialize_sizes();
 }
 
+Point<3> rotate_about_y(const Point<3> &input) {
+  Tensor<2,3> R;
+  {
+    const double PI = 3.14159265358979323846;
+    const double angle = 1.5*PI;
+
+    if (angle < 1e-9)
+      {
+	static const double rotation[3][3]
+	  = {{ 1, 0, 0}, { 0, 1, 0 }, { 0, 0, 1 } };
+	static const Tensor<2,3> rot(rotation);
+	R = rot;
+      }
+    const double c = std::cos(angle);
+    const double s = std::sin(angle);
+    const double t = 1-c;
+    // const Point<3> axis = curl/tan_angle;
+    const Point<3> axis(0,1.0,0.0);//std::sqrt(2.0),std::sqrt(2.0)); // rotate about the y axis
+    const double rotation[3][3]
+      = {{
+	t *axis[0] *axis[0]+c,
+	t *axis[0] *axis[1]+s *axis[2],
+	t *axis[0] *axis[2]-s*axis[1]
+      },
+	 {
+	   t *axis[0] *axis[1]-s *axis[2],
+	   t *axis[1] *axis[1]+c,
+	   t *axis[1] *axis[2]+s *axis[0]
+	 },
+	 {
+	   t *axis[0] *axis[2]+s *axis[1],
+	   t *axis[1] *axis[2]-s *axis[0],
+	   t *axis[2] *axis[2]+c
+	 }
+    };
+    // const double rotation[3][3]
+    //   = {{
+    //     t *axis[0] *axis[0]+c,
+    //     t *axis[0] *axis[1]+s *axis[2],
+    //     t *axis[0] *axis[2]-s *axis[1]
+    //   },
+    //      {
+    // 	 t *axis[0] *axis[1]-s *axis[2],
+    // 	 t *axis[1] *axis[1]+c,
+    // 	 t *axis[1] *axis[2]+s *axis[0]
+    //      },
+    //      {
+    // 	 t *axis[0] *axis[2]+s *axis[1],
+    // 	 t *axis[1] *axis[1]-s *axis[0],
+    // 	 t *axis[2] *axis[2]+c
+    //      }
+    // };
+    R = Tensor<2,3>(rotation);
+  }
+  return Point<3>(input * R);//output;
+}
+
 template <>
 void FSIProblem<3>::setup_system ()
 {
@@ -613,41 +672,76 @@ void FSIProblem<3>::setup_system ()
     // 							   5.0, // height
     // 							   50 , // subdivisions in z-direction
     // 							   false ); // colorize
+    const double inner_radius = 0.5, outer_radius = 0.6;
     GridGenerator::cylinder_shell ( structure_triangulation,
     				    5.0, // length
-    				    0.5, // inner
-    				    0.6,//, // outer)
+    				    inner_radius, // inner
+    				    outer_radius,//, // outer)
 				    16,//2, // n_radial_cells
-    				    48); // n_axial_cells
+    				    8); // n_axial_cells
     // Instead, could do 25 rather than 50 and refine 1 time
+    // There is an example of this in step_18
     //structure_triangulation.refine_global (1);
-    std::vector< unsigned int > repetitions(3);
-    repetitions[0] = 1; repetitions[1] = 1; repetitions[2] = 12;
-    Triangulation<2> temp_fluid_triangulation;
-    GridGenerator::subdivided_hyper_rectangle ( fluid_triangulation,
-						repetitions,
-						Point<3> (-std::sqrt(0.125),-std::sqrt(0.125), 0.0),
-						Point<3> ( std::sqrt(0.125), std::sqrt(0.125), 5.0),
-						true ); // colorize 	
+
+    // std::vector< unsigned int > repetitions(2);
+    // repetitions[0] = 1; repetitions[1] = 1; //repetitions[2] = 12;
+    // Triangulation<2> temp_fluid_triangulation;
+    // GridGenerator::subdivided_hyper_rectangle ( fluid_triangulation,
+    // 						repetitions,
+    // 						Point<3> (-std::sqrt(0.125),-std::sqrt(0.125), 0.0),
+    // 						Point<3> ( std::sqrt(0.125), std::sqrt(0.125), 5.0));//,
+
+    // GridGenerator::subdivided_hyper_rectangle ( temp_fluid_triangulation,
+    // 						repetitions,
+    // 						Point<2> (-std::sqrt(0.125),-std::sqrt(0.125)),
+    // 						Point<2> ( std::sqrt(0.125), std::sqrt(0.125)));//,
     //  the lower one in x-direction is 0, the upper one is 1 (the left and the right vertical face). The indicators for the surfaces in y-direction are 2 and 3, the ones for z are 4 and 5
     // GridGenerator::hyper_ball ( temp_fluid_triangulation,
     // 				Point<2> (0.0,0.0),
     // 				0.5); // radius = 1. 
-     	
+    //const HyperBallBoundary<2> cylinder_boundary_description(Point<2>(0.0,0.0), 0.5); // radius, axis
+    // const CylinderBoundary<3> cylinder_boundary_description(0.5, 2);
+    // const HyperBallBoundary<2> top_boundary_description(Point<2>(0.0,0.0), 0.5);//
+    // const HyperBallBoundary<2> bottom_boundary_description(Point<2>(0.0,0.0), 0.5);//
+    //temp_fluid_triangulation.set_boundary (0, cylinder_boundary_description); // left
+    //temp_fluid_triangulation.set_boundary (1, cylinder_boundary_description); // middle
+    //temp_fluid_triangulation.set_boundary (2, cylinder_boundary_description); // right
+    //temp_fluid_triangulation.set_boundary (3, cylinder_boundary_description); // right
+    
+    //temp_fluid_triangulation.refine_global (2);
+
+    //temp_fluid_triangulation.set_boundary (0); // left
+    //temp_fluid_triangulation.set_boundary (1); // middle
+    //temp_fluid_triangulation.set_boundary (2); // right
+
     // GridGenerator::extrude_triangulation ( temp_fluid_triangulation,
-    // 					   25,  // n_slices,
+    // 					   12,  // n_slices,
     // 					   5.0, // height,
     // 					   fluid_triangulation );
-    
-    const CylinderBoundary<3> cylinder_boundary_description(0.5, 2); // radius, axis
+    // fluid_triangulation.set_boundary (0, cylinder_boundary_description); // left
+    // fluid_triangulation.set_boundary (1, bottom_boundary_description);
+    // // fluid_triangulation.set_boundary (2, top_boundary_description);
+    // fluid_triangulation.refine_global (2);
+    // temp_fluid_triangulation.set_boundary (0); // left
+    // temp_fluid_triangulation.set_boundary (1); // middle
+    // temp_fluid_triangulation.set_boundary (2); // right
+    // temp_fluid_triangulation.set_boundary (3); // right
 
-    fluid_triangulation.set_boundary (0, cylinder_boundary_description); // left
-    fluid_triangulation.set_boundary (1, cylinder_boundary_description); // middle
-    fluid_triangulation.set_boundary (2, cylinder_boundary_description); // right
-    fluid_triangulation.set_boundary (3, cylinder_boundary_description); // right
+
+    // const CylinderBoundary<3> cylinder_boundary_description(0.5, 2); // radius, axis
+
+    // fluid_triangulation.set_boundary (0, cylinder_boundary_description); // left
+    // fluid_triangulation.set_boundary (1, cylinder_boundary_description); // middle
+    // fluid_triangulation.set_boundary (2, cylinder_boundary_description); // right
+    // fluid_triangulation.set_boundary (3, cylinder_boundary_description); // right
     // fluid_triangulation.set_boundary (4, cylinder_boundary_description); // right
     // fluid_triangulation.set_boundary (5, cylinder_boundary_description); // right
-    fluid_triangulation.refine_global (2);
+    // fluid_triangulation.refine_global (2);
+    // fluid_triangulation.set_boundary (0); // left
+    // fluid_triangulation.set_boundary (1); // middle
+    // fluid_triangulation.set_boundary (2); // right
+    // fluid_triangulation.set_boundary (3); // right
+    
     // typename DoFHandler<3>::active_cell_iterator
     //   cell = fluid_dof_handler.begin_active(),
     //   endc = fluid_dof_handler.end();
@@ -668,50 +762,62 @@ void FSIProblem<3>::setup_system ()
     // 				    //50); // n_axial_cells
     // GridTools::transform(, structure_triangulation);
 
-    // GridGenerator::cylinder ( fluid_triangulation,
-    // 			      0.5, // radius
-    // 			      2.5 ); // half_length
+
+
+    GridGenerator::cylinder ( fluid_triangulation,
+    			      0.5, // radius
+    			      2.5 ); // half_length
+    const CylinderBoundary<3> cylinder_boundary_description(0.5, 0); // radius, axis
+    fluid_triangulation.set_boundary (0, cylinder_boundary_description); // left
+    // fluid_triangulation.set_boundary (1, cylinder_boundary_description); // left
+    // fluid_triangulation.set_boundary (2, cylinder_boundary_description); // left
+    fluid_triangulation.refine_global (2);
+    GridTools::shift(Point<3>(2.5,0,0), fluid_triangulation);
+    GridTools::transform(&rotate_about_y, fluid_triangulation);
+    fluid_triangulation.set_boundary(0);
+
     // const CylinderBoundary<3> boundary_description(0.5, 0); // radius, axis
     // fluid_triangulation.set_boundary (1, boundary_description); // left
     // fluid_triangulation.set_boundary (0, boundary_description); // middle
     // fluid_triangulation.set_boundary (2, boundary_description); // right
     // fluid_triangulation.refine_global (1);
     // fluid_triangulation.set_boundary (1);
+    // Tensor<2,3> R = get_rotation_matrix();
+    // Point<3> r1(2.5, -0.0991117, 0.20285);//.0,-0.5,1.0);
+    // Point<3> r2 = r1*R;
+    // std::cout << r2 << std::endl;
+    // Write mesh to gmsh file
+    std::string filename = "grid1.msh";
+    std::ofstream out (filename.c_str());
+    GridOut grid_out;
+    grid_out.write_msh (fluid_triangulation, out);
+    std::cout << " written to " << filename << std::endl << std::endl;
+    std::string filename2 = "grid2.msh";
+    std::ofstream out2 (filename2.c_str());
+    GridOut grid_out2;
+    grid_out2.write_msh (structure_triangulation, out2);
+    std::cout << " written to " << filename2 << std::endl << std::endl;
 
-    // // Write mesh to gmsh file
-    // std::string filename = "grid1.msh";
-    // std::ofstream out (filename.c_str());
-    // GridOut grid_out;
-    // grid_out.write_msh (fluid_triangulation, out);
-    // std::cout << " written to " << filename << std::endl << std::endl;
-    // std::string filename2 = "grid2.msh";
-    // std::ofstream out2 (filename2.c_str());
-    // GridOut grid_out2;
-    // grid_out2.write_msh (structure_triangulation, out2);
-    // std::cout << " written to " << filename2 << std::endl << std::endl;
-
-    for (unsigned int i=0; i<6; ++i)
+    for (unsigned int i=1; i<=3; ++i)
       {
 	// x-0 and 1, y-2 and 3, z-4 and 5
-	if (i<4) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	else if (i==4) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann));
-	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
-	for (unsigned int j=0; j<4; ++j)
-	  fluid_interface_boundaries.insert(j);
+	if (i==1) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Neumann)); // neumann
+	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));// do nothing
+	else fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // interface
+	fluid_interface_boundaries.insert(3);
       }
 
-    for (unsigned int i=0; i<4; ++i)
+    for (unsigned int i=1; i<=4; ++i)
       {
-	// guess inner is 0, outer is 1, bottom is 2, and top is 3
-	  if (i==0) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
-	  else if (i==1) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
-	  else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
-	  structure_interface_boundaries.insert(0);
+	// guess inner is 3, outer is 4, bottom is 1, and top is 2
+	if (i==1 || i==2) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
+	else if (i==3) structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); //interface
+	else structure_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing)); 
+	structure_interface_boundaries.insert(3);
       }
-    for (unsigned int i=0; i<6; ++i)
+    for (unsigned int i=1; i<=3; ++i)
       {
-	// x-0 and 1, y-2 and 3, z-4 and 5
-	if (i<4) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface));
+	if (i==3) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet)); // Interface
 	else ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
       }
   } else {
@@ -785,7 +891,50 @@ void FSIProblem<3>::setup_system ()
       }
 
   } else if (physical_properties.simulation_type == 4) {
-    // Boundary indicators set through colorize option
+    const double inner_radius = 0.5, outer_radius = 0.6;
+    for (Triangulation<3>::active_cell_iterator
+	   cell=structure_triangulation.begin_active();
+	 cell!=structure_triangulation.end(); ++cell)
+      for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
+	if (cell->face(f)->at_boundary())
+	  {
+	    const Point<3> face_center = cell->face(f)->center();
+	    if (std::fabs(face_center[2] - 0) < 1e-15)
+	      cell->face(f)->set_boundary_indicator (1);
+	    else if (std::fabs(face_center[2] - 5) < 1e-15)
+	      cell->face(f)->set_boundary_indicator (2);
+	    else if (std::sqrt(face_center[0]*face_center[0] +
+			       face_center[1]*face_center[1])
+		     <
+		     (inner_radius + outer_radius) / 2)
+	      cell->face(f)->set_boundary_indicator (3);
+	    else
+	      cell->face(f)->set_boundary_indicator (4);
+	  }
+
+    for (Triangulation<3>::active_cell_iterator
+	   cell=fluid_triangulation.begin_active();
+	 cell!=fluid_triangulation.end(); ++cell)
+      for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
+	if (cell->face(f)->at_boundary())
+	  {
+	    const Point<3> face_center = cell->face(f)->center();
+	    if (std::fabs(face_center[2] - 0) < 1e-15 )
+	      //cell->face(f)->set_boundary_indicator (0);
+	      cell->face(f)->set_all_boundary_indicators(1);
+	    else if (std::fabs(face_center[2] - 5) < 1e-15 ) {
+	      //cell->face(f)->set_boundary_indicator (1);
+	      cell->face(f)->set_all_boundary_indicators(2);
+	      }
+	    // else if (std::sqrt(face_center[0]*face_center[0] +
+	    // 		       face_center[1]*face_center[1])
+	    // 	     <
+	    // 	     (inner_radius + outer_radius) / 2)
+	    //   cell->face(f)->set_boundary_indicator (2);
+	    else
+	      //cell->face(f)->set_boundary_indicator (2);
+	      cell->face(f)->set_all_boundary_indicators(3);
+	  }
   } else {
     AssertThrow(false, ExcNotImplemented());
   }

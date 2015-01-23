@@ -24,7 +24,7 @@ set t0                    = 0.0
 set T                     = 0.01
 
 # order of the finite element to use for the ALE mesh update.
-set ale degree            = 2
+set ale degree            = 1
 
 # convergence method. choice between 'time' and 'space'.
 set convergence method    = time
@@ -33,25 +33,25 @@ set convergence method    = time
 set fluid height          = 1.0
 
 # order of the finite element to use for the fluid pressure.
-set fluid pressure degree = 1
+set fluid pressure degree = 0
 
 # density of the fluid.
 set fluid rho             = 1.0
 
 # order of the finite element to use for the fluid velocity.
-set fluid velocity degree = 2
+set fluid velocity degree = 1
 
 # width of the fluid domain.
 set fluid width           = 1.0
 
 # tolerance to which the velocities must match on the interface.
-set jump tolerance              = 1e-8
+set jump tolerance              = 1e-16
 
 # lambda of the structure.
 set lambda                = 0.0
 
 # create plots of the solution at each time step.
-set make plots            = false
+set make plots            = true
 
 # maximum number of optimization iterations per time step.
 set max optimization iterations = 1000
@@ -86,7 +86,7 @@ set steepest descent alpha      = 1e-20
 
 # order of the finite element to use for the structure displacement and
 # velocity.
-set structure degree      = 2
+set structure degree      = 1
 
 # height of the structure domain.
 set structure height      = 0.25

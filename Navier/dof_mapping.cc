@@ -8,12 +8,12 @@
 template <int dim>
 void FSIProblem<dim>::build_dof_mapping()
 {
-  std::vector<Info<dim> > f_a;
-  std::vector<Info<dim> > n_a;
-  std::vector<Info<dim> > v_a;
-  std::vector<Info<dim> > a_a;
-  std::vector<Info<dim> > f_all;
-  std::vector<Info<dim> > a_all;
+  std::set<Info<dim> > f_a;
+  std::set<Info<dim> > n_a;
+  std::set<Info<dim> > v_a;
+  std::set<Info<dim> > a_a;
+  std::set<Info<dim> > f_all;
+  std::set<Info<dim> > a_all;
   {
     typename DoFHandler<dim>::active_cell_iterator
       cell = fluid_dof_handler.begin_active(),
@@ -33,7 +33,7 @@ void FSIProblem<dim>::build_dof_mapping()
 	    {
 	      if (fluid_fe.system_to_component_index(i).first<dim) // <dim gives the velocities
 		{
-		  f_all.push_back(Info<dim>(temp[i],temp2[i],fluid_fe.system_to_component_index(i).first));
+		  f_all.insert(Info<dim>(temp[i],temp2[i],fluid_fe.system_to_component_index(i).first));
 		}
 	    }
 	}
@@ -43,6 +43,7 @@ void FSIProblem<dim>::build_dof_mapping()
 	      
 	      std::vector<unsigned int> temp(4*cell->get_fe()[0].dofs_per_vertex + 4*cell->get_fe()[0].dofs_per_line + cell->get_fe()[0].dofs_per_quad);
 	      cell->face(f)->get_dof_indices(temp);
+
 	      Quadrature<dim-1> q(fluid_fe.get_unit_face_support_points());
 	      FEFaceValues<dim> fe_face_values (fluid_fe, q,
 						update_quadrature_points);
@@ -51,20 +52,13 @@ void FSIProblem<dim>::build_dof_mapping()
 	      temp2=fe_face_values.get_quadrature_points();
 	      for (unsigned int i=0;i<temp2.size();++i)
 		{
-		  if (fluid_fe.system_to_component_index(i).first<dim)
+		  if (fluid_fe.face_system_to_component_index(i).first<dim)
 		    {
-		      f_a.push_back(Info<dim>(temp[i],temp2[i],fluid_fe.system_to_component_index(i).first));
+		      f_a.insert(Info<dim>(temp[i],temp2[i],fluid_fe.face_system_to_component_index(i).first));
 		    }
 		}
 	    }
       }
-    std::sort(f_a.begin(),f_a.end(),Info<dim>::by_dof);
-    f_a.erase( unique( f_a.begin(), f_a.end() ), f_a.end() );
-    std::sort(f_a.begin(),f_a.end(),Info<dim>::by_point);
-
-    std::sort(f_all.begin(),f_all.end(),Info<dim>::by_dof);
-    f_all.erase( unique( f_all.begin(), f_all.end() ), f_all.end() );
-    std::sort(f_all.begin(),f_all.end(),Info<dim>::by_point);
   }
   {
     typename DoFHandler<dim>::active_cell_iterator
@@ -85,23 +79,17 @@ void FSIProblem<dim>::build_dof_mapping()
 	      temp2=fe_face_values.get_quadrature_points();
 	      for (unsigned int i=0;i<temp2.size();++i)
 		{
-		  if (structure_fe.system_to_component_index(i).first<dim) // this chooses displacement entries
+		  if (structure_fe.face_system_to_component_index(i).first<dim) // this chooses displacement entries
 		    {
-		      n_a.push_back(Info<dim>(temp[i],temp2[i],structure_fe.system_to_component_index(i).first));
+		      n_a.insert(Info<dim>(temp[i],temp2[i],structure_fe.face_system_to_component_index(i).first));
 		    }
 		  else
 		    {
-		      v_a.push_back(Info<dim>(temp[i],temp2[i],structure_fe.system_to_component_index(i).first));
+		      v_a.insert(Info<dim>(temp[i],temp2[i],structure_fe.face_system_to_component_index(i).first));
 		    }
 		}
 	    }
       }
-    std::sort(n_a.begin(),n_a.end(),Info<dim>::by_dof);
-    n_a.erase( unique( n_a.begin(), n_a.end() ), n_a.end() );
-    std::sort(n_a.begin(),n_a.end(),Info<dim>::by_point);
-    std::sort(v_a.begin(),v_a.end(),Info<dim>::by_dof);
-    v_a.erase( unique( v_a.begin(), v_a.end() ), v_a.end() );
-    std::sort(v_a.begin(),v_a.end(),Info<dim>::by_point);
   }
   {
     typename DoFHandler<dim>::active_cell_iterator
@@ -122,7 +110,7 @@ void FSIProblem<dim>::build_dof_mapping()
 	    {
 	      if (ale_fe.system_to_component_index(i).first<dim)
 		{
-		  a_all.push_back(Info<dim>(temp[i],temp2[i],ale_fe.system_to_component_index(i).first));
+		  a_all.insert(Info<dim>(temp[i],temp2[i],ale_fe.system_to_component_index(i).first));
 		}
 	    }
 	}
@@ -139,40 +127,47 @@ void FSIProblem<dim>::build_dof_mapping()
 	      temp2=fe_face_values.get_quadrature_points();
 	      for (unsigned int i=0;i<temp2.size();++i)
 		{
-		  if (ale_fe.system_to_component_index(i).first<dim)
+		  if (ale_fe.face_system_to_component_index(i).first<dim)
 		    {
-		      a_a.push_back(Info<dim>(temp[i],temp2[i],ale_fe.system_to_component_index(i).first));
+		      a_a.insert(Info<dim>(temp[i],temp2[i],ale_fe.face_system_to_component_index(i).first));
 		    }
 		}
 	    }
       }
-    std::sort(a_a.begin(),a_a.end(),Info<dim>::by_dof);
-    a_a.erase( unique( a_a.begin(), a_a.end() ), a_a.end() );
-    std::sort(a_a.begin(),a_a.end(),Info<dim>::by_point);
-
-    std::sort(a_all.begin(),a_all.end(),Info<dim>::by_dof);
-    a_all.erase( unique( a_all.begin(), a_all.end() ), a_all.end() );
-    std::sort(a_all.begin(),a_all.end(),Info<dim>::by_point);
   }
+
+  typename std::set<Info<dim> >::iterator  n = n_a.begin();
+  typename std::set<Info<dim> >::iterator  v = v_a.begin();
+  typename std::set<Info<dim> >::iterator  f = f_a.begin();
+  typename std::set<Info<dim> >::iterator  a = a_a.begin();
   for (unsigned int i=0; i<f_a.size(); ++i)
     {
-      f2n.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,n_a[i].dof));
-      n2f.insert(std::pair<unsigned int,unsigned int>(n_a[i].dof,f_a[i].dof));
-      f2v.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,v_a[i].dof));
-      v2f.insert(std::pair<unsigned int,unsigned int>(v_a[i].dof,f_a[i].dof));
-      n2a.insert(std::pair<unsigned int,unsigned int>(n_a[i].dof,a_a[i].dof));
-      a2n.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,n_a[i].dof));
-      v2a.insert(std::pair<unsigned int,unsigned int>(v_a[i].dof,a_a[i].dof));
-      a2v.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,v_a[i].dof));
-      a2f.insert(std::pair<unsigned int,unsigned int>(a_a[i].dof,f_a[i].dof));
-      f2a.insert(std::pair<unsigned int,unsigned int>(f_a[i].dof,a_a[i].dof));
-      v2n.insert(std::pair<unsigned int,unsigned int>(v_a[i].dof,n_a[i].dof));
-      n2v.insert(std::pair<unsigned int,unsigned int>(n_a[i].dof,v_a[i].dof));
+      f2n.insert(std::pair<unsigned int,unsigned int>(f->dof,n->dof));
+      n2f.insert(std::pair<unsigned int,unsigned int>(n->dof,f->dof));
+      f2v.insert(std::pair<unsigned int,unsigned int>(f->dof,v->dof));
+      v2f.insert(std::pair<unsigned int,unsigned int>(v->dof,f->dof));
+      n2a.insert(std::pair<unsigned int,unsigned int>(n->dof,a->dof));
+      a2n.insert(std::pair<unsigned int,unsigned int>(a->dof,n->dof));
+      v2a.insert(std::pair<unsigned int,unsigned int>(v->dof,a->dof));
+      a2v.insert(std::pair<unsigned int,unsigned int>(a->dof,v->dof));
+      a2f.insert(std::pair<unsigned int,unsigned int>(a->dof,f->dof));
+      f2a.insert(std::pair<unsigned int,unsigned int>(f->dof,a->dof));
+      v2n.insert(std::pair<unsigned int,unsigned int>(v->dof,n->dof));
+      n2v.insert(std::pair<unsigned int,unsigned int>(n->dof,v->dof));
+      n++;
+      v++;
+      f++;
+      a++;
     }
+
+  f = f_all.begin();
+  a = a_all.begin();
   for (unsigned int i=0; i<f_all.size(); ++i)
     {
-      a2f_all.insert(std::pair<unsigned int,unsigned int>(a_all[i].dof,f_all[i].dof));
-      f2a_all.insert(std::pair<unsigned int,unsigned int>(f_all[i].dof,a_all[i].dof));
+      a2f_all.insert(std::pair<unsigned int,unsigned int>(a->dof,f->dof));
+      f2a_all.insert(std::pair<unsigned int,unsigned int>(f->dof,a->dof));
+      f++;
+      a++;
     }
 }
 

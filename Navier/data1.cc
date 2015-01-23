@@ -137,8 +137,8 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
     Tensor<1,dim,double> result;
     const double t = this->get_time();
     if (t <= 5.0e-3)
-      result[2] = -1.3332e+4;
-    return result[2]; // result[0]*0+result[1]*0+result[2]*1;
+      result[2] = 1.3332e+4;
+    return result[2]; // result[0]*0+result[1]*0+result[2]*-1;
   }
   return answer;
 }
@@ -662,6 +662,10 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
       default:
 	return 0;
       }    
+  }  else if (physical_properties.simulation_type==4) {
+    // const double t = this->get_time();
+    // if (t==0) return 0;
+    // else return 10;//1;
   }
   return 0;
 }
@@ -814,6 +818,10 @@ double StructureBoundaryValues<dim>::value (const Point<dim> &p,
       default:
 	return 0;
       }    
+  } else if (physical_properties.simulation_type==4) {
+    // const double t = this->get_time();
+    // if (t==0) return 0;
+    // else return 1;
   }
   return 0;
 }
