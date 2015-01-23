@@ -140,6 +140,10 @@ void FSIProblem<dim>::build_dof_mapping()
   typename std::set<Info<dim> >::iterator  v = v_a.begin();
   typename std::set<Info<dim> >::iterator  f = f_a.begin();
   typename std::set<Info<dim> >::iterator  a = a_a.begin();
+
+  AssertThrow(f_a.size() == n_a.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
+  AssertThrow(v_a.size() == n_a.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
+  AssertThrow(f_a.size() == a_a.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
   for (unsigned int i=0; i<f_a.size(); ++i)
     {
       f2n.insert(std::pair<unsigned int,unsigned int>(f->dof,n->dof));
@@ -160,6 +164,7 @@ void FSIProblem<dim>::build_dof_mapping()
       a++;
     }
 
+  AssertThrow(f_all.size() == a_all.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
   f = f_all.begin();
   a = a_all.begin();
   for (unsigned int i=0; i<f_all.size(); ++i)

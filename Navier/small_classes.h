@@ -31,7 +31,7 @@ class Info
     for (unsigned int i=0; i<dim; ++i) {
       if (coord[i]<other.coord[i]) {
 	return true;
-      } else if (std::fabs(other.coord[i] - coord[i]) > 1e-15) {
+      } else if (std::fabs(other.coord[i] - coord[i]) > 1e-12) {
 	return false;
       }
     }
