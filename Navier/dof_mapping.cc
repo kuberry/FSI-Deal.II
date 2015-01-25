@@ -136,16 +136,24 @@ void FSIProblem<dim>::build_dof_mapping()
       }
   }
 
+  // Verify cardinality of these sets are all the same
+  AssertThrow(f_all.size() == a_all.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
+  AssertThrow(f_a.size() == n_a.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
+  AssertThrow(v_a.size() == n_a.size(), ExcDimensionMismatch(v_a.size(), n_a.size()));
+  AssertThrow(f_a.size() == a_a.size(), ExcDimensionMismatch(f_a.size(), a_a.size()));
+
   typename std::set<Info<dim> >::iterator  n = n_a.begin();
   typename std::set<Info<dim> >::iterator  v = v_a.begin();
   typename std::set<Info<dim> >::iterator  f = f_a.begin();
   typename std::set<Info<dim> >::iterator  a = a_a.begin();
-
-  AssertThrow(f_a.size() == n_a.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
-  AssertThrow(v_a.size() == n_a.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
-  AssertThrow(f_a.size() == a_a.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
   for (unsigned int i=0; i<f_a.size(); ++i)
     {
+      // Verify that nodes are matching between fluid and structure interfaces
+      AssertThrow(f->coord.distance(n->coord)<1.e-12, ExcInternalError());
+      AssertThrow(v->coord.distance(n->coord)<1.e-12, ExcInternalError());
+      AssertThrow(f->coord.distance(a->coord)<1.e-12, ExcInternalError());
+
+      // Create mappings from sets of nodes
       f2n.insert(std::pair<unsigned int,unsigned int>(f->dof,n->dof));
       n2f.insert(std::pair<unsigned int,unsigned int>(n->dof,f->dof));
       f2v.insert(std::pair<unsigned int,unsigned int>(f->dof,v->dof));
@@ -164,7 +172,6 @@ void FSIProblem<dim>::build_dof_mapping()
       a++;
     }
 
-  AssertThrow(f_all.size() == a_all.size(), ExcDimensionMismatch(f_a.size(), n_a.size()));
   f = f_all.begin();
   a = a_all.begin();
   for (unsigned int i=0; i<f_all.size(); ++i)

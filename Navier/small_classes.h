@@ -16,20 +16,13 @@ class Info
  Info(const unsigned int dof_, Point<dim> & coord_, unsigned int component_):dof(dof_), coord(coord_), component(component_) {};
   bool operator== (const Info &other) const
   {
-    if (coord.distance(other.coord)>1e-12)
-      {
-	return false;
-      }
-    else
-      {
-	if (dof==other.dof) return true;
-	else return false;
-      }
+    if (dof==other.dof) return true;
+    else return false;
   }
   bool operator< (const Info &other) const
   {
     for (unsigned int i=0; i<dim; ++i) {
-      if (coord[i]<other.coord[i]) {
+      if (coord[i]<other.coord[i] && std::fabs(other.coord[i] - coord[i]) > 1e-12) {
 	return true;
       } else if (std::fabs(other.coord[i] - coord[i]) > 1e-12) {
 	return false;
