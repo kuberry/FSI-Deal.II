@@ -5,6 +5,10 @@
 # mu of the structure.
 set mu                    = 1153846.1538461538
 
+# lambda = E*nu / ((1.+nu)*(1-2.*nu))
+set lambda                = 1730769.2307692308
+
+
 # nu of the structure.
 set nu                    = 0.3
 
@@ -21,7 +25,7 @@ set simulation type       = 4
 
 # time to run the simulation until.
 set t0                    = 0.0
-set T                     = 0.01
+set T                     = 0.1
 
 # order of the finite element to use for the ALE mesh update.
 set ale degree            = 1
@@ -48,7 +52,7 @@ set fluid width           = 1.0
 set jump tolerance              = 1e-16
 
 # lambda of the structure.
-set lambda                = 0.0
+# set lambda                = 0.0
 
 # create plots of the solution at each time step.
 set make plots            = true
@@ -60,7 +64,7 @@ set moving domain         = true
 set move domain           = true
 
 # number of time steps to divide T by.
-set number of time steps  = 1000 
+set number of time steps  = 1000
 # gives dt = 1.e-4 
 
 # # of horizontal edges of the fluid.
@@ -98,7 +102,7 @@ set structure rho         = 1.2
 set structure width       = 1.0
 
 # theta value for the fluid, 0.5 is Crank-Nicolson and 1.0 is Implicit Euler.
-set fluid theta                 = 0.5
+set fluid theta                 = 1.0
 set structure theta 		= 0.5
 # viscosity of the fluid.
 set viscosity             = 0.035
