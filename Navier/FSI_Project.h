@@ -298,11 +298,11 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   physical_properties.u_bar		= prm_.get_double("mean velocity");
   if (std::fabs(physical_properties.lambda)<1e-13) // Lambda is to be computed
     {
-      physical_properties.lambda	= 2*physical_properties.mu*physical_properties.nu/(1-2*physical_properties.nu);
+      physical_properties.lambda	= 2.*physical_properties.mu*physical_properties.nu/(1.-2.*physical_properties.nu);
     }
   else if (std::fabs(physical_properties.mu)<1e-13) // Mu is to be computed
     {
-      physical_properties.mu		= physical_properties.lambda*(1-2*physical_properties.nu)/2*physical_properties.nu;
+      physical_properties.mu		= physical_properties.lambda*(1.-2.*physical_properties.nu)/2.*physical_properties.nu;
     }
   //else  We don't need to compute anything
   physical_properties.rho_f				= prm_.get_double("fluid rho");
