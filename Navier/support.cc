@@ -198,6 +198,7 @@ Tensor<1,dim,double> FSIProblem<dim>::lift_and_drag_structure()
 template <int dim>
 double FSIProblem<dim>::interface_error()
 {
+  //ale_transform_fluid();
   QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
   FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
 				    update_values    | update_normal_vectors |
@@ -245,13 +246,14 @@ double FSIProblem<dim>::interface_error()
 	    }
 	}
     }
-  return functional+penalty_functional;
+  return functional;//+penalty_functional;
+  //ref_transform_fluid();
 }
 
 template <int dim>
 double FSIProblem<dim>::interface_inner_product(const Vector<double>   &values1, const Vector<double>   &values2)
 {
-  ale_transform_fluid();
+  //ale_transform_fluid();
   QGauss<dim-1> face_quadrature_formula(fem_properties.fluid_degree+2);
   FEFaceValues<dim> fe_face_values (fluid_fe, face_quadrature_formula,
 				    update_values    | update_normal_vectors |
@@ -294,7 +296,7 @@ double FSIProblem<dim>::interface_inner_product(const Vector<double>   &values1,
 	    }
 	}
     }
-  ref_transform_fluid();
+  //ref_transform_fluid();
   return functional;
 }
 
