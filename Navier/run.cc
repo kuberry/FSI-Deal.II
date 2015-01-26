@@ -132,6 +132,7 @@ void FSIProblem<dim>::run ()
   Vector<double> drag(total_timesteps);
   Vector<double> x_displacement(total_timesteps);
   Vector<double> y_displacement(total_timesteps);
+  Vector<double> outflow_rate(total_timesteps);
   // Read in lift, drag, and displacement data since it is available
   if (timestep_number != 1) {
     const std::string lift_filename = "lift.data";
@@ -150,6 +151,10 @@ void FSIProblem<dim>::run ()
     std::ifstream y_displacement_input (y_displacement_filename.c_str());
     y_displacement.block_read(y_displacement_input);
     y_displacement_input.close();
+    const std::string outflow_rate_filename = "outflow_rate.data";
+    std::ifstream outflow_rate_input (outflow_rate_filename.c_str());
+    outflow_rate.block_read(outflow_rate_input);
+    outflow_rate_input.close();
   }
 
   // std::vector<std::vector<double> > displacement_min_max_mean(2); // spatial dimension is 2 
@@ -646,7 +651,11 @@ void FSIProblem<dim>::run ()
 		//std::cout << input_vector << std::endl; 
 		stress_star = stress;
 		update_direction.block(0) = output_vector;
-		AG_line_search = true;
+
+		AG_line_search = false;
+
+		stress.block(0).add(alpha_j, update_direction.block(0));
+		transfer_interface_dofs(stress, stress, 0, 1, Displacement);
 		// stress.block(0).add(update_alpha, output_vector);
 		// tmp=0;
 		// transfer_interface_dofs(stress,tmp,0,0);
@@ -732,9 +741,10 @@ void FSIProblem<dim>::run ()
       } else if (physical_properties.simulation_type==4) {
 	dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
 	//Point<dim> p1(-0.11126, -0.487464, 2.5); Point used in Burman paper
-	Point<dim> p1(0.0, -0.5, 2.5);
-	const double flow_rate = flowrate_through_surface(5); // get flow rate through top of cylinder
-	structure_file_out << time << " " << fe_function.value(p1,1) << " " << flow_rate << std::endl; 
+	Point<dim> p1(-0.11126, -0.487464, 2.5);
+	y_displacement[timestep_number] = fe_function.value(p1,1);
+	outflow_rate[timestep_number] = flowrate_through_surface(2);
+	structure_file_out << time << " " << y_displacement[timestep_number] << " " << outflow_rate[timestep_number] << std::endl; 
       }
       // Write these vectors to the hard drive 10 times
       if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0) {
@@ -781,15 +791,19 @@ void FSIProblem<dim>::run ()
 	  const std::string y_displacement_filename = "y_displacement.data";
 	  std::ofstream y_displacement_output (y_displacement_filename.c_str());
 	  y_displacement.block_write(y_displacement_output);
-	  y_displacement_output.close();	  
+	  y_displacement_output.close();
+	  const std::string outflow_rate_filename = "outflow_rate.data";
+	  std::ofstream outflow_rate_output (outflow_rate_filename.c_str());
+	  outflow_rate.block_write(outflow_rate_output);
+	  outflow_rate_output.close();	  
 
 	  const std::string temp_output_filename = Utilities::int_to_string (timestep_number, 5) + ".log";
 	  const std::string last_output_filename = "last.log";
 	  std::ofstream temp_qoi_output (temp_output_filename.c_str());
 	  std::ofstream last_qoi_output (last_output_filename.c_str());
 	  for (unsigned int i=0; i<timestep_number; ++i) {
-	    temp_qoi_output << fem_properties.t0 + (i+1)*time_step << " " << x_displacement[i] << " " << y_displacement[i] << " " << lift[i] << " " << drag[i] << std::endl;
-	    last_qoi_output << fem_properties.t0 + (i+1)*time_step << " " << x_displacement[i] << " " << y_displacement[i] << " " << lift[i] << " " << drag[i] << std::endl;
+	    temp_qoi_output << fem_properties.t0 + (i+1)*time_step << " " << x_displacement[i] << " " << y_displacement[i] << " " << lift[i] << " " << drag[i] << " " << outflow_rate[i] << std::endl;
+	    last_qoi_output << fem_properties.t0 + (i+1)*time_step << " " << x_displacement[i] << " " << y_displacement[i] << " " << lift[i] << " " << drag[i] << " " << outflow_rate[i] << std::endl;
 	  }
 	  temp_qoi_output.close();
 	  last_qoi_output.close();
@@ -834,6 +848,16 @@ void FSIProblem<dim>::run ()
     pcout << std::endl << "FLUID: " << std::endl;
     pcout << "drag: " << .5*(drag_max+drag_min) << " +/- " << .5*(drag_max-drag_min) << ", lift: " << .5*(lift_max+lift_min) << " +/- " << .5*(lift_max-lift_min) << std::endl;
     pcout << "last step: drag: " << drag[total_timesteps-1] << ", lift: " << lift[total_timesteps-1] << std::endl;
+  } else if (physical_properties.simulation_type==4) {
+
+    // THIS NEEDS FIXED TO KEEP TRACK OF THINGS!!!
+    const std::string output_filename = "output.data";
+    std::ofstream qoi_output (output_filename.c_str());
+    for (unsigned int i=0; i<total_timesteps; ++i) {
+      qoi_output << fem_properties.t0 + (i+1)*time_step << " " << y_displacement[i] << " " << outflow_rate[i] << std::endl;
+    }
+    //lift.block_write(lift_output);
+    qoi_output.close();
   }
 }
 
