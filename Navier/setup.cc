@@ -25,7 +25,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	  std::map<types::global_dof_index,double> fluid_structure_boundary_values;
 	  if (fem_properties.optimization_method.compare("DN")==0)
 	    {
-	      for (unsigned int i=min_index; i<dofs_per_big_block[0]; ++i) // loops over nodes local to ale
+	      for (unsigned int i=0; i<dofs_per_big_block[0]; ++i) // loops over nodes local to ale
 		{
 		  if (f2v.count(i)) // lookup key for certain ale dof
 		    {
@@ -93,7 +93,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	{
 	  std::map<types::global_dof_index,double> ale_dirichlet_boundary_values;
 	  std::map<types::global_dof_index,double> ale_interface_boundary_values;
-	  for (unsigned int i=min_index; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
+	  for (unsigned int i=0; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
 	    {
 	      if (a2n.count(i)) // lookup key for certain ale dof
 		{
@@ -671,8 +671,8 @@ void FSIProblem<3>::setup_system ()
     				    5.0, // length
     				    inner_radius, // inner
     				    outer_radius,//, // outer)
-				    16,//2, // n_radial_cells
-    				    48); // n_axial_cells
+				    8,//2, // n_radial_cells
+    				    24); // n_axial_cells
     // Instead, could do 25 rather than 50 and refine 1 time
     // There is an example of this in step_18
     //structure_triangulation.refine_global (1);
@@ -694,7 +694,7 @@ void FSIProblem<3>::setup_system ()
     fluid_triangulation.set_boundary (0, cylinder_boundary_description); // left
     fluid_triangulation.set_boundary (1, cylinder_boundary_description); // left
     fluid_triangulation.set_boundary (2, cylinder_boundary_description); // left
-    fluid_triangulation.refine_global (2);
+    fluid_triangulation.refine_global (1);
 
 
     // GridGenerator::subdivided_hyper_rectangle ( fluid_triangulation,
@@ -855,6 +855,7 @@ void FSIProblem<3>::setup_system ()
 
   } else if (physical_properties.simulation_type == 4) {
     const double inner_radius = 0.5, outer_radius = 0.6;
+
     for (Triangulation<3>::active_cell_iterator
 	   cell=structure_triangulation.begin_active();
 	 cell!=structure_triangulation.end(); ++cell)
@@ -862,18 +863,46 @@ void FSIProblem<3>::setup_system ()
 	if (cell->face(f)->at_boundary())
 	  {
 	    const Point<3> face_center = cell->face(f)->center();
-	    if (std::fabs(face_center[2] - 0) < 1e-15)
-	      cell->face(f)->set_boundary_indicator (1);
-	    else if (std::fabs(face_center[2] - 5) < 1e-15)
-	      cell->face(f)->set_boundary_indicator (2);
-	    else if (std::sqrt(face_center[0]*face_center[0] +
+	    if (std::sqrt(face_center[0]*face_center[0] +
 			       face_center[1]*face_center[1])
 		     <
-		     (inner_radius + outer_radius) / 2)
+		     (inner_radius + outer_radius) / 2.)
 	      cell->face(f)->set_boundary_indicator (3);
-	    else
+	  }
+    for (Triangulation<3>::active_cell_iterator
+	   cell=structure_triangulation.begin_active();
+	 cell!=structure_triangulation.end(); ++cell)
+      for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
+	if (cell->face(f)->at_boundary())
+	  {
+	    const Point<3> face_center = cell->face(f)->center();
+	    if (std::fabs(face_center[2] - 0) >= 1e-14 && std::fabs(face_center[2] - 5.) >= 1e-14 && std::sqrt(face_center[0]*face_center[0] +
+			       face_center[1]*face_center[1])
+		     >=
+		     (inner_radius + outer_radius) / 2.)
 	      cell->face(f)->set_boundary_indicator (4);
 	  }
+    for (Triangulation<3>::active_cell_iterator
+	   cell=structure_triangulation.begin_active();
+	 cell!=structure_triangulation.end(); ++cell)
+      for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
+	if (cell->face(f)->at_boundary())
+	  {
+	    const Point<3> face_center = cell->face(f)->center();
+	    if (std::fabs(face_center[2] - 0) < 1e-14)
+	      cell->face(f)->set_boundary_indicator (1);
+	  }
+    for (Triangulation<3>::active_cell_iterator
+	   cell=structure_triangulation.begin_active();
+	 cell!=structure_triangulation.end(); ++cell)
+      for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
+	if (cell->face(f)->at_boundary())
+	  {
+	    const Point<3> face_center = cell->face(f)->center();
+	    if (std::fabs(face_center[2] - 5.) < 1e-14)
+	      cell->face(f)->set_boundary_indicator (2);
+	  }
+
 
     for (Triangulation<3>::active_cell_iterator
 	   cell=fluid_triangulation.begin_active();
@@ -882,22 +911,47 @@ void FSIProblem<3>::setup_system ()
 	if (cell->face(f)->at_boundary())
 	  {
 	    const Point<3> face_center = cell->face(f)->center();
-	    if (std::fabs(face_center[2] - 0) < 1e-15 )
-	      //cell->face(f)->set_boundary_indicator (0);
-	      cell->face(f)->set_all_boundary_indicators(1);
-	    else if (std::fabs(face_center[2] - 5) < 1e-15 ) {
-	      //cell->face(f)->set_boundary_indicator (1);
-	      cell->face(f)->set_all_boundary_indicators(2);
-	      }
-	    // else if (std::sqrt(face_center[0]*face_center[0] +
-	    // 		       face_center[1]*face_center[1])
-	    // 	     <
-	    // 	     (inner_radius + outer_radius) / 2)
-	    //   cell->face(f)->set_boundary_indicator (2);
-	    else
-	      //cell->face(f)->set_boundary_indicator (2);
+	    if (std::fabs(face_center[2] - 0) >= 1e-14 && std::fabs(face_center[2] - 5.) >= 1e-14 )
 	      cell->face(f)->set_all_boundary_indicators(3);
 	  }
+    for (Triangulation<3>::active_cell_iterator
+	   cell=fluid_triangulation.begin_active();
+	 cell!=fluid_triangulation.end(); ++cell)
+      for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f) {
+	// if (cell->face(f)->at_boundary())
+	//   {
+	    const Point<3> face_center = cell->face(f)->center();
+	    if (std::fabs(face_center[2] - 0) < 1e-14 )
+	      //cell->face(f)->set_boundary_indicator (0);
+	      cell->face(f)->set_all_boundary_indicators(1);
+	  // }
+      }
+    for (Triangulation<3>::active_cell_iterator
+	   cell=fluid_triangulation.begin_active();
+	 cell!=fluid_triangulation.end(); ++cell)
+      for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f) {
+	// if (cell->face(f)->at_boundary())
+	//   {
+	    const Point<3> face_center = cell->face(f)->center();
+	    if (std::fabs(face_center[2] - 5.) < 1e-14 ) {
+	      //cell->face(f)->set_boundary_indicator (1);
+	      cell->face(f)->set_all_boundary_indicators(2);
+	    }
+	  // }
+      }
+    // for (Triangulation<3>::active_cell_iterator
+    // 	   cell=fluid_triangulation.begin_active();
+    // 	 cell!=fluid_triangulation.end(); ++cell)
+    //   for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f) {
+    // 	// if (cell->face(f)->at_boundary())
+    // 	//   {
+    // 	    const Point<3> face_center = cell->face(f)->center();
+    // 	    if (std::fabs(face_center[2] - 5) < 1e-14 ) {
+    // 	      //cell->face(f)->set_boundary_indicator (1);
+    // 	      cell->face(f)->set_all_boundary_indicators(2);
+    // 	      }
+    // 	  // }
+    //   }
   } else {
     AssertThrow(false, ExcNotImplemented());
   }
