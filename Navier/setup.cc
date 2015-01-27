@@ -22,7 +22,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	  std::map<types::global_dof_index,double> fluid_structure_boundary_values;
 	  if (fem_properties.optimization_method.compare("DN")==0)
 	    {
-	      for (unsigned int i=min_index; i<dofs_per_big_block[0]; ++i) // loops over nodes local to ale
+	      for (unsigned int i=0; i<dofs_per_big_block[0]; ++i) // loops over nodes local to ale
 		{
 		  if (f2v.count(i)) // lookup key for certain ale dof
 		    {
@@ -89,7 +89,7 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	{
 	  std::map<types::global_dof_index,double> ale_dirichlet_boundary_values;
 	  std::map<types::global_dof_index,double> ale_interface_boundary_values;
-	  for (unsigned int i=min_index; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
+	  for (unsigned int i=0; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
 	    {
 	      if (a2n.count(i)) // lookup key for certain ale dof
 		{
