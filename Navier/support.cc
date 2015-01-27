@@ -55,8 +55,7 @@ void FSIProblem<dim>::get_fluid_stress()
 
   Tensor<1,dim,double> functional;
   Tensor<2,dim,double> Identity;
-  AssertThrow(dim==2,ExcNotImplemented());
-  for (unsigned int i=0; i<2; ++i) Identity[i][i]=1;
+  for (unsigned int i=0; i<dim; ++i) Identity[i][i]=1;
 
   std::vector<types::global_dof_index> dof_indices(fluid_fe.dofs_per_cell);
   Vector<double> cell_rhs(fluid_fe.dofs_per_cell);
