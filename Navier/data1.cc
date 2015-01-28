@@ -232,7 +232,7 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
     const double t = this->get_time();
     if (component==2) {
       double pval = 0;
-      if (t <= 5.0e-3)
+      if (t <= 5.0e-3 && t != 0)
 	pval = 1.3332e+4;
       result[2] = -pval;
     }
