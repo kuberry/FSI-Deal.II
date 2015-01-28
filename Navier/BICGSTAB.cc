@@ -397,3 +397,5 @@ unsigned int FSIProblem<dim>::optimization_BICGSTAB (unsigned int &total_solves,
 }
 
 template unsigned int FSIProblem<2>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations, const double update_alpha);
+
+template unsigned int FSIProblem<3>::optimization_BICGSTAB (unsigned int &total_solves, const unsigned int initial_timestep_number, const bool random_initial_guess, const unsigned int max_iterations, const double update_alpha);
