@@ -28,7 +28,7 @@ set t0                    = 0.0
 set T                     = 0.1
 
 # order of the finite element to use for the ALE mesh update.
-set ale degree            = 1
+set ale degree            = 2
 
 # convergence method. choice between 'time' and 'space'.
 set convergence method    = time
@@ -37,13 +37,13 @@ set convergence method    = time
 set fluid height          = 1.0
 
 # order of the finite element to use for the fluid pressure.
-set fluid pressure degree = 0
+set fluid pressure degree = 1
 
 # density of the fluid.
 set fluid rho             = 1.0
 
 # order of the finite element to use for the fluid velocity.
-set fluid velocity degree = 1
+set fluid velocity degree = 2
 
 # width of the fluid domain.
 set fluid width           = 1.0
@@ -86,11 +86,11 @@ set output error          = true
 set penalty epsilon             = 1e-20
 
 # tuning parameter for the steepest descent algorithm.
-set steepest descent alpha      = 1e-20
+set steepest descent alpha      = 1e-2
 
 # order of the finite element to use for the structure displacement and
 # velocity.
-set structure degree      = 1
+set structure degree      = 2
 
 # height of the structure domain.
 set structure height      = 0.25
@@ -117,7 +117,7 @@ set navier stokes         = true
 
 set true control          = false
 
-set optimization method   = GMRES
+set optimization method   = DN
 set cg tolerance          = 1e-5
 set stability terms       = false
 set adjoint type          = 2

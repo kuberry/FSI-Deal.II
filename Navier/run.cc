@@ -221,6 +221,29 @@ void FSIProblem<dim>::run ()
       double alpha_j = 1.0;
       double t_val = 0;
 
+      double reference_alpha = fem_properties.steepest_descent_alpha;
+
+      
+
+      //BlockVector<double> SF_eta_nm1 = solution;
+      //BlockVector<double> SF_eta_n = solution;
+      BlockVector<double> d_np  = old_solution;
+      BlockVector<double> d_np1 = old_solution;
+      Vector<double> w_n(d_np1.block(1).size()); // initialize and set to zero
+      vector_vector_transfer_interface_dofs(d_np1.block(1),w_n,1,1,Velocity,Displacement);
+      Vector<double> w_nm1(d_np1.block(1).size());
+      vector_vector_transfer_interface_dofs(old_old_solution.block(1),w_nm1,1,1,Velocity,Displacement);
+
+      d_np1.block(1).add(1.5*time_step,w_n);
+      d_np1.block(1).add(-.5*time_step,w_nm1);
+
+      if (fem_properties.optimization_method.compare("DN")==0) {
+	solution.block(1) = d_np1.block(1);
+      }
+
+      BlockVector<double> SF_eta_nm1 = solution;
+      BlockVector<double> SF_eta_n = solution;
+      double omega_k = fem_properties.steepest_descent_alpha;
       // *****************************************************************************************
       //                                OUTER OPTIMIZATION ITERATION LOOP
       // *****************************************************************************************
@@ -344,7 +367,9 @@ void FSIProblem<dim>::run ()
 
 	  BlockVector<double> structure_previous_iterate;
 	  if (fem_properties.optimization_method.compare("DN")==0) { 
+	    // Get accelerated coefficient
 	    // First solve fluid then use that information to solve structure
+	    //solution = d_np1;
 	    structure_previous_iterate = solution;
 	    fluid_state_solve(initialized_timestep_number);
 	    // Take the stress from fluid and give it to the structure
@@ -355,6 +380,34 @@ void FSIProblem<dim>::run ()
 	    ref_transform_fluid();
 	    transfer_interface_dofs(tmp,stress,0,1,Displacement);
 	    structure_state_solve(initialized_timestep_number);
+	    //BlockVector<double> dtilde_np1 = solution;
+	    // d_np1 = omega_k * dtilde_np1 + (1. - omega_k) * d_np1
+	    
+	    SF_eta_nm1.block(1) = SF_eta_n.block(1);
+	    SF_eta_n.block(1) = solution.block(1);
+
+	    d_np.block(1) = d_np1.block(1);
+	    d_np1.block(1) *= (1. - omega_k);
+	    d_np1.block(1).add(omega_k, solution.block(1));
+	    Vector<double> diff1 = d_np1.block(1);
+	    diff1.add(-1.0,d_np.block(1));;
+
+	    Vector<double> diff2 = diff1;
+	    diff2.add(1.0, SF_eta_nm1.block(1));
+	    diff2.add(-1.0, SF_eta_n.block(1));
+	    
+	    Vector<double> diff1_fluid(d_np1.block(0).size());
+	    Vector<double> diff2_fluid(d_np1.block(0).size());
+	    vector_vector_transfer_interface_dofs(diff1, diff1_fluid, 1, 0, Displacement);
+	    vector_vector_transfer_interface_dofs(diff2, diff2_fluid, 1, 0, Displacement);
+	    
+	    omega_k = -interface_inner_product(diff1,diff2) / interface_inner_product(diff2,diff2);
+	    std::cout << "omega_k: " << omega_k << std::endl;
+
+	    solution.block(1) = d_np1.block(1);
+	    //SF_eta_nm1 = SF_eta_n;
+	    //SF_eta_n = solution;
+	    
 	  } else {
 	    // Solve both fluid and structure simultaneously
 	    Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
@@ -684,16 +737,16 @@ void FSIProblem<dim>::run ()
 	      }
 	  }
   	}
-
+      fem_properties.steepest_descent_alpha = reference_alpha;
       // *****************************************************************************************
       //                                  UPDATE OLD SOLUTIONS
       // *****************************************************************************************
       pcout << "Total Solves: " << total_solves << std::endl;
       if (fem_properties.make_plots) output_results ();
-      if (fem_properties.richardson) 
-  	{
+      //if (fem_properties.richardson) 
+      //	{
   	  old_old_solution = old_solution;
-  	}
+	  //	}
       old_solution = solution;
       old_stress = stress;
 

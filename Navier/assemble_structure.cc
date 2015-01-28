@@ -37,12 +37,12 @@ void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_nu
     std::cout << "S: " << solution_star.block(1).l2_norm() << std::endl;
   } while (solution_star.block(1).l2_norm()>1e-8 && physical_properties.nonlinear_elasticity);
   solution_star.block(1) = solution.block(1); 
-  if (fem_properties.optimization_method.compare("DN")==0) {
-    tmp.block(1) *= (1-fem_properties.steepest_descent_alpha);
-    tmp.block(1).add(fem_properties.steepest_descent_alpha, solution.block(1));
-    solution.block(1) = tmp.block(1);
-    solution_star.block(1) = solution.block(1);
-  }
+  // if (fem_properties.optimization_method.compare("DN")==0) {
+  //   tmp.block(1) *= (1-fem_properties.steepest_descent_alpha);
+  //   tmp.block(1).add(fem_properties.steepest_descent_alpha, solution.block(1));
+  //   solution.block(1) = tmp.block(1);
+  //   solution_star.block(1) = solution.block(1);
+  // }
  
   
 }
