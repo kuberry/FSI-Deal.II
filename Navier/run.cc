@@ -229,18 +229,17 @@ void FSIProblem<dim>::run ()
 	  double n_val = n_max;
 	  double m_val = 0;
 
-	  if (!AG_line_search) alpha_j = 1.0;
-
-	  if (AG_line_search) {
+	  if (AG_line_search) { // AG_line_search
 	    std::cout << "Line search. " << std::endl;
 	    stress *= 0;
 	    transfer_interface_dofs(stress_star, stress, 0, 0);
 
-	    // if (fem_properties.optimization_method.compare("Gradient")==0) {
-	    //   stress.block(0)*=(1-alpha_j);
-	    // } 
-
-	    stress.block(0).add(alpha_j, update_direction.block(0));
+	    if (fem_properties.optimization_method.compare("Gradient")==0) {
+	      stress.block(0)*=(1-alpha_j);
+	      stress.block(0).add(float(alpha_j)/fem_properties.penalty_epsilon, update_direction.block(0));
+	    } else {
+	      stress.block(0).add(alpha_j, update_direction.block(0));
+	    }
 	    transfer_interface_dofs(stress, stress, 0, 1, Displacement);
 
 	    // Solve both fluid and structure simultaneously
@@ -274,6 +273,13 @@ void FSIProblem<dim>::run ()
 	      }
 
 	  } else {
+	    // The method for using alpha is significantly different for Gradient vs other optimization methods
+	    if (fem_properties.optimization_method.compare("Gradient")==0) {
+	      alpha_j = fem_properties.steepest_descent_alpha;
+	    } else {
+	      alpha_j = 1.0;
+	    }
+
 	    ++count;
 	    if (count == 1 && fem_properties.true_control)
 	      {
@@ -408,6 +414,10 @@ void FSIProblem<dim>::run ()
 		double c_val = 0.5;
 		if (count == 1)
 		  t_val = -m_val*c_val;
+
+		// t_val = 0; // <-- This would turn off any criteria for line search except for nonnegative
+
+
 		if (velocity_jump>velocity_jump_old)
 		  {
 		    ++imprecord;
@@ -452,7 +462,7 @@ void FSIProblem<dim>::run ()
 		//x *= -1;
 		AG_line_search = true;
 
-		// // Update the stress using the adjoint variables
+		// Update the stress using the adjoint variables
 		// stress.block(0)*=(1-alpha);
 
 		// // not negated since tmp has reverse of proper negation
@@ -539,6 +549,9 @@ void FSIProblem<dim>::run ()
 	      }
 	    else if (fem_properties.optimization_method.compare("BICG")==0) 
 	      {
+		// This version of deal.II's BICG can not be used since it runs  .vmult in parallel,
+		// while  vmult makes changes to the RHS (resulting in unpredictable, and generally bad behavior)
+ 
 		// if (velocity_jump > velocity_jump_old) {
 		// 	stress = stress_star;
 		// 	update_alpha *= 0.5;
@@ -548,36 +561,36 @@ void FSIProblem<dim>::run ()
 		// 	update_alpha  = 1.0;
 		// }
 
-		LinearMap::Linearized_Operator<dim> A(this);
-		LinearMap::NeumannVector<dim> output_vector(rhs_for_adjoint.block(0), this);
-		output_vector *= 0;
-		// for (Vector<double>::iterator it=output_vector.begin(); it!=output_vector.end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * rhs_for_adjoint.block(0).l2_norm();
-		LinearMap::NeumannVector<dim> input_vector(rhs_for_adjoint.block(0), this);
-		//input_vector *= -1;
-		//A.vmult(output_vector, input_vector);
-		//tmp.block(0).add(-1.0, output_vector);
-		// total_solves is passed by reference and updated
-		unsigned int convergence_flag = 1;
-		//ReductionControl solver_control(1000, 1e-50, fem_properties.cg_tolerance, false, false);
-		SolverControl solver_control(1000, 1e-50, false, false);
-		//GrowingVectorMemory<Vector<double> > mem;
-		PrimitiveVectorMemory<Vector<double> > mem;
-		SolverBicgstab<Vector<double> > solver (solver_control);//, mem, SolverBicgstab<Vector<double> >::AdditionalData(false /*exact residual */, 1.e-250 /* breakdown */));
-		A.initialize_matrix(output_vector, input_vector, linear);
-		try {
-		  solver.solve(A, output_vector, input_vector, PreconditionIdentity());
-		} catch (std::exception &e) {
-		  std::cout << "Minimize failed." << std::endl;
-		  Assert (false, ExcMessage(e.what()));
-		}
+		// LinearMap::Linearized_Operator<dim> A(this);
+		// LinearMap::NeumannVector<dim> output_vector(rhs_for_adjoint.block(0), this);
+		// output_vector *= 0;
+		// // for (Vector<double>::iterator it=output_vector.begin(); it!=output_vector.end(); ++it) *it = std::max(physical_properties.rho_f,physical_properties.rho_s) * rhs_for_adjoint.block(0).l2_norm();
+		// LinearMap::NeumannVector<dim> input_vector(rhs_for_adjoint.block(0), this);
+		// //input_vector *= -1;
+		// //A.vmult(output_vector, input_vector);
+		// //tmp.block(0).add(-1.0, output_vector);
+		// // total_solves is passed by reference and updated
+		// unsigned int convergence_flag = 1;
+		// //ReductionControl solver_control(1000, 1e-50, fem_properties.cg_tolerance, false, false);
+		// SolverControl solver_control(1000, 1e-50, false, false);
+		// //GrowingVectorMemory<Vector<double> > mem;
+		// PrimitiveVectorMemory<Vector<double> > mem;
+		// SolverBicgstab<Vector<double> > solver (solver_control);//, mem, SolverBicgstab<Vector<double> >::AdditionalData(false /*exact residual */, 1.e-250 /* breakdown */));
+		// A.initialize_matrix(output_vector, input_vector, linear);
+		// try {
+		//   solver.solve(A, output_vector, input_vector, PreconditionIdentity());
+		// } catch (std::exception &e) {
+		//   std::cout << "Minimize failed." << std::endl;
+		//   Assert (false, ExcMessage(e.what()));
+		// }
 
-		std::cout << "last val: " << solver_control.last_value() << std::endl;
-		std::cout << "last step:" << solver_control.last_step() << std::endl;
-		//std::cout << input_vector << std::endl; 
+		// std::cout << "last val: " << solver_control.last_value() << std::endl;
+		// std::cout << "last step:" << solver_control.last_step() << std::endl;
+		// //std::cout << input_vector << std::endl; 
 
-		stress_star = stress;
-		update_direction.block(0) = output_vector;
-		AG_line_search = true;
+		// stress_star = stress;
+		// update_direction.block(0) = output_vector;
+		// AG_line_search = true;
 
 		// stress.block(0).add(1.0, output_vector);
 		// tmp=0;
@@ -591,11 +604,11 @@ void FSIProblem<dim>::run ()
 
 
 
-		// // total_solves is passed by reference and updated
-		// unsigned int convergence_flag = 1;
-		// while (convergence_flag!=0) {
-		// 	convergence_flag = optimization_BICGSTAB(total_solves, initialized_timestep_number, true, 1000, 1.0);
-		// }
+		// total_solves is passed by reference and updated
+		unsigned int convergence_flag = 1;
+		while (convergence_flag!=0) {
+			convergence_flag = optimization_BICGSTAB(total_solves, initialized_timestep_number, true, 1000, 1.0);
+		}
 	      }
 	    else if (fem_properties.optimization_method.compare("GMRES")==0) 
 	      {
