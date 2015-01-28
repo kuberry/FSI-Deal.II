@@ -40,7 +40,7 @@ template <int dim>
 void FSIProblem<dim>::get_fluid_stress()
 {
   tmp.block(0)=0;
-  AssertThrow(fem_properties.optimization_method.compare("DN")==0, ExcNotImplemented());
+  // AssertThrow(fem_properties.optimization_method.compare("DN")==0, ExcNotImplemented());
   const FEValuesExtractors::Vector velocities (0);
   const FEValuesExtractors::Scalar pressure (dim);
 
