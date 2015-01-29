@@ -3,7 +3,7 @@
 
 int main (int argc, char *argv[])
 {
-  const unsigned int dim = 3;
+  const unsigned int dim = 2;
   //Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
   if (argc < 2)
     {
@@ -63,3 +63,4 @@ int main (int argc, char *argv[])
 
 
 template class FSIProblem<2>;
+template class FSIProblem<3>;

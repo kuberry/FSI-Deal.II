@@ -2,6 +2,37 @@
 #include "small_classes.h"
 
 template <int dim>
+void FSIProblem<dim>::ale_state_solve(unsigned int initialized_timestep_number) {
+  if (physical_properties.moving_domain) {
+    assemble_ale(state,true);
+    dirichlet_boundaries((System)2,state);
+    if (timestep_number==initialized_timestep_number) {
+      state_solver[2].initialize(system_matrix.block(2,2));
+    } else {
+      state_solver[2].factorize(system_matrix.block(2,2));
+    }
+    solve(state_solver[2],2,state);
+    transfer_all_dofs(solution,mesh_displacement_star,2,0);
+
+    if (physical_properties.simulation_type==2) {
+      AleBoundaryValues<dim> ale_boundary_values(physical_properties);
+      // Overwrites the Laplace solve since the velocities compared against will not be correct
+      ale_boundary_values.set_time(time);
+      VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+			   ale_boundary_values,
+			   mesh_displacement_star.block(2)); // move directly to fluid block 
+      transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+    }
+
+    if (fem_properties.time_dependent) {
+      mesh_velocity.block(0)=mesh_displacement_star.block(0);
+      mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+      mesh_velocity.block(0)*=1./time_step;
+    }
+  }
+}
+
+template <int dim>
 void FSIProblem<dim>::assemble_ale_matrix_on_one_cell (const typename DoFHandler<dim>::active_cell_iterator& cell,
 						       BaseScratchData<dim>& scratch,
 						       PerTaskData<dim>& data )
@@ -87,7 +118,7 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
   		   per_task_data);
 }
 
-
+template void FSIProblem<2>::ale_state_solve(unsigned int initialized_timestep_number);
 
 template void FSIProblem<2>::assemble_ale_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator &cell,
 							      BaseScratchData<2> &scratch,

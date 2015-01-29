@@ -5,6 +5,7 @@
 #include <deal.II/lac/solver_bicgstab.h>
 #include <deal.II/lac/solver_cg.h>
 #include "linear_maps.h"
+#include "solver_controls.h"
 
 template <int dim>
 void FSIProblem<dim>::run ()
@@ -54,10 +55,13 @@ void FSIProblem<dim>::run ()
   structure_boundary_values.set_time(fem_properties.t0-time_step);
   fluid_boundary_values.set_time(fem_properties.t0-time_step);
 
-  if (fem_properties.richardson) {
+  if (fem_properties.richardson || fem_properties.optimization_method.compare("DN")==0) {
     VectorTools::project (fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
 			  fluid_boundary_values,
 			  old_old_solution.block(0));
+    VectorTools::project (structure_dof_handler, structure_constraints, QGauss<dim>(fem_properties.structure_degree+2),
+			  structure_boundary_values,
+			  old_old_solution.block(1));
   }
 
   structure_boundary_values.set_time(fem_properties.t0);
@@ -168,6 +172,8 @@ void FSIProblem<dim>::run ()
   //   displacement_min_max_mean[1] = zero;
   // }
 
+  DN_solver<dim> DN(this); 
+
   // *****************************************************************************************
   //                                    TIME STEP LOOP
   // *****************************************************************************************
@@ -212,38 +218,14 @@ void FSIProblem<dim>::run ()
       unsigned int total_solves = 0;
 
 
-      if (physical_properties.moving_domain)
-  	{
-  	  old_mesh_displacement.block(0) = mesh_displacement_star.block(0);
-  	}
+      if (physical_properties.moving_domain) {
+	old_mesh_displacement.block(0) = mesh_displacement_star.block(0);
+      }
 
       BlockVector<double> update_direction = stress;
       double alpha_j = 1.0;
       double t_val = 0;
 
-      double reference_alpha = fem_properties.steepest_descent_alpha;
-
-      
-
-      //BlockVector<double> SF_eta_nm1 = solution;
-      //BlockVector<double> SF_eta_n = solution;
-      BlockVector<double> d_np  = old_solution;
-      BlockVector<double> d_np1 = old_solution;
-      Vector<double> w_n(d_np1.block(1).size()); // initialize and set to zero
-      vector_vector_transfer_interface_dofs(d_np1.block(1),w_n,1,1,Velocity,Displacement);
-      Vector<double> w_nm1(d_np1.block(1).size());
-      vector_vector_transfer_interface_dofs(old_old_solution.block(1),w_nm1,1,1,Velocity,Displacement);
-
-      d_np1.block(1).add(1.5*time_step,w_n);
-      d_np1.block(1).add(-.5*time_step,w_nm1);
-
-      if (fem_properties.optimization_method.compare("DN")==0) {
-	solution.block(1) = d_np1.block(1);
-      }
-
-      BlockVector<double> SF_eta_nm1 = solution;
-      BlockVector<double> SF_eta_n = solution;
-      double omega_k = fem_properties.steepest_descent_alpha;
       // *****************************************************************************************
       //                                OUTER OPTIMIZATION ITERATION LOOP
       // *****************************************************************************************
@@ -252,6 +234,7 @@ void FSIProblem<dim>::run ()
 	  double n_val = n_max;
 	  double m_val = 0;
 
+	  BlockVector<double> structure_previous_iterate = solution;
 	  if (AG_line_search) { // AG_line_search
 	    std::cout << "Line search. " << std::endl;
 	    stress *= 0;
@@ -296,125 +279,79 @@ void FSIProblem<dim>::run ()
 	      }
 
 	  } else {
-	    // The method for using alpha is significantly different for Gradient vs other optimization methods
-	    if (fem_properties.optimization_method.compare("Gradient")==0) {
-	      alpha_j = fem_properties.steepest_descent_alpha;
+	    if (fem_properties.optimization_method.compare("DN")==0) { 
+	      DN.update(time, initialized_timestep_number);
 	    } else {
-	      alpha_j = 1.0;
+	      // The method for using alpha is significantly different for Gradient vs other optimization methods
+	      if (fem_properties.optimization_method.compare("Gradient")==0) {
+		alpha_j = fem_properties.steepest_descent_alpha;
+	      } else {
+		alpha_j = 1.0;
+	      }
+
+	      ++count;
+	      if (count == 1 && fem_properties.true_control)
+		{
+		  fluid_boundary_stress.set_time(time);
+		  VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+				       fluid_boundary_stress,
+				       stress.block(0));
+		  transfer_interface_dofs(stress,stress,0,1);
+		  stress_star = stress;
+		}
+
+	      // RHS and Neumann conditions are inside these functions
+	      // Solve for the state variables
+	      timer.enter_subsection ("Assemble"); 
+	      if (physical_properties.moving_domain)
+		{
+		  assemble_ale(state,true);
+		  dirichlet_boundaries((System)2,state);
+		  state_solver[2].factorize(system_matrix.block(2,2));
+		  solve(state_solver[2],2,state);
+		  transfer_all_dofs(solution,mesh_displacement_star,2,0);
+
+		  if (physical_properties.simulation_type==2)
+		    {
+		      // Overwrites the Laplace solve since the velocities compared against will not be correct
+		      ale_boundary_values.set_time(time);
+		      VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+					   ale_boundary_values,
+					   mesh_displacement_star.block(2)); // move directly to fluid block 
+		      transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+		    }
+		  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
+
+		  if (fem_properties.time_dependent) {
+		    mesh_velocity.block(0)=mesh_displacement_star.block(0);
+		    mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+		    mesh_velocity.block(0)*=1./time_step;
+		  }
+		}
+
+	      // Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
+	  
+	      // s_assembly.join();
+	      // dirichlet_boundaries((System)1,state);
+	      // Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, state_solver[1], system_matrix.block(1,1));
+	      // s_factor.join();
+	      // Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
+	      // s_solve.join();
+
+	      // pcout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
+	      // As timestep decreases, this makes it increasing difficult to get within some tolerance on the interface error
+	      // This really only becomes noticeable using the first order finite difference in the objective
+
+	      timer.leave_subsection();
 	    }
 
-	    ++count;
-	    if (count == 1 && fem_properties.true_control)
-	      {
-		fluid_boundary_stress.set_time(time);
-		VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-				     fluid_boundary_stress,
-				     stress.block(0));
-		transfer_interface_dofs(stress,stress,0,1);
-		stress_star = stress;
-	      }
-
-	    // RHS and Neumann conditions are inside these functions
-	    // Solve for the state variables
-	    timer.enter_subsection ("Assemble"); 
-	    if (physical_properties.moving_domain)
-	      {
-		assemble_ale(state,true);
-		dirichlet_boundaries((System)2,state);
-		state_solver[2].factorize(system_matrix.block(2,2));
-		solve(state_solver[2],2,state);
-		transfer_all_dofs(solution,mesh_displacement_star,2,0);
-
-		if (physical_properties.simulation_type==2)
-		  {
-		    // Overwrites the Laplace solve since the velocities compared against will not be correct
-		    ale_boundary_values.set_time(time);
-		    VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-					 ale_boundary_values,
-					 mesh_displacement_star.block(2)); // move directly to fluid block 
-		    transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
-		  }
-		mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
-
-		if (fem_properties.time_dependent) {
-		  mesh_velocity.block(0)=mesh_displacement_star.block(0);
-		  mesh_velocity.block(0)-=old_mesh_displacement.block(0);
-		  mesh_velocity.block(0)*=1./time_step;
-		}
-	      }
-
-	    // Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
-	  
-	    // s_assembly.join();
-	    // dirichlet_boundaries((System)1,state);
-	    // Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, state_solver[1], system_matrix.block(1,1));
-	    // s_factor.join();
-	    // Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
-	    // s_solve.join();
-
-	    // pcout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
-	    // As timestep decreases, this makes it increasing difficult to get within some tolerance on the interface error
-	    // This really only becomes noticeable using the first order finite difference in the objective
-
-	    timer.leave_subsection();
-	  }
-
-
-  	  // Get the first assembly started ahead of time
-  	  //Threads::Task<> f_assembly = Threads::new_task(&FSIProblem<dim>::assemble_fluid,*this,state,true);
-
-
-
-	  BlockVector<double> structure_previous_iterate;
-	  if (fem_properties.optimization_method.compare("DN")==0) { 
-	    // Get accelerated coefficient
-	    // First solve fluid then use that information to solve structure
-	    //solution = d_np1;
-	    structure_previous_iterate = solution;
-	    fluid_state_solve(initialized_timestep_number);
-	    // Take the stress from fluid and give it to the structure
-	    stress.block(1)=0;
-	    tmp.block(0)=0;
-	    ale_transform_fluid();
-	    get_fluid_stress();
-	    ref_transform_fluid();
-	    transfer_interface_dofs(tmp,stress,0,1,Displacement);
-	    structure_state_solve(initialized_timestep_number);
-	    //BlockVector<double> dtilde_np1 = solution;
-	    // d_np1 = omega_k * dtilde_np1 + (1. - omega_k) * d_np1
-	    
-	    SF_eta_nm1.block(1) = SF_eta_n.block(1);
-	    SF_eta_n.block(1) = solution.block(1);
-
-	    d_np.block(1) = d_np1.block(1);
-	    d_np1.block(1) *= (1. - omega_k);
-	    d_np1.block(1).add(omega_k, solution.block(1));
-	    Vector<double> diff1 = d_np1.block(1);
-	    diff1.add(-1.0,d_np.block(1));;
-
-	    Vector<double> diff2 = diff1;
-	    diff2.add(1.0, SF_eta_nm1.block(1));
-	    diff2.add(-1.0, SF_eta_n.block(1));
-	    
-	    Vector<double> diff1_fluid(d_np1.block(0).size());
-	    Vector<double> diff2_fluid(d_np1.block(0).size());
-	    vector_vector_transfer_interface_dofs(diff1, diff1_fluid, 1, 0, Displacement);
-	    vector_vector_transfer_interface_dofs(diff2, diff2_fluid, 1, 0, Displacement);
-	    
-	    omega_k = -interface_inner_product(diff1,diff2) / interface_inner_product(diff2,diff2);
-	    std::cout << "omega_k: " << omega_k << std::endl;
-
-	    solution.block(1) = d_np1.block(1);
-	    //SF_eta_nm1 = SF_eta_n;
-	    //SF_eta_n = solution;
-	    
-	  } else {
 	    // Solve both fluid and structure simultaneously
 	    Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
 	    Threads::Task<> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
 	    s_solver.join();
 	    f_solver.join();
 	  }
+
 
 	  build_adjoint_rhs();
 
@@ -737,7 +674,6 @@ void FSIProblem<dim>::run ()
 	      }
 	  }
   	}
-      fem_properties.steepest_descent_alpha = reference_alpha;
       // *****************************************************************************************
       //                                  UPDATE OLD SOLUTIONS
       // *****************************************************************************************

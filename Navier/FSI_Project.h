@@ -66,6 +66,11 @@ namespace LinearMap {
 }
 #endif
 
+#ifndef SOLVER_CONTROLS_H
+template<int dim>
+class DN_solver;
+#endif
+
 template <int dim>
 class FSIProblem
 {
@@ -77,6 +82,9 @@ class FSIProblem
 
   ~FSIProblem ();
 
+
+    
+  
 
  private:
   enum Mode
@@ -111,6 +119,7 @@ class FSIProblem
   };
   void fluid_state_solve(unsigned int initialized_timestep_number);
   void structure_state_solve(unsigned int initialized_timestep_number);
+  void ale_state_solve(unsigned int initialized_timestep_number);
 
   void assemble_fluid (Mode enum_, bool assemble_matrix);
   void assemble_fluid_matrix_on_one_cell (const typename DoFHandler<dim,dim>::active_cell_iterator& cell,
@@ -220,6 +229,7 @@ class FSIProblem
   friend class LinearMap::Wilkinson;
   friend class LinearMap::Linearized_Operator<dim>;
   friend class LinearMap::NeumannVector<dim>;
+  friend class DN_solver<dim>;
 };
 
 

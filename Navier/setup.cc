@@ -38,7 +38,6 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	    {
 	      if (fluid_boundaries[i]==Dirichlet)
 		{
-		  std::cout << i << ": " << fluid_boundaries[i] << std::endl;
 		  if (physical_properties.simulation_type!=1)
 		    {
 		      VectorTools::interpolate_boundary_values (fluid_dof_handler,

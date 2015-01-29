@@ -23,7 +23,6 @@ void FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number
     assemble_fluid(state, true);
     if (loop_count < picard_iterations) fem_properties.fluid_newton = newton;
     //timer.leave_subsection();
-
     dirichlet_boundaries((System)0,state);
     //timer.enter_subsection ("State Solve"); 
     if (timestep_number==initialized_timestep_number) {
