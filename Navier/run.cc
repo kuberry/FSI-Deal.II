@@ -238,7 +238,7 @@ void FSIProblem<dim>::run ()
 	  BlockVector<double> structure_previous_iterate = solution;
 
 	  if (fem_properties.optimization_method.compare("DN")==0) { 
-	      DN.update(time, initialized_timestep_number);
+	    if (DN.update(time, initialized_timestep_number)) break;
 	  } else {  
 	    if (AG_line_search) { // AG_line_search
 	      std::cout << "Line search. " << std::endl;
@@ -356,13 +356,13 @@ void FSIProblem<dim>::run ()
 	  build_adjoint_rhs();
 
 	  if (fem_properties.optimization_method.compare("DN")==0) {
-	    if (!DN.get_line_search()) {
-	      if (DN.converged()) 
-		break;
-	      else DN.set_line_search(true);
-	    } else {
-	      DN.check_line_search();
-	    }
+	    // if (!DN.get_line_search()) {
+	    //   if (DN.converged()) 
+	    // 	break;
+	    //   else DN.set_line_search(true);
+	    // } else {
+	    //   DN.check_line_search();
+	    // }
 	  } else {
 	    if (AG_line_search) {
 	      double velocity_with_update = interface_error();
