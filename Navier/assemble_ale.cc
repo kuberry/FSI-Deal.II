@@ -119,20 +119,15 @@ void FSIProblem<dim>::assemble_ale (Mode enum_, bool assemble_matrix)
 }
 
 template void FSIProblem<2>::ale_state_solve(unsigned int initialized_timestep_number);
-
 template void FSIProblem<2>::assemble_ale_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator &cell,
 							      BaseScratchData<2> &scratch,
 							      PerTaskData<2> &data );
-
 template void FSIProblem<2>::copy_local_ale_to_global (const PerTaskData<2> &data);
-
 template void FSIProblem<2>::assemble_ale (Mode enum_, bool assemble_matrix);
 
-
+template void FSIProblem<3>::ale_state_solve(unsigned int initialized_timestep_number);
 template void FSIProblem<3>::assemble_ale_matrix_on_one_cell (const DoFHandler<3>::active_cell_iterator &cell,
 							      BaseScratchData<3> &scratch,
 							      PerTaskData<3> &data );
-
 template void FSIProblem<3>::copy_local_ale_to_global (const PerTaskData<3> &data);
-
 template void FSIProblem<3>::assemble_ale (Mode enum_, bool assemble_matrix);
