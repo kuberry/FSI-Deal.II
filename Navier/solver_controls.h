@@ -89,7 +89,7 @@ DN_solver(FSIProblem<dim> *sim): problem_space(sim), d_n(problem_space->old_old_
 	/* ref_error = problem_space->interface_inner_product(diff1_fluid,diff1_fluid) */
       // These commands change values outside this class
 	problem_space->solution.block(1) = d_np1;
-      
+	problem_space->ale_state_solve(initialized_timestep_number);
 	problem_space->fluid_state_solve(initialized_timestep_number);
 	// Take the stress from fluid and give it to the structure
 	problem_space->stress.block(1)=0;
@@ -114,7 +114,7 @@ DN_solver(FSIProblem<dim> *sim): problem_space(sim), d_n(problem_space->old_old_
 
       // These commands change values outside this class
       problem_space->solution.block(1) = d_np1;
-      
+      problem_space->ale_state_solve(initialized_timestep_number);
       problem_space->fluid_state_solve(initialized_timestep_number);
       // Take the stress from fluid and give it to the structure
       problem_space->stress.block(1)=0;
