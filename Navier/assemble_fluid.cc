@@ -2,6 +2,24 @@
 #include <deal.II/base/conditional_ostream.h>
 // #include <deal.II/grid/grid_out.h> /* remove this when not adding temporary code in assembly */
 
+// Simulation specific assumptions:
+//   If all boundaries are Dirichlet, then a nonzero \epsilon * (p,q) needs to be subtracted
+//   Currently, the only simulations that use this are: 
+//     - None
+// 
+//   If Neumann b.c.'s are used with a given stress, then that stress F can be called, 
+//   Currently, used in:
+//     - Every case except for case 1
+//   otherwise, F\dot\unitnormal can be called and used. 
+//   Currently, used in:
+//     - Case 1
+//
+//   If stability terms are turned on, then nonzero Dirichlet terms must be dealt with
+//   Currently, used in:
+//      - Case 0 and 2
+//
+
+
 // regexp replacement for grad_* terms:
 // regexp-replace: \(grad[^
 //                     \*\(]+\)\*
@@ -691,7 +709,7 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 		{
 		  if (fluid_boundaries[cell->face(face_no)->boundary_indicator()]==Neumann)
 		    {
-		      if (physical_properties.simulation_type != 1)
+		      if ((physical_properties.simulation_type != 1))// && (physical_properties.simulation_type != 4))
 			{
 			  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 			    {
@@ -702,9 +720,9 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				{
 				  Tensor<2,dim,double> new_stresses;
 				  // A TRANSPOSE IS TAKING PLACE HERE SINCE Deal.II has transposed gradient
-				  for (unsigned int i=0; i<dim; ++i)
-				    for (unsigned int j=0; j<dim; j++)
-				      new_stresses[i][j]=stress_values[j][i];
+				  for (unsigned int j=0; j<dim; ++j)
+				    for (unsigned int k=0; k<dim; k++)
+				      new_stresses[j][k]=stress_values[k][j];
 
 				  data.cell_rhs(i) += fem_properties.fluid_theta*(new_stresses*scratch.fe_face_values.normal_vector(q) *
 								   scratch.fe_face_values[velocities].value (i, q)*scratch.fe_face_values.JxW(q));
@@ -715,9 +733,9 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 			      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 				{
 				  Tensor<2,dim,double> new_stresses;
-				  for (unsigned int i=0; i<dim; ++i)
-				    for (unsigned int j=0; j<dim; j++)
-				      new_stresses[i][j]=stress_values[j][i];
+				  for (unsigned int j=0; j<dim; ++j)
+				    for (unsigned int k=0; k<dim; k++)
+				      new_stresses[j][k]=stress_values[k][j];
      
 				  // data.cell_rhs(i) += (1-fem_properties.fluid_theta)*(scratch.fe_face_values[velocities].value (i, q)*
 				  // 				       new_stresses*scratch.fe_face_values.normal_vector(q) *
@@ -727,22 +745,22 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				}
 			    }
 			}
-		      else
+		      else // currently only simulation_type == 1
 		      	{
 			  // This gives sigma *dot normal boundary condition data from the function u_true_side_values
 		      	  fluid_boundary_values_function.set_time(time - (1-fem_properties.fluid_theta)*time_step);
 		      	  for (unsigned int q=0; q<scratch.n_face_q_points; ++q)
 		      	    {
 		      	      Tensor<1,dim,double> u_true_side;
-		      	      if (physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2) 
-		      		{
+		      	      // if (physical_properties.simulation_type!=0 && physical_properties.simulation_type!=2) 
+			      // {
 		      		  fluid_boundary_values_function.vector_value(scratch.fe_face_values.quadrature_point(q),
 		      							      u_true_side_values);
 		      		  for (unsigned int d=0; d<dim; ++d)
 		      		    {
 		      		      u_true_side[d] = u_true_side_values(d);
 		      		    }
-		      		}
+				  // }
 		      
 		      	      for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 		      		{
