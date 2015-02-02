@@ -1,6 +1,12 @@
 #include "FSI_Project.h"
 #include "small_classes.h"
 
+// Simulation specific assumptions:
+//   If the movement of the domain is specified by the simulation, then this needs to be projeced in ale_state_solve()
+//   Currently, the only simulations that use this are: 
+//     - 2, when moving_domain is also true
+// 
+
 template <int dim>
 void FSIProblem<dim>::ale_state_solve(unsigned int initialized_timestep_number) {
   if (physical_properties.moving_domain) {
