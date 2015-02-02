@@ -3,7 +3,7 @@
 
 int main (int argc, char *argv[])
 {
-  const unsigned int dim = 2;
+  const unsigned int dim = 3;
   //Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
   if (argc < 2)
     {
