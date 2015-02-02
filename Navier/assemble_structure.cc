@@ -2,6 +2,14 @@
 #include "small_classes.h"
 #include <deal.II/base/timer.h>
 
+// Simulation specific assumptions:
+//   If RHS force function is defined on reference domain, then it needs scaled to moved domain
+//   unless this is already account for in RHS values 
+//   Currently, scaling used in:
+//     - All cases except case 0 and case 2
+//
+
+
 template <int dim>
 void FSIProblem<dim>::structure_state_solve(unsigned int initialized_timestep_number) {
   // STRUCTURE SOLVER ITERATIONS
