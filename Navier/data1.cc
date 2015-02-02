@@ -136,7 +136,7 @@ double FluidStressValues<dim>::value (const Point<dim>  &p,
   } else if (physical_properties.simulation_type==4) {
     Tensor<1,dim,double> result;
     const double t = this->get_time();
-    if (t <= 5.0e-3)
+    if (t <= 5.0e-3 && t!=0)
       result[2] = 1.3332e+4;
     return result[2]; // result[0]*0+result[1]*0+result[2]*-1;
   }
@@ -180,7 +180,11 @@ Tensor<1,dim> FluidStressValues<dim>::gradient (const Point<dim>  &p,
 	return result;
       default:
 	if (dim==3) {
-	  result[2]=-pval;
+	  if (t==0) {
+	    result[2]=0;
+	  } else {
+	    result[2]=-pval;
+	  }
 	} 
 	return result;
       }
@@ -663,6 +667,19 @@ double FluidBoundaryValues<dim>::value (const dealii::Point<dim> &p,
 	return 0;
       }    
   }  else if (physical_properties.simulation_type==4) {
+    const double t = this->get_time();
+    switch (component)
+      {
+      case 0:
+	return 0;
+      case 1:
+	return 0;
+      case 2:
+	if (t <= 5.e-3 && t!=0) return 1.3332e+4;
+        else return 0;
+      default:
+	return 0;
+      }   
     // const double t = this->get_time();
     // if (t==0) return 0;
     // else return 10;//1;
