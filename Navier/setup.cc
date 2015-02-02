@@ -666,12 +666,18 @@ void FSIProblem<3>::setup_system ()
   //******************************************************************
   } else if (physical_properties.simulation_type == 4) {
     const double inner_radius = 0.5, outer_radius = 0.6;
+
+    unsigned int refinement_level = 2;
+    
     GridGenerator::cylinder_shell ( structure_triangulation,
     				    5.0, // length
     				    inner_radius, // inner
     				    outer_radius,//, // outer)
-				    8,//2, // n_radial_cells
-    				    24); // n_axial_cells
+				    4*std::pow(2,refinement_level),//2, // n_radial_cells 
+    				    12*std::pow(2,refinement_level)); // n_axial_cells
+    // level 1 is 8 n_radial_cells, 24 n_axial_cells
+    // level 2 is 16 n_radial_cells, 48 n_axial_cells
+
     // Instead, could do 25 rather than 50 and refine 1 time
     // There is an example of this in step_18
     //structure_triangulation.refine_global (1);
@@ -690,10 +696,13 @@ void FSIProblem<3>::setup_system ()
     					   13,  // n_slices, this is 1 more than the n_axial_cells used for the structure
     					   5.0, // height,
     					   fluid_triangulation );
+    // level 1 is 13 n_slices, refine_global(1)
+    // level 2 is 13 n_slices, refine_global(2)
+
     fluid_triangulation.set_boundary (0, cylinder_boundary_description); // left
     fluid_triangulation.set_boundary (1, cylinder_boundary_description); // left
     fluid_triangulation.set_boundary (2, cylinder_boundary_description); // left
-    fluid_triangulation.refine_global (1);
+    fluid_triangulation.refine_global (refinement_level);
 
 
     // GridGenerator::subdivided_hyper_rectangle ( fluid_triangulation,
