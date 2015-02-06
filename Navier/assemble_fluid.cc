@@ -187,6 +187,16 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	  scratch.fe_values[velocities].get_function_gradients(mesh_velocity.block(0),grad_z);
 	}
 
+      std::vector<double>   average_pressure (fluid_fe.dofs_per_cell);
+      for (unsigned int q=0; q<scratch.n_q_points; ++q)
+	{
+	  for (unsigned int k=0; k<fluid_fe.dofs_per_cell; ++k)
+	    {
+	      if (fluid_fe.system_to_component_index(k).first==dim)
+		average_pressure[k] += scratch.fe_values[pressure].value (k, q) * scratch.fe_values.JxW(q); 
+	    }
+	}
+
       for (unsigned int q=0; q<scratch.n_q_points; ++q)
 	{
 	  Tensor<1,dim,double> u_star, u_old, u_old_old, meshvelocity;
@@ -210,6 +220,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 	      grad_phi_u[k]    = scratch.fe_values[velocities].gradient (k, q);
 	      phi_p[k]         = scratch.fe_values[pressure].value (k, q);
 	    }
+
+	  
 	  for (unsigned int i=0; i<fluid_fe.dofs_per_cell; ++i)
 	    {
 	      //        
@@ -507,6 +519,11 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 					     - phi_p[i] * trace(grad_phi_u[j]) // (\div u, q) mass         It must be scaled back after the solve 
 					     - epsilon * phi_p[i] * phi_p[j])
 		    * scratch.fe_values.JxW(q);
+		  if (fluid_fe.system_to_component_index(i).first==dim && fluid_fe.system_to_component_index(j).first==dim) {
+		    //std::cout << "Added: " << ( fem_properties.fluid_theta * (phi_p[i]*phi_p[j] - phi_p[i] - phi_p[j] - 1 ))* scratch.fe_values.JxW(q) << std::endl;
+		    data.cell_matrix(i,j) -= fem_properties.fluid_theta * (phi_p[i]-average_pressure[i]/cell->measure())*(phi_p[j]-average_pressure[j]/cell->measure())* scratch.fe_values.JxW(q);
+		    //data.cell_matrix(i,j) += ( fem_properties.fluid_theta * 1e-12 * phi_p[i]*phi_p[j] )* scratch.fe_values.JxW(q);
+		  }
 		}
 	    }
 
