@@ -26,3 +26,4 @@ Total fluid state solves (without GN) (if we originally knew the right answer)
 
 Total work compared to knowing the correct answer is #FLUID_STATE_SOLVES + the first factorization of the linearized problem which +=#GAUSS_NEWTON
 
+Thought: Maybe should use last number of fluid solves, since this is closer to knowing true solution
