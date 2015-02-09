@@ -238,11 +238,11 @@ class FSIProblem
 
 template <int dim>
 FSIProblem<dim>::FSIProblem (ParameterHandler & prm_, unsigned int timestep_number_) :
-fluid_fe (FE_Q_Hierarchical<dim>(prm_.get_integer("fluid velocity degree")), dim,
-	  FE_Q<dim>(prm_.get_integer("fluid pressure degree")), 1),
+fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
+	  FE_DGQ<dim>(prm_.get_integer("fluid pressure degree")), 1),
   structure_fe (FE_Q<dim>(prm_.get_integer("structure degree")), dim,
 		FE_Q<dim>(prm_.get_integer("structure degree")), dim),
-  ale_fe (FE_Q_Hierarchical<dim>(prm_.get_integer("ale degree")), dim),
+  ale_fe (FE_Q<dim>(prm_.get_integer("ale degree")), dim),
   fluid_dof_handler (fluid_triangulation),
   structure_dof_handler (structure_triangulation),
   ale_dof_handler (fluid_triangulation),
