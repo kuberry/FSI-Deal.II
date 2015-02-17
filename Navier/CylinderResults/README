@@ -24,6 +24,10 @@ Total structure state solves
 Total fluid state solves (without GN) (if we originally knew the right answer)
 >> gawk 'BEGIN {sum=0; jumperror=0;} match($0, /Time step/, m) {jumperror = 0;} match($0, /Jump Error/, m) {jumperror+=1;} match($0, /F:/, m) { if (jumperror==0) sum += 1} END {print "Total fluid state solves: "sum'} < filename
 
+#FORWARD_SOLVE_KNOWN_ANSWER- ALT
+Total fluid state solves (without GN) (if we originally knew the right answer)
+>> gawk 'BEGIN {sum=0; oldlocalsum=0; localsum=0;} match($0, /Time step/, m) {sum += oldlocalsum;} match($0, /Jump Error/, m) { oldlocalsum = localsum; localsum=0;} match($0, /F:/, m) { localsum += 1} END { sum += oldlocalsum; print "Total fluid state solves: "sum'} < filename
+
 Total work compared to knowing the correct answer is #FLUID_STATE_SOLVES + the first factorization of the linearized problem which +=#GAUSS_NEWTON
 
 Thought: Maybe should use last number of fluid solves, since this is closer to knowing true solution
