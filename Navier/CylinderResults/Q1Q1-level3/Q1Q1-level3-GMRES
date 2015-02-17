@@ -1,3 +1,10 @@
+Jump Evaluations: 6213 Gauss-Newton loops: 5208
+Total GMRES solves: 129363
+Total fluid state solves: 20097
+Total fluid state solves: 2806
+GMRES/GN = 24.839
+Work Factor: 9.018
+
 Number of active cells: fluid: 6144 structure: 3072
 Number of degrees of freedom: 92247 (23571+7857+18624+18624+23571)
 
