@@ -1,0 +1,33 @@
+To get the total number of Jump Evaluations:
+
+#GAUSS_NEWTONS
+>> gawk 'BEGIN {sum=0; count=0;} match($0, /Jump Error/, m) { sum += 1;} match ($0, /Time step/, m) { count += 1;}END { print "Jump Evaluations: "sum " Gauss-Newton loops: " sum-count}' < filename
+
+#JUMP_EVALUATIONS - #TIMESTEPS = #GAUSS_NEWTONS
+
+#GMRES_ITERATIONS
+To get the total number GMRES solves:
+>> gawk 'BEGIN {sum=0;} match($0, /last step:([0-9]+)/, m) { sum += m[1]} END {print "Total GMRES solves: "sum'} < filename 
+
+Remember to subtract #TIMESTEPS from Gauss Newton
+Formula for average GMRES/Gauss-Newton  = #GMRES_TOTAL / #GAUSS_NEWTONS
+
+#FLUID_STATE_SOLVES
+Total fluid state solves
+>> gawk 'BEGIN {sum=0;} match($0, /F:/, m) { sum += 1} END {print "Total fluid state solves: "sum'} < filename
+
+#STRUCTURE_STATE_SOLVES
+Total structure state solves
+>> gawk 'BEGIN {sum=0;} match($0, /S:/, m) { sum += 1} END {print "Total structure state solves: "sum'} < filename
+
+#FORWARD_SOLVE_KNOWN_ANSWER
+Total fluid state solves (without GN) (if we originally knew the right answer)
+>> gawk 'BEGIN {sum=0; jumperror=0;} match($0, /Time step/, m) {jumperror = 0;} match($0, /Jump Error/, m) {jumperror+=1;} match($0, /F:/, m) { if (jumperror==0) sum += 1} END {print "Total fluid state solves: "sum'} < filename
+
+#FORWARD_SOLVE_KNOWN_ANSWER- ALT
+Total fluid state solves (without GN) (if we originally knew the right answer)
+>> gawk 'BEGIN {sum=0; oldlocalsum=0; localsum=0;} match($0, /Time step/, m) {sum += oldlocalsum;} match($0, /Jump Error/, m) { oldlocalsum = localsum; localsum=0;} match($0, /F:/, m) { localsum += 1} END { sum += oldlocalsum; print "Total fluid state solves: "sum'} < filename
+
+Total work compared to knowing the correct answer is #FLUID_STATE_SOLVES + the first factorization of the linearized problem which +=#GAUSS_NEWTON
+
+Thought: Maybe should use last number of fluid solves, since this is closer to knowing true solution
