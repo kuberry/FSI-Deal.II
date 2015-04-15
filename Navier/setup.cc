@@ -5,7 +5,7 @@
 #include <deal.II/grid/grid_tools.h>
 
 template <int dim>
-void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
+void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_, bool special_case)
 {
   const FEValuesExtractors::Vector velocities (0);
   const FEValuesExtractors::Vector displacements (0);
@@ -94,10 +94,15 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_)
 	  std::map<types::global_dof_index,double> ale_interface_boundary_values;
 	  for (unsigned int i=0; i<dofs_per_big_block[2]; ++i) // loops over nodes local to ale
 	    {
-	      if (a2n.count(i)) // lookup key for certain ale dof
-		{
+	      if (special_case) {
+		if (a2v.count(i)) { // lookup key for certain ale dof
+		  ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2v[i]]));
+		}
+	      } else {
+		if (a2n.count(i)) { // lookup key for certain ale dof
 		  ale_interface_boundary_values.insert(std::pair<unsigned int,double>(i,solution.block(1)[a2n[i]]));
 		}
+	      }
 	    }
 	  for (unsigned int i=min_index; i<ale_boundaries.size()+min_index; ++i)
 	    {
@@ -340,7 +345,7 @@ void FSIProblem<2>::setup_system ()
 	if (i==1 || i==3 || i==4 || i==8) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	// 2- right
 	else if (i==2) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,DoNothing));
-	else if (i>=5 || i<=7) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // Interface
+	else if (i>=5 && i<=7) fluid_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // Interface
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
 	fluid_interface_boundaries.insert(5);
 	fluid_interface_boundaries.insert(6);
@@ -360,7 +365,7 @@ void FSIProblem<2>::setup_system ()
       }
     for (unsigned int i=1; i<=8; ++i)
       {
-	if (i>=5 || i<=7) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // Interface
+	if (i>=5 && i<=7) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Interface)); // Interface
 	else if (i>=1 && i<=8) ale_boundaries.insert(std::pair<unsigned int, BoundaryCondition>(i,Dirichlet));
 	else AssertThrow(false, ExcNotImplemented()); // There should be no other boundary option
       }
@@ -1126,10 +1131,10 @@ void FSIProblem<dim>::initialize_sizes ()
 }
 
 
-template void FSIProblem<2>::dirichlet_boundaries (System system, Mode enum_);
+template void FSIProblem<2>::dirichlet_boundaries (System system, Mode enum_, bool);
 // template void FSIProblem<2>::setup_system ();
 
-template void FSIProblem<3>::dirichlet_boundaries (System system, Mode enum_);
+template void FSIProblem<3>::dirichlet_boundaries (System system, Mode enum_, bool);
 // template void FSIProblem<3>::setup_system ();
 
 template void FSIProblem<2>::initialize_sizes ();
