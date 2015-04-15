@@ -7,7 +7,7 @@ set simulation type       = 3
 # time to run the simulation until.
 set time dependent        = true
 set t0                    = 0.0
-set T                     = 9.6
+set T                     = 20.0
 #set T                     = 36.0
 
 # order of the finite element to use for the ALE mesh update.
@@ -42,14 +42,14 @@ set moving domain         = true
 
 # mu of the structure.
 # set mu                    = 0.5e6
-set mu                    = 1e12
+set mu                    = 1.0e6
 
 # mu of the structure.
 set nu                    = 0.4
 
 # number of time steps to divide T by.
 # set number of time steps  = 18000
-set number of time steps  = 960
+set number of time steps  = 20000
 #set number of time steps  = 5000
 
 # give error output info at each time step.
@@ -68,10 +68,10 @@ set structure degree      = 2
 # density of the structure.
 # set structure rho         = 1e4 
 # For a fixed structure use this
-set structure rho         = 1e6
+set structure rho         = 1.0e3
 
 # theta value for the fluid, 0.5 is Crank-Nicolson and 1.0 is Implicit Euler.
-set fluid theta                 = 0.5
+set fluid theta                 = 1.0
 set structure theta 		= 0.5
 
 # viscosity of the fluid.
@@ -87,8 +87,8 @@ set navier stokes         = true
 
 set true control          = false
 
-set optimization method   = BICG
-set cg tolerance          = 1e-10
+set optimization method   = GMRES
+set cg tolerance          = 1e-8
 set stability terms       = false
 set adjoint type          = 2
 
