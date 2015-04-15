@@ -259,6 +259,9 @@ void FSIProblem<dim>::run ()
 
 	      if (physical_properties.moving_domain)
 		{
+		  //
+		  // Laplace solve for domain update
+		  // 
 		  assemble_ale(state,true);
 		  dirichlet_boundaries((System)2,state);
 		  state_solver[2].factorize(system_matrix.block(2,2));
@@ -277,9 +280,18 @@ void FSIProblem<dim>::run ()
 		  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
 
 		  if (fem_properties.time_dependent) {
-		    mesh_velocity.block(0)=mesh_displacement_star.block(0);
-		    mesh_velocity.block(0)-=old_mesh_displacement.block(0);
-		    mesh_velocity.block(0)*=1./time_step;
+		    //
+		    // Laplace solve for domain velocity update
+		    // 
+		    assemble_ale(state,true);
+		    dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
+		    state_solver[2].factorize(system_matrix.block(2,2));
+		    solve(state_solver[2],2,state);
+		    transfer_all_dofs(solution,mesh_velocity,2,0);
+
+		    // mesh_velocity.block(0)=mesh_displacement_star.block(0);
+		    // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+		    // mesh_velocity.block(0)*=1./time_step;
 		  }
 		}
 	    } else {
@@ -666,6 +678,7 @@ void FSIProblem<dim>::run ()
 
 		  stress.block(0).add(alpha_j, update_direction.block(0));
 		  transfer_interface_dofs(stress, stress, 0, 1, Displacement);
+
 		  // stress.block(0).add(update_alpha, output_vector);
 		  // tmp=0;
 		  // transfer_interface_dofs(stress,tmp,0,0);
