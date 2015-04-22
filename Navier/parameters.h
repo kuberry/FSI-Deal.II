@@ -46,8 +46,8 @@ namespace Parameters
     unsigned int	nx_f,ny_f,nx_s,ny_s;
 
     // Output Parameters
-    bool			make_plots;
-    bool			print_error;
+    bool		make_plots;
+    bool		print_error;
     std::string 	convergence_mode;
 
     // Optimization Parameters
@@ -60,10 +60,11 @@ namespace Parameters
     std::string 	optimization_method;
     unsigned int        adjoint_type;
 
-    // Solver Parameters
-    bool                  richardson;
-    bool                  fluid_newton; 
-    bool                  structure_newton; 
+    // Solver Parameters           
+    bool                richardson;
+    bool                fluid_newton; 
+    bool                structure_newton; 
+    std::string 	line_search_method;   
   };
   struct PhysicalProperties
   {
@@ -195,6 +196,7 @@ namespace Parameters
 	  			  "should the ALE be used.");
 	  prm.declare_entry("move domain", "false", Patterns::Bool(),
 	  			  "should the points be physically moved (vs using determinants).");
-
+	  prm.declare_entry("line search method","NONE", Patterns::Selection("NONE|BACKWARDS|AG"),
+			    "optimization method choices {NONE,BACKWARDS,AG (Armijo-Goldstein)}.");
   }
 }

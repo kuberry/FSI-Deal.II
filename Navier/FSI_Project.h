@@ -297,7 +297,7 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   fem_properties.structure_newton 	= prm_.get_bool("structure newton");
   physical_properties.moving_domain	= prm_.get_bool("moving domain");
   physical_properties.move_domain	= prm_.get_bool("move domain");
-
+  fem_properties.line_search_method     = prm_.get("line search method");
   // Problem Parameters
   physical_properties.simulation_type   = prm_.get_integer("simulation type");
   physical_properties.viscosity		= prm_.get_double("viscosity");
@@ -317,8 +317,8 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
       physical_properties.mu		= physical_properties.lambda*(1.-2.*physical_properties.nu)/2.*physical_properties.nu;
     }
   //else  We don't need to compute anything
-  physical_properties.rho_f				= prm_.get_double("fluid rho");
-  physical_properties.rho_s				= prm_.get_double("structure rho");
+  physical_properties.rho_f		= prm_.get_double("fluid rho");
+  physical_properties.rho_s		= prm_.get_double("structure rho");
   physical_properties.n_fourier_coeffs	= prm_.get_integer("number fourier coefficients");
 }
 
