@@ -28,7 +28,7 @@
 // then fix the assembly of the Stokes operator and rhs (lines ~420 and ~540)
 
 template <int dim>
-void FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number) {
+int FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number) {
   // solution_star.block(0)=1;
   bool newton = fem_properties.fluid_newton;
   unsigned int picard_iterations = 1;
@@ -74,8 +74,11 @@ void FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number
     }
 	      
     loop_count++;
-  } while (solution_star.block(0).l2_norm()>1e-8);
+  } while (solution_star.block(0).l2_norm()>1e-8 && loop_count<25);
+  if (loop_count==25) //diverged
+    return -1;
   solution_star.block(0) = solution.block(0); 
+  return 1;
 }
 
 template <int dim>
@@ -1182,7 +1185,7 @@ void FSIProblem<dim>::ref_transform_fluid()
 
 
 
-template void FSIProblem<2>::fluid_state_solve(unsigned int initialized_timestep_number);
+template int  FSIProblem<2>::fluid_state_solve(unsigned int initialized_timestep_number);
 
 template void FSIProblem<2>::assemble_fluid_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
 							     FullScratchData<2>& scratch,
@@ -1198,7 +1201,7 @@ template void FSIProblem<2>::ref_transform_fluid();
 
 
 
-template void FSIProblem<3>::fluid_state_solve(unsigned int initialized_timestep_number);
+template int  FSIProblem<3>::fluid_state_solve(unsigned int initialized_timestep_number);
 
 template void FSIProblem<3>::assemble_fluid_matrix_on_one_cell (const DoFHandler<3>::active_cell_iterator& cell,
 							     FullScratchData<3>& scratch,

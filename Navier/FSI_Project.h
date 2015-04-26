@@ -118,7 +118,7 @@ class FSIProblem
     Velocity,
     NotSet
   };
-  void fluid_state_solve(unsigned int initialized_timestep_number);
+  int  fluid_state_solve(unsigned int initialized_timestep_number);
   void structure_state_solve(unsigned int initialized_timestep_number);
   void ale_state_solve(unsigned int initialized_timestep_number);
 

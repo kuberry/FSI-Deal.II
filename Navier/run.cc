@@ -203,7 +203,7 @@ void FSIProblem<dim>::run ()
       unsigned int relrecord = 0;
       unsigned int consecutiverelrecord = 0;
 
-      double update_alpha = 1.0;
+      // double update_alpha = 1.0;
 
       //stress=old_stress;
 
@@ -218,7 +218,10 @@ void FSIProblem<dim>::run ()
       double n_max = 0;
       double tau_t = 0;
       BlockVector<double> update_direction = stress;
-      double alpha_j = 1.0;
+
+      double alpha_j = 1.0;      
+      if (fem_properties.optimization_method.compare("Gradient")==0)
+	alpha_j = fem_properties.steepest_descent_alpha;
       double t_val = 0;
 
       // *****************************************************************************************
@@ -237,6 +240,11 @@ void FSIProblem<dim>::run ()
 	  } else {  
 	    if (AG_line_search || backwards_line_search) { // line search
 	      pcout << "Line search. " << std::endl;
+
+              // Need a reasonable first guess at the solution
+              // Otherwise, previous diverging may cause issues
+              solution_star = old_solution; 
+
 	      stress *= 0;
 	      transfer_interface_dofs(stress_star, stress, 0, 0);
 
@@ -291,7 +299,8 @@ void FSIProblem<dim>::run ()
 	    } else {
 	      // The method for using alpha is significantly different for Gradient vs other optimization methods
 	      if (fem_properties.optimization_method.compare("Gradient")==0) {
-		alpha_j = fem_properties.steepest_descent_alpha;
+                // Do not adjust previous alpha value
+		// alpha_j = fem_properties.steepest_descent_alpha;
 	      } else {
 		alpha_j = 1.0;
 	      }
@@ -354,9 +363,21 @@ void FSIProblem<dim>::run ()
 
 	    // Solve both fluid and structure simultaneously
 	    Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
-	    Threads::Task<> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+	    Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+
+            // return_value() implicitly calls join() on the Task
+            // A return value of 1 indicates that the solver succeeded.
+            if (f_solver.return_value() != 1) {
+	      if (AG_line_search || backwards_line_search) {
+                alpha_j *= 0.5;
+                continue; // sends back to the reduction of alpha_j
+              } else {
+                AssertThrow (false, ExcNotImplemented());// Bad first guess at beginning of time step.
+              }
+            }
+              
 	    s_solver.join();
-	    f_solver.join();
+	    // f_solver.join();
 	  } // end of not DN case
 
 	  build_adjoint_rhs();
@@ -412,58 +433,64 @@ void FSIProblem<dim>::run ()
 		A.vmult(x,b);
 
 		total_solves += 1;
-		m_val = interface_inner_product(rhs_for_adjoint.block(0),x);//solver_control.last_value();
-		pcout << "m_val : " << m_val << std::endl;
-		double c_val = 0.5;
-		if (count == 1)
-		  t_val = -m_val*c_val;
+	    	
+		if (AG_line_search) {
+		  m_val = interface_inner_product(rhs_for_adjoint.block(0),x);//solver_control.last_value();
+		  pcout << "m_val : " << m_val << std::endl;
+		  double c_val = 0.5;
+		  if (count == 1)
+		    t_val = -m_val*c_val;
+		}
 
 		// t_val = 0; // <-- This would turn off any criteria for line search except for nonnegative
 
 
-		if (velocity_jump>velocity_jump_old)
-		  {
-		    ++imprecord;
-		    //pcout << "Bad Move." << std::endl;
-		    consecutiverelrecord = 0;
-		  }
-		else if ((velocity_jump/velocity_jump_old)>=0.995) 
-		  {
-		    ++relrecord;
-		    ++consecutiverelrecord;
-		    //pcout << "Rel. Bad Move." << std::endl;
-		    //pcout << consecutiverelrecord << std::endl;
-		  }
-		else
-		  {
-		    imprecord = 0;
-		    relrecord = 0;
-		    alpha *= 1.01;
-		    //pcout << "Good Move." << std::endl;
-		    consecutiverelrecord = 0;
-		  }
+		// // // if (velocity_jump>velocity_jump_old)
+		// // //   {
+		// // //     ++imprecord;
+		// // //     //pcout << "Bad Move." << std::endl;
+		// // //     consecutiverelrecord = 0;
+		// // //   }
+		// // // else if ((velocity_jump/velocity_jump_old)>=0.995) 
+		// // //   {
+		// // //     ++relrecord;
+		// // //     ++consecutiverelrecord;
+		// // //     //pcout << "Rel. Bad Move." << std::endl;
+		// // //     //pcout << consecutiverelrecord << std::endl;
+		// // //   }
+		// // // else
+		// // //   {
+		// // //     imprecord = 0;
+		// // //     relrecord = 0;
+		// // //     alpha *= 1.01;
+		// // //     //pcout << "Good Move." << std::endl;
+		// // //     consecutiverelrecord = 0;
+		// // //   }
 
-		if (relrecord > 1) 
-		  {
-		    alpha *= 1.01;
-		    relrecord = 0;
-		  }
-		else if (imprecord > 0)
-		  {
-		    alpha *= 0.95;
-		    imprecord = 0;
-		  }
+		// // // if (relrecord > 1) 
+		// // //   {
+		// // //     alpha *= 1.01;
+		// // //     relrecord = 0;
+		// // //   }
+		// // // else if (imprecord > 0)
+		// // //   {
+		// // //     alpha *= 0.95;
+		// // //     imprecord = 0;
+		// // //   }
 	    
-		if (consecutiverelrecord>50)
-		  {
-		    pcout << "Break!" << std::endl;
-		    //break;
-		  }
+		// // // if (consecutiverelrecord>50)
+		// // //   {
+		// // //     pcout << "Break!" << std::endl;
+		// // //     //break;
+		// // //   }
 
 		stress_star = stress;
 		update_direction.block(0) = x;
 		//x *= -1;
 
+		stress.block(0) *= 1-alpha_j;
+		stress.block(0).add(alpha_j, update_direction.block(0));
+		transfer_interface_dofs(stress, stress, 0, 1, Displacement);
 		// Update the stress using the adjoint variables
 		// stress.block(0)*=(1-alpha);
 
@@ -501,7 +528,7 @@ void FSIProblem<dim>::run ()
 		try {
 		  solver.solve(A, output_vector, input_vector, PreconditionIdentity());
 		} catch (std::exception &e) {
-		  Assert (false, ExcMessage(e.what()));
+		  AssertThrow (false, ExcMessage(e.what()));
 		}
 	      
 		pcout << "last val: " << solver_control.last_value() << std::endl;
@@ -659,7 +686,7 @@ void FSIProblem<dim>::run ()
 		try {
 		  solver.solve(A, output_vector, input_vector, PreconditionIdentity());
 		} catch (std::exception &e) {
-		  Assert (false, ExcMessage(e.what()));
+		  AssertThrow (false, ExcMessage(e.what()));
 		}
 	      
 		m_val = -solver_control.last_value();
@@ -689,8 +716,8 @@ void FSIProblem<dim>::run ()
 		// 	convergence_flag = optimization_GMRES(total_solves, initialized_timestep_number, true, 1);
 		// }
 	      }
-	      AG_line_search = fem_properties.line_search_method.compare("AG")==0;
-	      backwards_line_search = fem_properties.line_search_method.compare("BACKWARDS")==0;     
+	      AG_line_search = (fem_properties.line_search_method.compare("AG")==0);
+	      backwards_line_search = (fem_properties.line_search_method.compare("BACKWARDS")==0);     
 	    }
 	  }
   	}
