@@ -185,6 +185,7 @@ class FSIProblem
 
   BlockVector<double>       	solution;
   BlockVector<double>       	solution_star;
+  BlockVector<double>       	pre_linesearch_solution;
   BlockVector<double>		rhs_for_adjoint;
   BlockVector<double>		rhs_for_adjoint_s;
   BlockVector<double>		rhs_for_linear;

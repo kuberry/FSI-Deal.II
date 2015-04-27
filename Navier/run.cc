@@ -243,7 +243,7 @@ void FSIProblem<dim>::run ()
 
               // Need a reasonable first guess at the solution
               // Otherwise, previous diverging may cause issues
-              solution_star = old_solution; 
+              solution = pre_linesearch_solution;
 
 	      stress *= 0;
 	      transfer_interface_dofs(stress_star, stress, 0, 0);
@@ -257,45 +257,63 @@ void FSIProblem<dim>::run ()
 	      transfer_interface_dofs(stress, stress, 0, 1, Displacement);
 
 	      // Solve both fluid and structure simultaneously
+	      // Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
+	      // s_solver.join();
+
+	      // if (physical_properties.moving_domain) {
+	      //   //
+	      //   // Laplace solve for domain update
+	      //   // 
+	      //   assemble_ale(state,true);
+	      //   dirichlet_boundaries((System)2,state);
+	      //   state_solver[2].factorize(system_matrix.block(2,2));
+	      //   solve(state_solver[2],2,state);
+	      //   transfer_all_dofs(solution,mesh_displacement_star,2,0);
+
+	      //   if (physical_properties.simulation_type==2)
+	      //     {
+	      //       // Overwrites the Laplace solve since the velocities compared against will not be correct
+	      //       ale_boundary_values.set_time(time);
+	      //       VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+	      //   			 ale_boundary_values,
+	      //   			 mesh_displacement_star.block(2)); // move directly to fluid block 
+	      //       transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+	      //     }
+	      //   mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
+
+	      //   if (fem_properties.time_dependent) {
+	      //     //
+	      //     // Laplace solve for domain velocity update
+	      //     // 
+	      //     assemble_ale(state,true);
+	      //     dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
+	      //     state_solver[2].factorize(system_matrix.block(2,2));
+	      //     solve(state_solver[2],2,state);
+	      //     transfer_all_dofs(solution,mesh_velocity,2,0);
+
+	      //     // mesh_velocity.block(0)=mesh_displacement_star.block(0);
+	      //     // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+	      //     // mesh_velocity.block(0)*=1./time_step;
+	      //   }
+	      // }
+
+	      // Solve both fluid and structure simultaneously
 	      Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
+	      Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+
+              // return_value() implicitly calls join() on the Task
+              // A return value of 1 indicates that the solver succeeded.
+              if (f_solver.return_value() != 1) {
+	        if (AG_line_search || backwards_line_search) {
+                  alpha_j *= 0.5;
+                  continue; // sends back to the reduction of alpha_j
+                } else {
+                  AssertThrow (false, ExcNotImplemented());// Bad first guess at beginning of time step.
+                }
+              }
+                
 	      s_solver.join();
-
-	      if (physical_properties.moving_domain) {
-		//
-		// Laplace solve for domain update
-		// 
-		assemble_ale(state,true);
-		dirichlet_boundaries((System)2,state);
-		state_solver[2].factorize(system_matrix.block(2,2));
-		solve(state_solver[2],2,state);
-		transfer_all_dofs(solution,mesh_displacement_star,2,0);
-
-		if (physical_properties.simulation_type==2)
-		  {
-		    // Overwrites the Laplace solve since the velocities compared against will not be correct
-		    ale_boundary_values.set_time(time);
-		    VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-					 ale_boundary_values,
-					 mesh_displacement_star.block(2)); // move directly to fluid block 
-		    transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
-		  }
-		mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
-
-		if (fem_properties.time_dependent) {
-		  //
-		  // Laplace solve for domain velocity update
-		  // 
-		  assemble_ale(state,true);
-		  dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
-		  state_solver[2].factorize(system_matrix.block(2,2));
-		  solve(state_solver[2],2,state);
-		  transfer_all_dofs(solution,mesh_velocity,2,0);
-
-		  // mesh_velocity.block(0)=mesh_displacement_star.block(0);
-		  // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
-		  // mesh_velocity.block(0)*=1./time_step;
-		}
-	      }
+	      // f_solver.join();
 	    } else {
 	      // The method for using alpha is significantly different for Gradient vs other optimization methods
 	      if (fem_properties.optimization_method.compare("Gradient")==0) {
@@ -339,9 +357,18 @@ void FSIProblem<dim>::run ()
 		  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
 
 		  if (fem_properties.time_dependent) {
-		    mesh_velocity.block(0)=mesh_displacement_star.block(0);
-		    mesh_velocity.block(0)-=old_mesh_displacement.block(0);
-		    mesh_velocity.block(0)*=1./time_step;
+		    //
+		    // Laplace solve for domain velocity update
+		    // 
+		    assemble_ale(state,true);
+		    dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
+		    state_solver[2].factorize(system_matrix.block(2,2));
+		    solve(state_solver[2],2,state);
+		    transfer_all_dofs(solution,mesh_velocity,2,0);
+
+		    // mesh_velocity.block(0)=mesh_displacement_star.block(0);
+		    // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+		    // mesh_velocity.block(0)*=1./time_step;
 		  }
 		}
 
@@ -359,25 +386,29 @@ void FSIProblem<dim>::run ()
 	      // This really only becomes noticeable using the first order finite difference in the objective
 
 	      timer.leave_subsection();
+
+	      // Solve both fluid and structure simultaneously
+	      Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
+	      Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+
+              // return_value() implicitly calls join() on the Task
+              // A return value of 1 indicates that the solver succeeded.
+              if (f_solver.return_value() != 1) {
+	        if (AG_line_search || backwards_line_search) {
+                  alpha_j *= 0.5;
+                  continue; // sends back to the reduction of alpha_j
+                } else {
+                  AssertThrow (false, ExcNotImplemented());// Bad first guess at beginning of time step.
+                }
+              }
+                
+	      s_solver.join();
+	      // f_solver.join();
+
+              pre_linesearch_solution = solution;
 	    } // Moving Domain, AG-Line Search or Not
 
-	    // Solve both fluid and structure simultaneously
-	    Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
-	    Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
 
-            // return_value() implicitly calls join() on the Task
-            // A return value of 1 indicates that the solver succeeded.
-            if (f_solver.return_value() != 1) {
-	      if (AG_line_search || backwards_line_search) {
-                alpha_j *= 0.5;
-                continue; // sends back to the reduction of alpha_j
-              } else {
-                AssertThrow (false, ExcNotImplemented());// Bad first guess at beginning of time step.
-              }
-            }
-              
-	    s_solver.join();
-	    // f_solver.join();
 	  } // end of not DN case
 
 	  build_adjoint_rhs();

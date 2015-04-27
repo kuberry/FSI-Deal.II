@@ -1045,6 +1045,7 @@ void FSIProblem<dim>::initialize_sizes ()
 
   solution.reinit (n_big_blocks);
   solution_star.reinit (n_big_blocks);
+  pre_linesearch_solution.reinit (n_big_blocks);
   rhs_for_adjoint.reinit(n_big_blocks);
   rhs_for_adjoint_s.reinit(n_big_blocks);
   rhs_for_linear.reinit(n_big_blocks);
@@ -1073,6 +1074,7 @@ void FSIProblem<dim>::initialize_sizes ()
     {
       solution.block(i).reinit (dofs_per_big_block[i]);
       solution_star.block(i).reinit (dofs_per_big_block[i]);
+      pre_linesearch_solution.block(i).reinit (dofs_per_big_block[i]);
       rhs_for_adjoint.block(i).reinit(dofs_per_big_block[i]);
       rhs_for_adjoint_s.block(i).reinit(dofs_per_big_block[i]);
       rhs_for_linear.block(i).reinit(dofs_per_big_block[i]);
@@ -1100,6 +1102,7 @@ void FSIProblem<dim>::initialize_sizes ()
     }
   solution.collect_sizes ();
   solution_star.collect_sizes ();
+  pre_linesearch_solution.collect_sizes ();
   rhs_for_adjoint.collect_sizes ();
   rhs_for_adjoint_s.collect_sizes ();
   rhs_for_linear.collect_sizes ();
