@@ -223,6 +223,7 @@ void FSIProblem<dim>::run ()
       if (fem_properties.optimization_method.compare("Gradient")==0)
 	alpha_j = fem_properties.steepest_descent_alpha;
       double t_val = 0;
+      bool smoothing_domain_update = false;
 
       // *****************************************************************************************
       //                                OUTER OPTIMIZATION ITERATION LOOP
@@ -324,86 +325,142 @@ void FSIProblem<dim>::run ()
 	      }
 
 	      ++count;
-	      if (count == 1 && fem_properties.true_control)
-		{
-		  fluid_boundary_stress.set_time(time);
-		  VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-				       fluid_boundary_stress,
-				       stress.block(0));
-		  transfer_interface_dofs(stress,stress,0,1);
-		  stress_star = stress;
-		}
+	      if (count == 1 && fem_properties.true_control) {
+		fluid_boundary_stress.set_time(time);
+		VectorTools::project(fluid_dof_handler, fluid_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+		      	       fluid_boundary_stress,
+		      	       stress.block(0));
+		transfer_interface_dofs(stress,stress,0,1);
+		stress_star = stress;
+              }
 
-	      // RHS and Neumann conditions are inside these functions
-	      // Solve for the state variables
-	      timer.enter_subsection ("Assemble"); 
-	      if (physical_properties.moving_domain)
-		{
-		  assemble_ale(state,true);
-		  dirichlet_boundaries((System)2,state);
-		  state_solver[2].factorize(system_matrix.block(2,2));
-		  solve(state_solver[2],2,state);
-		  transfer_all_dofs(solution,mesh_displacement_star,2,0);
+              if (!smoothing_domain_update) {
+	        // RHS and Neumann conditions are inside these functions
+	        // Solve for the state variables
+	        timer.enter_subsection ("Assemble"); 
+	        if (physical_properties.moving_domain) {
+	          assemble_ale(state,true);
+	          dirichlet_boundaries((System)2,state);
+	          state_solver[2].factorize(system_matrix.block(2,2));
+	          solve(state_solver[2],2,state);
+	          transfer_all_dofs(solution,mesh_displacement_star,2,0);
 
-		  if (physical_properties.simulation_type==2)
-		    {
-		      // Overwrites the Laplace solve since the velocities compared against will not be correct
-		      ale_boundary_values.set_time(time);
-		      VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
-					   ale_boundary_values,
-					   mesh_displacement_star.block(2)); // move directly to fluid block 
-		      transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
-		    }
-		  mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
+	          if (physical_properties.simulation_type==2)
+	            {
+	              // Overwrites the Laplace solve since the velocities compared against will not be correct
+	              ale_boundary_values.set_time(time);
+	              VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+	                		   ale_boundary_values,
+	                		   mesh_displacement_star.block(2)); // move directly to fluid block 
+	              transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+	            }
+	          mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
 
-		  if (fem_properties.time_dependent) {
-		    //
-		    // Laplace solve for domain velocity update
-		    // 
-		    assemble_ale(state,true);
-		    dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
-		    state_solver[2].factorize(system_matrix.block(2,2));
-		    solve(state_solver[2],2,state);
-		    transfer_all_dofs(solution,mesh_velocity,2,0);
+	          if (fem_properties.time_dependent) {
+	            //
+	            // Laplace solve for domain velocity update
+	            // 
+	            assemble_ale(state,true);
+	            dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
+	            state_solver[2].factorize(system_matrix.block(2,2));
+	            solve(state_solver[2],2,state);
+	            transfer_all_dofs(solution,mesh_velocity,2,0);
 
-		    // mesh_velocity.block(0)=mesh_displacement_star.block(0);
-		    // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
-		    // mesh_velocity.block(0)*=1./time_step;
-		  }
-		}
-
-	      // Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
+	            // mesh_velocity.block(0)=mesh_displacement_star.block(0);
+	            // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+	            // mesh_velocity.block(0)*=1./time_step;
+	          }
+                }
+              
+	        // Threads::Task<> s_assembly = Threads::new_task(&FSIProblem<dim>::assemble_structure,*this,state,true);
 	  
-	      // s_assembly.join();
-	      // dirichlet_boundaries((System)1,state);
-	      // Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, state_solver[1], system_matrix.block(1,1));
-	      // s_factor.join();
-	      // Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
-	      // s_solve.join();
+	        // s_assembly.join();
+	        // dirichlet_boundaries((System)1,state);
+	        // Threads::Task<void> s_factor = Threads::new_task(&SparseDirectUMFPACK::factorize<SparseMatrix<double> >, state_solver[1], system_matrix.block(1,1));
+	        // s_factor.join();
+	        // Threads::Task<void> s_solve = Threads::new_task(&FSIProblem<dim>::solve, *this, state_solver[1], 1, state);				
+	        // s_solve.join();
 
-	      // pcout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
-	      // As timestep decreases, this makes it increasing difficult to get within some tolerance on the interface error
-	      // This really only becomes noticeable using the first order finite difference in the objective
+	        // pcout << "Norm of structure: " << system_matrix.block(0,0).frobenius_norm() << std::endl;  
+	        // As timestep decreases, this makes it increasing difficult to get within some tolerance on the interface error
+	        // This really only becomes noticeable using the first order finite difference in the objective
 
-	      timer.leave_subsection();
+	        timer.leave_subsection();
 
-	      // Solve both fluid and structure simultaneously
-	      Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
-	      Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+	        // Solve both fluid and structure simultaneously
+	        Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
+	        Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
 
-              // return_value() implicitly calls join() on the Task
-              // A return value of 1 indicates that the solver succeeded.
-              if (f_solver.return_value() != 1) {
-	        if (AG_line_search || backwards_line_search) {
-                  alpha_j *= 0.5;
-                  continue; // sends back to the reduction of alpha_j
-                } else {
-                  AssertThrow (false, ExcNotImplemented());// Bad first guess at beginning of time step.
+                // return_value() implicitly calls join() on the Task
+                // A return value of 1 indicates that the solver succeeded.
+                if (f_solver.return_value() != 1) {
+	          if (AG_line_search || backwards_line_search) {
+                    alpha_j *= 0.5;
+                    continue; // sends back to the reduction of alpha_j
+                  } else {
+                    AssertThrow (false, ExcNotImplemented());// Bad first guess at beginning of time step.
+                  }
+                }
+                  
+	        s_solver.join();
+	        // f_solver.join();
+              }
+
+              int smoothing_count = 1;
+              
+              if (smoothing_domain_update) {
+                for (int i=0; i<smoothing_count; i++) {
+                  // return_value() implicitly calls join() on the Task
+                  // A return value of 1 indicates that the solver succeeded.
+                  if (f_solver.return_value() != 1) {
+	            if (AG_line_search || backwards_line_search) {
+                      alpha_j *= 0.5;
+                      continue; // sends back to the reduction of alpha_j
+                    } else {
+                      AssertThrow (false, ExcNotImplemented());// Bad first guess at beginning of time step.
+                    }
+                  }
+                    
+	          s_solver.join();
+	          // f_solver.join();
+	          // RHS and Neumann conditions are inside these functions
+	          // Solve for the state variables
+	          timer.enter_subsection ("Assemble"); 
+	          if (physical_properties.moving_domain) {
+	            assemble_ale(state,true);
+	            dirichlet_boundaries((System)2,state);
+	            state_solver[2].factorize(system_matrix.block(2,2));
+	            solve(state_solver[2],2,state);
+	            transfer_all_dofs(solution,mesh_displacement_star,2,0);
+
+	            if (physical_properties.simulation_type==2)
+	              {
+	                // Overwrites the Laplace solve since the velocities compared against will not be correct
+	                ale_boundary_values.set_time(time);
+	                VectorTools::project(ale_dof_handler, ale_constraints, QGauss<dim>(fem_properties.fluid_degree+2),
+	                  		   ale_boundary_values,
+	                  		   mesh_displacement_star.block(2)); // move directly to fluid block 
+	                transfer_all_dofs(mesh_displacement_star,mesh_displacement_star,2,0);
+	              }
+	            mesh_displacement_star_old.block(0) = mesh_displacement_star.block(0); // Not currently implemented, but will allow for half steps
+
+	            if (fem_properties.time_dependent) {
+	              //
+	              // Laplace solve for domain velocity update
+	              // 
+	              assemble_ale(state,true);
+	              dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
+	              state_solver[2].factorize(system_matrix.block(2,2));
+	              solve(state_solver[2],2,state);
+	              transfer_all_dofs(solution,mesh_velocity,2,0);
+
+	              // mesh_velocity.block(0)=mesh_displacement_star.block(0);
+	              // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
+	              // mesh_velocity.block(0)*=1./time_step;
+	            }
+                  }
                 }
               }
-                
-	      s_solver.join();
-	      // f_solver.join();
 
               pre_linesearch_solution = solution;
 	    } // Moving Domain, AG-Line Search or Not
@@ -426,16 +483,22 @@ void FSIProblem<dim>::run ()
 	      pcout << "Difference: " << velocity_jump - velocity_with_update << std::endl;
 	      if (AG_line_search) {
 		pcout << "Criteria: " << std::abs(alpha_j) * t_val << std::endl;
-		if ((velocity_jump - velocity_with_update) >= std::abs(alpha_j) * t_val) AG_line_search = false;
+		if ((velocity_jump - velocity_with_update) >= std::abs(alpha_j) * t_val) {
+                  AG_line_search = false;
+                  smoothing_domain_update = true;
+                }
 		else alpha_j *= .5;
 	      } else {
-		if ((velocity_jump - velocity_with_update) >= 0) backwards_line_search = false;
+		if ((velocity_jump - velocity_with_update) >= 0) {
+                  backwards_line_search = false;
+                  smoothing_domain_update = true;
+                }
 		else alpha_j *= .5;
 	      }
 	    
 	      pcout << "alpha_j: " << alpha_j << std::endl;
 
-	    } else {
+            } else {
 
 	      // *****************************************************************************************
 	      //                              STOPPING CRITERIA CALCULATION
