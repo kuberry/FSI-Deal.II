@@ -7,6 +7,8 @@
 #include "linear_maps.h"
 #include "solver_controls.h"
 
+#define OUTPUT_TIMES 1000
+
 template <int dim>
 void FSIProblem<dim>::run ()
 {
@@ -410,6 +412,10 @@ void FSIProblem<dim>::run ()
               
               if (smoothing_domain_update) {
                 for (int i=0; i<smoothing_count; i++) {
+	          // Solve both fluid and structure simultaneously
+	          Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
+	          Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+
                   // return_value() implicitly calls join() on the Task
                   // A return value of 1 indicates that the solver succeeded.
                   if (f_solver.return_value() != 1) {
@@ -836,7 +842,7 @@ void FSIProblem<dim>::run ()
       pcout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
       t.restart();
       if (physical_properties.simulation_type==1) {
-	if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0)
+	if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/OUTPUT_TIMES))==0)
 	  {
 	    dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
 	    Point<dim> p1(1.5,1);
@@ -889,8 +895,8 @@ void FSIProblem<dim>::run ()
 	outflow_rate[timestep_number] = flowrate_through_surface(2);
 	structure_file_out << time << " " << y_displacement[timestep_number] << " " << outflow_rate[timestep_number] << std::endl; 
       }
-      // Write these vectors to the hard drive 100 times
-      if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0) {
+      // Write these vectors to the hard drive OUTPUT_TIMES times
+      if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/OUTPUT_TIMES))==0) {
 	  // This could be made more robust in the future by copying data before saving the new data
 	  // However, this means the job would have to fail in the middle of writing which seems unlikely
 	  std::ofstream recent_iteration_num ("recent.data");
