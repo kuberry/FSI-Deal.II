@@ -199,6 +199,7 @@ class FSIProblem
   BlockVector<double>		tmp, tmp2;
   BlockVector<double>       	old_solution;
   BlockVector<double>       	old_old_solution;
+  BlockVector<double>       	old_old_old_solution;
   BlockVector<double>       	system_rhs;
   BlockVector<double>       	adjoint_rhs;    
   BlockVector<double>       	linear_rhs;

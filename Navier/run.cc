@@ -334,16 +334,32 @@ void FSIProblem<dim>::run ()
 		  stress_star = stress;
 		}
 
+
+
+
 	      // RHS and Neumann conditions are inside these functions
 	      // Solve for the state variables
 	      timer.enter_subsection ("Assemble"); 
 	      if (physical_properties.moving_domain)
 		{
+
+		  // Code entered here may not be correct and needs to be checked
+		  pre_linesearch_solution = solution; 
+		  // Reset values to 5 s(t_{n-1}) 
+		  solution.block(1) *= 0;
+		  solution.block(1).add(3, old_old_old_solution.block(0));
+		  solution.block(1).add(-8, old_old_solution.block(0));
+		  solution.block(1).add(5, old_solution.block(0));
+		  solution.block(1) *= 1./(2.0*time_step);
+
 		  assemble_ale(state,true);
 		  dirichlet_boundaries((System)2,state);
 		  state_solver[2].factorize(system_matrix.block(2,2));
 		  solve(state_solver[2],2,state);
 		  transfer_all_dofs(solution,mesh_displacement_star,2,0);
+
+		  // Code entered here may not be correct and needs to be checked
+		  solution = pre_linesearch_solution; 
 
 		  if (physical_properties.simulation_type==2)
 		    {
@@ -759,7 +775,8 @@ void FSIProblem<dim>::run ()
       if (fem_properties.make_plots) output_results ();
       //if (fem_properties.richardson) 
       //	{
-  	  old_old_solution = old_solution;
+      old_old_old_solution = old_old_solution;
+      old_old_solution = old_solution;
 	  //	}
       old_solution = solution;
       old_stress = stress;

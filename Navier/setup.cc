@@ -1060,6 +1060,7 @@ void FSIProblem<dim>::initialize_sizes ()
   tmp2.reinit (n_big_blocks);
   old_solution.reinit (n_big_blocks);
   old_old_solution.reinit (n_big_blocks);
+  old_old_old_solution.reinit (n_big_blocks);
   system_rhs.reinit (n_big_blocks);
   adjoint_rhs.reinit (n_big_blocks);
   linear_rhs.reinit (n_big_blocks);
@@ -1089,6 +1090,7 @@ void FSIProblem<dim>::initialize_sizes ()
       tmp2.block(i).reinit (dofs_per_big_block[i]);
       old_solution.block(i).reinit (dofs_per_big_block[i]);
       old_old_solution.block(i).reinit (dofs_per_big_block[i]);
+      old_old_old_solution.block(i).reinit (dofs_per_big_block[i]);
       system_rhs.block(i).reinit (dofs_per_big_block[i]);
       adjoint_rhs.block(i).reinit (dofs_per_big_block[i]);
       linear_rhs.block(i).reinit (dofs_per_big_block[i]);
@@ -1117,6 +1119,7 @@ void FSIProblem<dim>::initialize_sizes ()
   tmp2.collect_sizes ();
   old_solution.collect_sizes ();
   old_old_solution.collect_sizes ();
+  old_old_old_solution.collect_sizes ();
   system_rhs.collect_sizes ();
   adjoint_rhs.collect_sizes ();
   linear_rhs.collect_sizes ();
