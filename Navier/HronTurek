@@ -49,7 +49,7 @@ set nu                    = 0.4
 
 # number of time steps to divide T by.
 # set number of time steps  = 18000
-set number of time steps  = 20000
+set number of time steps  = 50000
 #set number of time steps  = 5000
 
 # give error output info at each time step.
