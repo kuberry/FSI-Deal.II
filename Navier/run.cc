@@ -352,12 +352,19 @@ void FSIProblem<dim>::run ()
 		  // solution.block(1).add(5, old_solution.block(0));
 		  // solution.block(1) *= 1./(2.0*time_step);
 
+		  BlockVector<double> solution_save = solution;
+		  BlockVector<double> temp_velocity = old_solution;
+		  solution.block(1) = old_solution.block(1);
+		  //transfer_interface_dofs(temp_velocity,solution,1,1,Velocity,Displacement);
+		  //solution.block(1).add(time_step, temp_velocity.block(1));
+		  
 		  assemble_ale(state,true);
 		  dirichlet_boundaries((System)2,state);
 		  state_solver[2].factorize(system_matrix.block(2,2));
 		  solve(state_solver[2],2,state);
 		  transfer_all_dofs(solution,mesh_displacement_star,2,0);
-
+		  
+		  solution = solution_save;
 		  // Code entered here may not be correct and needs to be checked
 		  //solution = pre_linesearch_solution; 
 
@@ -376,7 +383,17 @@ void FSIProblem<dim>::run ()
 		    //
 		    // Laplace solve for domain velocity update
 		    //
-		    BlockVector<double> temp_solution = solution;
+
+		    		  // pre_linesearch_solution = solution; 
+		  // // Reset values to 5 s(t_{n-1}) 
+		  // 
+		    BlockVector<double> temp_solution = old_solution;
+		    BlockVector<double> solution_save = solution;
+		    // temp_solution.block(1) *= 0;
+		    // temp_solution.block(1).add(3, old_old_old_solution.block(0));
+		    // temp_solution.block(1).add(-8, old_old_solution.block(0));
+		    // temp_solution.block(1).add(5, old_solution.block(0));
+		    // temp_solution.block(1) *= 1./(2.0*time_step);
 		    transfer_interface_dofs(temp_solution,solution,1,1,Velocity,Displacement); 
 		    assemble_ale(state,true);
 		    dirichlet_boundaries((System)2,state,true); // 3rd argument, special_case=true
@@ -384,7 +401,7 @@ void FSIProblem<dim>::run ()
 		    solve(state_solver[2],2,state);
 		    transfer_all_dofs(solution,mesh_velocity,2,0);
 
-		    solution.block(1)=temp_solution.block(1); 
+		    solution.block(1)=solution_save.block(1); 
 		    // mesh_velocity.block(0)=mesh_displacement_star.block(0);
 		    // mesh_velocity.block(0)-=old_mesh_displacement.block(0);
 		    // mesh_velocity.block(0)*=1./time_step;
@@ -793,7 +810,7 @@ void FSIProblem<dim>::run ()
       pcout << "Est. Rem.: " << (fem_properties.T-time)/time_step*total_time/timestep_number << std::endl;
       t.restart();
       if (physical_properties.simulation_type==1) {
-	if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0)
+	if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/1000))==0)
 	  {
 	    dealii::Functions::FEFieldFunction<dim> fe_function (structure_dof_handler, solution.block(1));
 	    Point<dim> p1(1.5,1);
@@ -847,7 +864,7 @@ void FSIProblem<dim>::run ()
 	structure_file_out << time << " " << y_displacement[timestep_number] << " " << outflow_rate[timestep_number] << std::endl; 
       }
       // Write these vectors to the hard drive 100 times
-      if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/100))==0) {
+      if (timestep_number%(unsigned int)(std::ceil((double)total_timesteps/1000))==0) {
 	  // This could be made more robust in the future by copying data before saving the new data
 	  // However, this means the job would have to fail in the middle of writing which seems unlikely
 	  std::ofstream recent_iteration_num ("recent.data");
