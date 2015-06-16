@@ -111,15 +111,15 @@ void FSIProblem<dim>::dirichlet_boundaries (System system, Mode enum_, bool spec
 		  VectorTools::interpolate_boundary_values (ale_dof_handler,
 							    i,
 							    ZeroFunction<dim>(dim),
-							    ale_dirichlet_boundary_values,
-							    ale_fe.component_mask(ale_displacement));
+							    ale_dirichlet_boundary_values);
+		  // ale_fe.component_mask(ale_displacement));
 		}
 	    }
-	  MatrixTools::apply_boundary_values (ale_dirichlet_boundary_values,
+	  MatrixTools::apply_boundary_values (ale_interface_boundary_values,
 					      system_matrix.block(2,2),
 					      solution.block(2),
 					      system_rhs.block(2));
-	  MatrixTools::apply_boundary_values (ale_interface_boundary_values,
+	  MatrixTools::apply_boundary_values (ale_dirichlet_boundary_values,
 					      system_matrix.block(2,2),
 					      solution.block(2),
 					      system_rhs.block(2));
