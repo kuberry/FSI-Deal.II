@@ -32,7 +32,7 @@ set jump tolerance        = 1e-10
 set lambda                = 0
 
 # create plots of the solution at each time step.
-set make plots            = false
+set make plots            = true
 
 # maximum number of optimization iterations per time step.
 set max optimization iterations = 1000
@@ -49,7 +49,7 @@ set nu                    = 0.4
 
 # number of time steps to divide T by.
 # set number of time steps  = 18000
-set number of time steps  = 50000
+set number of time steps  = 20000
 #set number of time steps  = 5000
 
 # give error output info at each time step.
@@ -80,7 +80,7 @@ set viscosity             = 1.0
 # Richardson or Newton for solving the nonlinearity in NS
 # If there is a conflict, the default is Newton's method
 set richardson            = false
-set fluid newton          = true
+set fluid newton          = false
 set structure newton      = true
 
 set navier stokes         = true
