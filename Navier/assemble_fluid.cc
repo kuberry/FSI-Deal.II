@@ -74,8 +74,8 @@ int FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number)
     }
 	      
     loop_count++;
-  } while (solution_star.block(0).l2_norm()>1e-8 && loop_count<25);
-  if (loop_count==25) //diverged
+  } while (solution_star.block(0).l2_norm()>1e-8 && loop_count<50);
+  if (loop_count==50) //diverged
     return -1;
   solution_star.block(0) = solution.block(0); 
   return 1;
@@ -87,6 +87,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 						       PerTaskData<dim>& data )
 {
   unsigned int state=0, adjoint=1;//, linear=2;
+
+  // double coeffSUPG = .05;
 
   ConditionalOStream pcout(std::cout,Threads::this_thread_id()==master_thread); 
   //TimerOutput timer (pcout, TimerOutput::summary,
@@ -385,14 +387,31 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 					 phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
 					 + u_star*transpose(grad_phi_u[j])*phi_u[i]
 					  ) * scratch.fe_values.JxW(q);
+                                      // // SUPG
+				      // data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
+				      //   ( 
+				      //    coeffSUPG * (
+                                      //        phi_u[j]*transpose(grad_u_star[q])*(u_star*transpose(grad_phi_u[i]))
+				      //        + u_star*transpose(grad_phi_u[j])*(u_star*transpose(grad_phi_u[i]))
+                                      //        )
+                                      //   ) * scratch.fe_values.JxW(q);
 				    }
 				  else
 				    {
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
 					 //phi_u[j]*transpose(grad_u_star[q])*phi_u[i] <- This way is ineffective
-					 u_star*transpose(grad_phi_u[j])*phi_u[i]
+                                         // SWITCHED TO OLD THIS DOES NOT BELONG!!!!
+					 // u_star*transpose(grad_phi_u[j])*phi_u[i]
+					 u_old*transpose(grad_phi_u[j])*phi_u[i]
 					 ) * scratch.fe_values.JxW(q);
+                                //       // SUPG
+				//       data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
+				// 	(
+				// 	 //phi_u[j]*transpose(grad_u_star[q])*phi_u[i] <- This way is ineffective
+                                //          coeffSUPG * 
+				// 	 u_star*transpose(grad_phi_u[j])*(u_star*transpose(grad_phi_u[i]))
+				// 	 ) * scratch.fe_values.JxW(q);
 				    }
 				  data.cell_matrix(i,j) += (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
@@ -432,11 +451,16 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    }
 				  else 
 				    {
+                                         // SWITCHED TO OLD THIS DOES NOT BELONG!!!!
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
-					 phi_u[i]*transpose(grad_u_star[q])*phi_u[j]
-					 + u_star*transpose(grad_phi_u[i])*phi_u[j]
+					 u_old*transpose(grad_phi_u[i])*phi_u[j]
 					 ) * scratch.fe_values.JxW(q);
+				//      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
+				//	(
+				//	 phi_u[i]*transpose(grad_u_star[q])*phi_u[j]
+				//	 + u_star*transpose(grad_phi_u[i])*phi_u[j]
+				//	 ) * scratch.fe_values.JxW(q);
 				    }
 				  data.cell_matrix(i,j) += (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
@@ -476,11 +500,16 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 				    }
 				  else
 				    {
+                                         // SWITCHED TO OLD THIS DOES NOT BELONG!!!!
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
-					 phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
-					 + u_star*transpose(grad_phi_u[j])*phi_u[i]
+					 u_old*transpose(grad_phi_u[j])*phi_u[i]
 					 ) * scratch.fe_values.JxW(q);
+				//       data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
+				// 	(
+				// 	 phi_u[j]*transpose(grad_u_star[q])*phi_u[i]
+				// 	 + u_star*transpose(grad_phi_u[j])*phi_u[i]
+				// 	 ) * scratch.fe_values.JxW(q);
 				    }
 				  data.cell_matrix(i,j) += (1-fem_properties.fluid_theta)*fem_properties.fluid_theta * physical_properties.rho_f * 
 				    (
