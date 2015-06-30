@@ -82,6 +82,8 @@ set viscosity             = 1.0
 set richardson            = false
 set fluid newton          = false
 set structure newton      = true
+set lag fluid convection  = false
+set lag domain convection = true
 
 set navier stokes         = true
 
@@ -95,3 +97,4 @@ set adjoint type          = 2
 set nonlinear elasticity  = true
 set mean velocity         = 2.0
 set mesh refinements      = 0
+
