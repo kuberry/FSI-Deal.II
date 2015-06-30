@@ -118,7 +118,7 @@ class FSIProblem
     Velocity,
     NotSet
   };
-  int  fluid_state_solve(unsigned int initialized_timestep_number);
+  int  fluid_state_solve(unsigned int initialized_timestep_number, double time);
   void structure_state_solve(unsigned int initialized_timestep_number);
   void ale_state_solve(unsigned int initialized_timestep_number);
 
@@ -271,6 +271,8 @@ fluid_fe (FE_Q<dim>(prm_.get_integer("fluid velocity degree")), dim,
   fem_properties.n_time_steps		= prm_.get_integer("number of time steps");
   fem_properties.fluid_theta		= prm_.get_double("fluid theta");
   fem_properties.structure_theta	= prm_.get_double("structure theta");
+  fem_properties.lag_fluid_convection   = prm_.get_bool("lag fluid convection");
+  fem_properties.lag_domain_convection  = prm_.get_bool("lag domain convection");
   // Domain Parameters
   fem_properties.fluid_width		= prm_.get_double("fluid width");
   fem_properties.fluid_height		= prm_.get_double("fluid height");

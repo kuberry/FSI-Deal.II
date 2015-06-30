@@ -28,10 +28,13 @@
 // then fix the assembly of the Stokes operator and rhs (lines ~420 and ~540)
 
 template <int dim>
-int FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number) {
+int FSIProblem<dim>::fluid_state_solve(unsigned int initialized_timestep_number, double time) {
   // solution_star.block(0)=1;
   bool newton = fem_properties.fluid_newton;
   unsigned int picard_iterations = 1;
+  // DELETE THIS BLOCK LATER
+  if (time < 6.0 && time > 5.0)
+    picard_iterations = 1000;
   unsigned int loop_count = 0;
   do  {
     solution_star.block(0)=solution.block(0);
@@ -403,7 +406,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
 					 //phi_u[j]*transpose(grad_u_star[q])*phi_u[i] <- This way is ineffective
                                          // SWITCHED TO OLD THIS DOES NOT BELONG!!!!
 					 // u_star*transpose(grad_phi_u[j])*phi_u[i]
-					 u_old*transpose(grad_phi_u[j])*phi_u[i]
+					 (fem_properties.lag_fluid_convection*u_old+(!fem_properties.lag_fluid_convection)*u_star)
+                                            * transpose(grad_phi_u[j])*phi_u[i]
 					 ) * scratch.fe_values.JxW(q);
                                 //       // SUPG
 				//       data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
@@ -454,8 +458,10 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
                                          // SWITCHED TO OLD THIS DOES NOT BELONG!!!!
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
-					 u_old*transpose(grad_phi_u[i])*phi_u[j]
+                                         (fem_properties.lag_fluid_convection*u_old+(!fem_properties.lag_fluid_convection)*u_star)
+					   *transpose(grad_phi_u[i])*phi_u[j]
 					 ) * scratch.fe_values.JxW(q);
+				// SUPG is just a tag for where this was edited, the rest is what used to be here
 				//      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				//	(
 				//	 phi_u[i]*transpose(grad_u_star[q])*phi_u[j]
@@ -503,7 +509,8 @@ void FSIProblem<dim>::assemble_fluid_matrix_on_one_cell (const typename DoFHandl
                                          // SWITCHED TO OLD THIS DOES NOT BELONG!!!!
 				      data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 					(
-					 u_old*transpose(grad_phi_u[j])*phi_u[i]
+                                         (fem_properties.lag_fluid_convection*u_old+(!fem_properties.lag_fluid_convection)*u_star)
+					   *transpose(grad_phi_u[j])*phi_u[i]
 					 ) * scratch.fe_values.JxW(q);
 				//       data.cell_matrix(i,j) += pow(fem_properties.fluid_theta,2) * physical_properties.rho_f * 
 				// 	(
@@ -1214,7 +1221,7 @@ void FSIProblem<dim>::ref_transform_fluid()
 
 
 
-template int  FSIProblem<2>::fluid_state_solve(unsigned int initialized_timestep_number);
+template int  FSIProblem<2>::fluid_state_solve(unsigned int initialized_timestep_number, double time);
 
 template void FSIProblem<2>::assemble_fluid_matrix_on_one_cell (const DoFHandler<2>::active_cell_iterator& cell,
 							     FullScratchData<2>& scratch,
@@ -1230,7 +1237,7 @@ template void FSIProblem<2>::ref_transform_fluid();
 
 
 
-template int  FSIProblem<3>::fluid_state_solve(unsigned int initialized_timestep_number);
+template int  FSIProblem<3>::fluid_state_solve(unsigned int initialized_timestep_number, double time);
 
 template void FSIProblem<3>::assemble_fluid_matrix_on_one_cell (const DoFHandler<3>::active_cell_iterator& cell,
 							     FullScratchData<3>& scratch,

@@ -20,6 +20,10 @@ void FSIProblem<dim>::run ()
     fem_properties.fluid_theta = 1.0;
   }
 
+  if (fem_properties.lag_fluid_convection && fem_properties.fluid_newton) {
+    pcout << "INCOMPATIBLE: Newton iterations are not necessary with a lagged convective term in the fluid." << std::endl;
+    fem_properties.fluid_newton = false;
+  }
   // Make a quick check that we don't try to initialize to a non-one timestep with Richardson extrapolation
   // because it requires saving more time steps of data than we are storing.
   if (timestep_number>1 && fem_properties.richardson) AssertThrow(false, ExcNotImplemented());
@@ -299,7 +303,7 @@ void FSIProblem<dim>::run ()
 
 	      // Solve both fluid and structure simultaneously
 	      Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
-	      Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+	      Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number, time);
 
               // return_value() implicitly calls join() on the Task
               // A return value of 1 indicates that the solver succeeded.
@@ -354,7 +358,8 @@ void FSIProblem<dim>::run ()
 
 		  BlockVector<double> solution_save = solution;
 		  BlockVector<double> temp_velocity = old_solution;
-		  solution.block(1) = old_solution.block(1);
+                  if (fem_properties.lag_domain_convection) 
+		    solution.block(1) = old_solution.block(1);
 		  //transfer_interface_dofs(temp_velocity,solution,1,1,Velocity,Displacement);
 		  //solution.block(1).add(time_step, temp_velocity.block(1));
 		  
@@ -387,7 +392,12 @@ void FSIProblem<dim>::run ()
 		    		  // pre_linesearch_solution = solution; 
 		  // // Reset values to 5 s(t_{n-1}) 
 		  // 
-		    BlockVector<double> temp_solution = old_solution;
+		    BlockVector<double> temp_solution;
+                    if (fem_properties.lag_domain_convection)
+                      temp_solution = old_solution;
+                    else
+                      temp_solution = solution;
+
 		    BlockVector<double> solution_save = solution;
 		    // temp_solution.block(1) *= 0;
 		    // temp_solution.block(1).add(3, old_old_old_solution.block(0));
@@ -425,7 +435,7 @@ void FSIProblem<dim>::run ()
 
 	      // Solve both fluid and structure simultaneously
 	      Threads::Task<> s_solver = Threads::new_task(&FSIProblem<dim>::structure_state_solve,*this, initialized_timestep_number);
-	      Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number);
+	      Threads::Task<int> f_solver = Threads::new_task(&FSIProblem<dim>::fluid_state_solve,*this, initialized_timestep_number, time);
 
               // return_value() implicitly calls join() on the Task
               // A return value of 1 indicates that the solver succeeded.
@@ -845,7 +855,7 @@ void FSIProblem<dim>::run ()
 	  ale_transform_fluid();
 	  Tensor<1,dim> lift_drag = -lift_and_drag_fluid();
 	  ref_transform_fluid();
-	  lift_drag += lift_and_drag_structure();
+	  lift_drag -= lift_and_drag_structure();
 	  drag[timestep_number] = lift_drag[0];
 	  lift[timestep_number] = lift_drag[1];
 	  pcout << time << " drag: " << lift_drag[0] << " lift: " << lift_drag[1] << std::endl;

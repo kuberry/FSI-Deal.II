@@ -34,9 +34,11 @@ namespace Parameters
     bool        time_dependent;
     double      t0;
     double	T;
-    unsigned int	n_time_steps;
+    unsigned int n_time_steps;
     double 	fluid_theta;
-    double        structure_theta;
+    double      structure_theta;
+    bool        lag_fluid_convection;
+    bool        lag_domain_convection;
 
     // Domain Parameters
     double		fluid_width;
@@ -113,6 +115,10 @@ namespace Parameters
 	  			  "theta value for the fluid, 0.5 is Crank-Nicolson and 1.0 is Implicit Euler.");
 	  prm.declare_entry("structure theta", "0.5", Patterns::Double(0,1),
 	  			  "theta value for the structure, 0.5 is midpoint and anything else isn't implemented.");
+	  prm.declare_entry("lag fluid convection", "false", Patterns::Bool(),
+			  	  "use u^n instead of u^{n+1} in convective term.");
+	  prm.declare_entry("lag domain convection", "false", Patterns::Bool(),
+			  	  "use z^n instead of z^{n+1} in convective term.");
 
 	  // Domain Parameters
 	  prm.declare_entry("fluid width", "1.0", Patterns::Double(0),
